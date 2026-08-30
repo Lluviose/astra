@@ -3,14 +3,11 @@ import SwiftUI
 // MARK: - Liquid Glass 适配层
 //
 // iOS 26 引入了 Liquid Glass：`.glassEffect(_:in:)`、`GlassEffectContainer`、
-// `.glassEffectID(_:in:)`、`.buttonStyle(.glass)`。这些 API 只存在于 iOS 26 SDK。
+// `.buttonStyle(.glass / .glassProminent)`。这些 API 只存在于 iOS 26 SDK。
 //
 // 本 App 最低支持 iOS 18，所以把全部玻璃调用收敛到这一个文件里，双重护栏：
 //   1. `#if compiler(>=6.2)` —— 让 Xcode 16（无 iOS 26 SDK）也能编译通过；
-//   2. `if #available(iOS 26.0, *)` —— 运行在 iOS 18/25 上时降级为 Material。
-//
-// 降级方案不是简单的半透明色块：Material + 高光描边 + 柔和投影，
-// 在视觉层级上尽量接近真玻璃，不至于让老系统看起来像另一个 App。
+//   2. `if #available(iOS 26.0, *)` —— 运行在 iOS 18 上时降级为 Material。
 
 // MARK: - 玻璃背景
 
@@ -26,10 +23,7 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            var glass = Glass.regular
-            if let tint { glass = glass.tint(tint) }
-            if interactive { glass = glass.interactive() }
-            content.glassEffect(glass, in: shape)
+            applyLiquidGlass(content)
         } else {
             fallbackBody(content)
         }
@@ -37,6 +31,24 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
         fallbackBody(content)
         #endif
     }
+
+    #if compiler(>=6.2)
+    @available(iOS 26.0, *)
+    @ViewBuilder
+    private func applyLiquidGlass(_ content: Content) -> some View {
+        // 官方链式 API：.glassEffect(.regular.tint(.orange).interactive(), in: shape)
+        // 四分支写开，避免在 ViewBuilder 里做 `var glass = ...` 赋值
+        if let tint, interactive {
+            content.glassEffect(.regular.tint(tint).interactive(), in: shape)
+        } else if let tint {
+            content.glassEffect(.regular.tint(tint), in: shape)
+        } else if interactive {
+            content.glassEffect(.regular.interactive(), in: shape)
+        } else {
+            content.glassEffect(.regular, in: shape)
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func fallbackBody(_ content: Content) -> some View {
@@ -89,8 +101,13 @@ private struct GlassActionStyleModifier: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            // .glass 与 .glassProminent 都是 GlassButtonStyle，仅配置不同，分支类型一致
-            content.buttonStyle(prominent ? .glassProminent : .glass)
+            // .glass 与 .glassProminent 是不同的 PrimitiveButtonStyle，
+            // 不能走 `prominent ? .glassProminent : .glass` 三元（会被推断成 ButtonStyle）
+            if prominent {
+                content.buttonStyle(.glassProminent)
+            } else {
+                content.buttonStyle(.glass)
+            }
         } else {
             legacy(content)
         }
@@ -99,8 +116,6 @@ private struct GlassActionStyleModifier: ViewModifier {
         #endif
     }
 
-    // 低版本降级：两分支统一走同一种 buttonStyle + 条件化配色，
-    // 避免 .bordered / .borderedProminent 具体类型不同导致分支无法合一
     private func legacy(_ content: Content) -> some View {
         content
             .buttonStyle(.plain)
