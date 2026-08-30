@@ -5,10 +5,22 @@ import XCTest
 final class CoordinateTransformTests: XCTestCase {
 
     func testKnownBeijingOffset() {
-        // 北京天安门 WGS-84 → GCJ-02 的公认偏移量约为 (-0.005, +0.003)
-        let gcj = CoordinateTransform.wgs84ToGCJ02(latitude: 39.9042, longitude: 116.4074)
-        XCTAssertEqual(gcj.latitude, 39.8992, accuracy: 0.001)
-        XCTAssertEqual(gcj.longitude, 116.4107, accuracy: 0.001)
+        // 北京天安门 WGS-84 → GCJ-02：标准 eviltransform 在华北是向北、向东偏，约 300～700 米。
+        // 旧期望值 (39.8992, 116.4107) 把纬度写反了。
+        let wgsLat = 39.9042
+        let wgsLon = 116.4074
+        let gcj = CoordinateTransform.wgs84ToGCJ02(latitude: wgsLat, longitude: wgsLon)
+
+        XCTAssertGreaterThan(gcj.latitude, wgsLat, "GCJ-02 纬度应向北偏")
+        XCTAssertGreaterThan(gcj.longitude, wgsLon, "GCJ-02 经度应向东偏")
+
+        let meters = CLLocation(latitude: gcj.latitude, longitude: gcj.longitude)
+            .distance(from: CLLocation(latitude: wgsLat, longitude: wgsLon))
+        XCTAssertGreaterThan(meters, 200)
+        XCTAssertLessThan(meters, 800)
+
+        XCTAssertEqual(gcj.latitude, 39.905603, accuracy: 0.00005)
+        XCTAssertEqual(gcj.longitude, 116.413642, accuracy: 0.00005)
     }
 
     func testRoundTripWithinOneMeter() {
