@@ -14,7 +14,7 @@ import SwiftUI
 
 // MARK: - 玻璃背景
 
-struct LiquidGlassModifier<S: Shape>: ViewModifier {
+struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
     let shape: S
     var tint: Color?
     var interactive: Bool
@@ -134,8 +134,8 @@ private struct MinimizableTabBarModifier: ViewModifier {
 
 extension View {
 
-    /// 任意形状的玻璃背景
-    func liquidGlass<S: Shape>(
+    /// 任意可内描边形状的玻璃背景
+    func liquidGlass<S: InsettableShape>(
         in shape: S,
         tint: Color? = nil,
         interactive: Bool = false,
