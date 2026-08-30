@@ -1,0 +1,6 @@
+# 所有文本文件统一 LF，保证 macOS CI 上的 shell 脚本与 xcodebuild 不因 CRLF 翻车
+* text=auto eol=lf
+*.png binary
+*.json text eol=lf
+*.yml text eol=lf
+*.swift text eol=lf

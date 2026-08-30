@@ -1,0 +1,164 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      signed:
+        description: "用仓库 Secrets 签名（需要 Apple 开发者账号），off 则只产出免签名 IPA"
+        type: choice
+        default: "off"
+        options: [off, on]
+      publish_release:
+        description: "把 IPA 挂到 GitHub Release"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SCHEME: Astra
+  DERIVED_DATA: ${{ github.workspace }}/DerivedData
+  ARCHIVE_PATH: ${{ github.workspace }}/build/Astra.xcarchive
+
+jobs:
+  build:
+    name: 构建 + 测试 + 打包
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 xcodegen
+        run: brew install xcodegen
+
+      - name: 生成图标与工程
+        run: |
+          python3 Scripts/generate_icon.py
+          xcodegen generate
+
+      - name: 环境信息
+        run: |
+          xcodebuild -version
+
+      - name: 单元测试（模拟器）
+        run: |
+          UDID=$(xcrun simctl list devices available | grep -m1 -o "iPhone [^(]* ([0-9A-F-]*)" | sed -E 's/.*\(([0-9A-F-]*)\)/\1/')
+          NAME=$(xcrun simctl list devices available | grep -m1 -o "iPhone [^(]*" | xargs)
+          if [ -z "$NAME" ]; then NAME="iPhone 16"; fi
+          echo "使用模拟器: $NAME ($UDID)"
+          xcodebuild test \
+            -project Astra.xcodeproj \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,name=$NAME,OS=latest" \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO | tail -40
+
+      - name: Archive（免签名）
+        run: |
+          xcodebuild archive \
+            -project Astra.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=NO
+
+      - name: 打包 IPA（免签名）
+        run: |
+          APP="$ARCHIVE_PATH/Products/Applications/Astra.app"
+          test -d "$APP" || { echo "找不到 Astra.app"; exit 1; }
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          cd build
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload Astra-unsigned.ipa
+          mv Payload/Astra.app Astra-unsigned.app
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Astra-unsigned.app Astra-unsigned.app.zip
+          ls -lh Astra-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Astra-ipa
+          path: |
+            build/Astra-unsigned.ipa
+            build/Astra-unsigned.app.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      # ---- 可选：仓库里有签名 Secrets 才做真机签名 ----
+      - name: 检查签名 Secrets
+        id: check-sign
+        env:
+          P12_BASE64: ${{ secrets.P12_BASE64 }}
+        run: |
+          if [ -n "$P12_BASE64" ]; then echo "available=true" >> "$GITHUB_OUTPUT"; else echo "available=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: 安装签名证书
+        if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
+        env:
+          P12_BASE64: ${{ secrets.P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PROVISION_BASE64: ${{ secrets.PROVISION_BASE64 }}
+        run: |
+          set -e
+          echo "$P12_BASE64" | base64 --decode > cert.p12
+          security create-keychain -p ci ci-build.keychain
+          security set-keychain-settings -lut 21600 ci-build.keychain
+          security unlock-keychain -p ci ci-build.keychain
+          security import cert.p12 -k ci-build.keychain -P "$P12_PASSWORD" -A -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci ci-build.keychain
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$PROVISION_BASE64" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/astra.mobileprovision"
+          rm -f cert.p12
+
+      - name: Archive（签名）
+        if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
+        run: |
+          xcodebuild archive \
+            -project Astra.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="${{ secrets.DEVELOPMENT_TEAM }}" \
+            CODE_SIGN_IDENTITY="${{ secrets.SIGNING_IDENTITY }}" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ secrets.PROVISION_UUID }}" \
+            PRODUCT_BUNDLE_IDENTIFIER="${{ secrets.BUNDLE_ID }}" \
+            OTHER_CODE_SIGN_FLAGS="--keychain ci-build.keychain"
+
+      - name: 打包 IPA（签名）
+        if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
+        run: |
+          APP="$ARCHIVE_PATH/Products/Applications/Astra.app"
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          cd build
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload Astra-signed.ipa
+          ls -lh Astra-signed.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
+        with:
+          name: Astra-signed-ipa
+          path: build/Astra-signed.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: 创建 Release 并挂 IPA
+        if: github.event.inputs.publish_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="astra-$(date +%Y%m%d-%H%M%S)"
+          FILE="build/Astra-unsigned.ipa"
+          if [ -f "build/Astra-signed.ipa" ]; then FILE="build/Astra-signed.ipa"; fi
+          gh release create "$TAG" "$FILE" --title "Astra $TAG" --notes "由 GitHub Actions 自动构建。"
+          echo "Release: $TAG"

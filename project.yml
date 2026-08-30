@@ -1,0 +1,110 @@
+# XcodeGen 工程描述文件（唯一的工程真源）
+# 本地生成： brew install xcodegen && xcodegen generate
+name: Astra
+
+options:
+  bundleIdPrefix: com.lluviose
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: false
+  defaultConfig: Release
+
+attributes:
+  ORGANIZATIONNAME: Lluviose
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  Astra:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: App/Sources
+      - path: App/Resources
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: 星图
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: zh_CN
+        CFBundleLocalizations: [zh_CN, en]
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UIApplicationSupportsIndirectInputEvents: true
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # 面容 / 触控 ID 解锁；App 不申请定位、通讯录、相册等任何其它权限
+        NSFaceIDUsageDescription: 用面容 ID 解锁星图，避免其他人打开你的私人档案。
+        # 档案不对外暴露：关闭 iTunes 文件共享与"文件"App 可见
+        UIFileSharingEnabled: false
+        LSSupportsOpeningDocumentsInPlace: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lluviose.astra
+        PRODUCT_NAME: Astra
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE: NO
+
+  AstraTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Tests/AstraTests
+    dependencies:
+      - target: Astra
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.lluviose.astra.tests
+
+schemes:
+  Astra:
+    build:
+      targets:
+        Astra: all
+        AstraTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - AstraTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
