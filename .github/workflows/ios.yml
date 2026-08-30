@@ -45,16 +45,16 @@ jobs:
 
       - name: 单元测试（模拟器）
         run: |
-          UDID=$(xcrun simctl list devices available | grep -m1 -o "iPhone [^(]* ([0-9A-F-]*)" | sed -E 's/.*\(([0-9A-F-]*)\)/\1/')
+          set -o pipefail
           NAME=$(xcrun simctl list devices available | grep -m1 -o "iPhone [^(]*" | xargs)
           if [ -z "$NAME" ]; then NAME="iPhone 16"; fi
-          echo "使用模拟器: $NAME ($UDID)"
+          echo "使用模拟器: $NAME"
           xcodebuild test \
             -project Astra.xcodeproj \
             -scheme "$SCHEME" \
             -destination "platform=iOS Simulator,name=$NAME,OS=latest" \
             -derivedDataPath "$DERIVED_DATA" \
-            CODE_SIGNING_ALLOWED=NO | tail -40
+            CODE_SIGNING_ALLOWED=NO | tail -60
 
       - name: Archive（免签名）
         run: |

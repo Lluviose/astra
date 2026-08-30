@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 // MARK: - 备份文件（ShareLink 导出用）
 

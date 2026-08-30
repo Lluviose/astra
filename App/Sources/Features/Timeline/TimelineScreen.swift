@@ -126,7 +126,7 @@ struct TimelineScreen: View {
         let data = monthlyMeetupCounts
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("共 \(data.reduce(0, +)) 次见面")
+                Text("共 \(data.reduce(0) { $0 + $1.count }) 次见面")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 if let mood = app.stats.averageMood {

@@ -40,30 +40,26 @@ struct LiquidGlassModifier<S: Shape>: ViewModifier {
 
     @ViewBuilder
     private func fallbackBody(_ content: Content) -> some View {
-        content
-            .background {
-                shape
-                    .fill(fallbackMaterial)
-                    .overlay {
-                        shape.fill(tint?.opacity(0.22) ?? .clear)
-                    }
-                    .overlay {
-                        shape
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [
-                                        .white.opacity(strokeOpacity * 2.2),
-                                        .white.opacity(strokeOpacity * 0.4),
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 0.8
-                            )
-                    }
-                    .compositingGroup()
-                    .shadow(color: .black.opacity(0.16), radius: shadowRadius, y: shadowRadius * 0.45)
-            }
+        content.background { fallbackGlass }
+    }
+
+    /// 拆成独立计算属性，避免整条链式表达式超出类型检查器的复杂度上限
+    private var fallbackGlass: some View {
+        let highlight = LinearGradient(
+            colors: [
+                .white.opacity(strokeOpacity * 2.2),
+                .white.opacity(strokeOpacity * 0.4),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+
+        return shape
+            .fill(fallbackMaterial)
+            .overlay { shape.fill(tint?.opacity(0.22) ?? .clear) }
+            .overlay { shape.strokeBorder(highlight, lineWidth: 0.8) }
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.16), radius: shadowRadius, y: shadowRadius * 0.45)
     }
 }
 

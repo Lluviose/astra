@@ -28,12 +28,17 @@ enum ChinaRegion {
     /// 拉到最远刚好装下整个中国
     static let maximumCameraDistance: CLLocationDistance = 6_400_000
 
-    static var cameraBounds: MapCameraBounds {
-        MapCameraBounds(
-            centerCoordinateBounds: cameraCenterBounds,
-            minimumDistance: minimumCameraDistance,
-            maximumDistance: maximumCameraDistance
+    /// 把相机中心钳制到包络框内（必要时向外留一点余量）
+    static func clamp(center: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        CLLocationCoordinate2D(
+            latitude: min(max(center.latitude, minLatitude), maxLatitude),
+            longitude: min(max(center.longitude, minLongitude), maxLongitude)
         )
+    }
+
+    /// 把相机高度钳制到合理区间
+    static func clamp(distance: CLLocationDistance) -> CLLocationDistance {
+        min(max(distance, minimumCameraDistance), maximumCameraDistance)
     }
 
     static func contains(latitude: Double, longitude: Double) -> Bool {
