@@ -30,9 +30,11 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(decoded.companions.first?.stage, .dating)
         XCTAssertEqual(decoded.companions.first?.tags, ["温柔", "爱笑"])
         XCTAssertEqual(decoded.encounters.count, 1)
-        XCTAssertEqual(decoded.encounters.first?.cost, 328)
+
+        let decodedEncounter = try XCTUnwrap(decoded.encounters.first)
+        XCTAssertEqual(decodedEncounter.cost, 328)
         XCTAssertEqual(
-            decoded.encounters.first?.date.timeIntervalSince1970,
+            decodedEncounter.date.timeIntervalSince1970,
             encounter.date.timeIntervalSince1970,
             accuracy: 1
         )

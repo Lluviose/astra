@@ -19,6 +19,9 @@ concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 env:
   SCHEME: Astra
   DERIVED_DATA: ${{ github.workspace }}/DerivedData
@@ -31,6 +34,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 选择 Xcode 26
+        run: |
+          set -euo pipefail
+          # macos-15 默认是 16.4；液态玻璃 / iOS 26 SDK 在 Xcode 26
+          XCODE=""
+          for candidate in \
+            /Applications/Xcode_26.3.app \
+            /Applications/Xcode_26.2.app \
+            /Applications/Xcode_26.1.1.app \
+            /Applications/Xcode_26.0.1.app \
+            /Applications/Xcode_26.app
+          do
+            if [ -d "$candidate" ]; then
+              XCODE="$candidate"
+              break
+            fi
+          done
+          if [ -n "$XCODE" ]; then
+            sudo xcode-select -s "$XCODE"
+            echo "使用 $XCODE"
+          else
+            echo "没有找到 Xcode 26，使用默认 $(xcode-select -p)"
+          fi
+          xcodebuild -version
+          xcrun simctl list runtimes | grep -i ios || true
+
       - name: 安装 xcodegen
         run: brew install xcodegen
 
@@ -39,22 +68,53 @@ jobs:
           python3 Scripts/generate_icon.py
           xcodegen generate
 
-      - name: 环境信息
-        run: |
-          xcodebuild -version
-
       - name: 单元测试（模拟器）
         run: |
-          set -o pipefail
-          NAME=$(xcrun simctl list devices available | grep -m1 -o "iPhone [^(]*" | xargs)
-          if [ -z "$NAME" ]; then NAME="iPhone 16"; fi
-          echo "使用模拟器: $NAME"
-          xcodebuild test \
+          set -euo pipefail
+          DEST_ID=$(python3 - <<'PY'
+          import json, subprocess, sys
+          data = json.loads(
+              subprocess.check_output(["xcrun", "simctl", "list", "-j", "devices", "available"], text=True)
+          )
+          phones = []
+          for runtime, devices in data.get("devices", {}).items():
+              if "iOS" not in runtime:
+                  continue
+              for device in devices:
+                  name = device.get("name", "")
+                  if device.get("isAvailable") and name.startswith("iPhone"):
+                      phones.append((runtime, device))
+          if not phones:
+              sys.exit("no available iPhone simulator")
+          phones.sort(key=lambda item: item[0], reverse=True)
+          preferred = ["iPhone 16", "iPhone 16 Pro", "iPhone 17", "iPhone 17 Pro"]
+          for want in preferred:
+              for runtime, device in phones:
+                  if device["name"] == want:
+                      print(device["udid"], file=sys.stderr)
+                      print(f"picked {device['name']} on {runtime}", file=sys.stderr)
+                      print(device["udid"])
+                      raise SystemExit
+          runtime, device = phones[0]
+          print(f"picked {device['name']} on {runtime}", file=sys.stderr)
+          print(device["udid"])
+          PY
+          )
+          echo "使用模拟器: $DEST_ID"
+          if ! xcodebuild test \
             -project Astra.xcodeproj \
             -scheme "$SCHEME" \
-            -destination "platform=iOS Simulator,name=$NAME,OS=latest" \
+            -destination "platform=iOS Simulator,id=$DEST_ID" \
             -derivedDataPath "$DERIVED_DATA" \
-            CODE_SIGNING_ALLOWED=NO | tail -60
+            CODE_SIGNING_ALLOWED=NO \
+            > xcodebuild-test.log 2>&1; then
+            echo "===== 编译/测试错误 ====="
+            grep -E "error:|fatal error:|Testing failed|TEST FAILED" xcodebuild-test.log | head -80 || true
+            echo "===== 日志末尾 ====="
+            tail -40 xcodebuild-test.log
+            exit 1
+          fi
+          grep -E "Executed [0-9]+ test|TEST SUCCEEDED" xcodebuild-test.log || tail -20 xcodebuild-test.log
 
       - name: Archive（免签名）
         run: |
