@@ -162,7 +162,7 @@ struct TimelineScreen: View {
                 }
             }
             .frame(height: 120, alignment: .bottom)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.map(\.count))
         }
         .padding(.vertical, 6)
     }
