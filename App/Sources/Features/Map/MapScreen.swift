@@ -27,7 +27,7 @@ struct CityBubble: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement()
-        .accessibilityLabel("\(bucket.city.name)，\(bucket.count) 人")
+        .accessibilityLabel("\(bucket.city.name)，\(bucket.count) 个对象")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
     }
 
@@ -96,10 +96,12 @@ struct CityBubble: View {
 struct MapScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dismiss) private var dismiss
 
     @State private var camera: MapCameraPosition = .region(ChinaRegion.overview)
     @State private var selectedCityID: String?
     @State private var editorTarget: Companion?
+    @State private var pendingEditorTarget: Companion?
     @State private var isPickingCity = false
     @State private var isJumpingToCity = false
     /// 钳制相机时置位，防止 onMapCameraChange 反馈循环
@@ -126,19 +128,19 @@ struct MapScreen: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: app.buckets.count)
-        .sheet(item: selectedBucketBinding) { bucket in
+        .sheet(item: selectedBucketBinding, onDismiss: presentPendingEditor) { bucket in
             CityDetailSheet(bucket: bucket) { companion in
-                editorTarget = companion
+                pendingEditorTarget = companion
             }
         }
         .sheet(item: $editorTarget) { companion in
             CompanionEditor(companion: companion)
         }
-        .sheet(isPresented: $isPickingCity) {
-            CityPickerSheet(title: "在哪座城市认识的？") { city in
+        .sheet(isPresented: $isPickingCity, onDismiss: presentPendingEditor) {
+            CityPickerSheet(title: "常驻或常见面的城市") { city in
                 var draft = app.makeDraftCompanion(cityID: city.id)
                 draft.cityID = city.id
-                editorTarget = draft
+                pendingEditorTarget = draft
             }
         }
         .sheet(isPresented: $isJumpingToCity) {
@@ -223,7 +225,7 @@ struct MapScreen: View {
         GlassStack(spacing: 14) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("星图")
+                    Text("城市足迹")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                     Text(summaryText)
                         .font(.caption2)
@@ -233,14 +235,23 @@ struct MapScreen: View {
                 Spacer(minLength: 12)
 
                 Button {
-                    Haptics.shared.play(.lightTap)
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
+                .accessibilityLabel("关闭城市足迹")
+
+                Button {
                     isJumpingToCity = true
                 } label: {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 15, weight: .semibold))
                         .frame(width: 30, height: 30)
                 }
-                .buttonStyle(HapticButtonStyle(cue: .selection, scale: 0.9))
+                .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
                 .accessibilityLabel("搜索城市")
             }
             .padding(.leading, 16)
@@ -256,7 +267,7 @@ struct MapScreen: View {
         if app.buckets.isEmpty { return "还没有记录" }
         let cities = app.buckets.count
         let people = app.buckets.reduce(0) { $0 + $1.count }
-        return "\(cities) 座城市 · \(people) 人"
+        return "\(cities) 座城市 · \(people) 个对象"
     }
 
     // MARK: 右下悬浮控件
@@ -294,9 +305,9 @@ struct MapScreen: View {
                     size: 54,
                     tint: Palette.accent,
                     isActive: true,
-                    accessibilityText: "新增一个人"
+                    cue: .mediumTap,
+                    accessibilityText: "添加对象"
                 ) {
-                    Haptics.shared.play(.mediumTap)
                     isPickingCity = true
                 }
             }
@@ -310,9 +321,9 @@ struct MapScreen: View {
             Image(systemName: "mappin.slash")
                 .font(.system(size: 30, weight: .light))
                 .foregroundStyle(Palette.accent.opacity(0.7))
-            Text("地图上还没有人")
+            Text("还没有城市足迹")
                 .font(.headline)
-            Text("先添加一个人并选好她所在的城市，\n这里就会亮起第一颗点。")
+            Text("添加对象并选择常驻或常见面的城市，\n这里就会亮起第一颗点。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -321,7 +332,7 @@ struct MapScreen: View {
                 Haptics.shared.play(.mediumTap)
                 isPickingCity = true
             } label: {
-                Label("添加第一个人", systemImage: "plus")
+                Label("添加第一个对象", systemImage: "plus")
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -347,6 +358,12 @@ struct MapScreen: View {
         Haptics.shared.play(.cityFocus)
         selectedCityID = bucket.id
         focus(on: bucket.city, select: false)
+    }
+
+    private func presentPendingEditor() {
+        guard let pendingEditorTarget else { return }
+        self.pendingEditorTarget = nil
+        editorTarget = pendingEditorTarget
     }
 
     private func focus(on city: City, select shouldSelect: Bool) {

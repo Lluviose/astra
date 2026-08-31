@@ -12,13 +12,13 @@ struct CityBucket: Identifiable, Hashable, Sendable {
     var id: String { city.id }
     var count: Int { companions.count }
 
-    /// 取关系最"进"的一档作为气泡主色
+    /// 取相处状态最靠前的一档作为气泡主色
     var dominantStage: RelationStage {
-        companions.max { $0.stage.weight < $1.stage.weight }?.stage ?? .talking
+        companions.max { $0.stage.weight < $1.stage.weight }?.stage ?? .chatting
     }
 }
 
-/// 名单页的一个分组
+/// 对象页的一个分组
 struct RosterSection: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
@@ -50,13 +50,13 @@ final class AppState {
     /// 搜索词是临时状态，不落盘
     var searchText: String = ""
 
-    /// 名字是否已揭示。开启「默认隐藏名字」后每次冷启动都重新遮住，不持久化。
+    /// 代号是否已揭示。开启「默认隐藏代号」后每次冷启动都重新遮住，不持久化。
     var namesRevealed: Bool = true
 
     // MARK: - 派生
 
     private(set) var buckets: [CityBucket] = []
-    private(set) var stats = RosterStats()
+    private(set) var stats = IntimacyStats()
 
     private let store: LocalStore
 
@@ -79,7 +79,10 @@ final class AppState {
 
     var isEmpty: Bool { companions.isEmpty }
 
-    var activeCompanions: [Companion] { companions.filter { !$0.isArchived } }
+    /// 当前仍在相处的对象；暂停、结束或已归档的不计入首页统计和快捷记录。
+    var currentCompanions: [Companion] {
+        companions.filter { !$0.isArchived && $0.stage.isActive }
+    }
 
     func companion(id: UUID) -> Companion? { companions.first { $0.id == id } }
 
@@ -120,16 +123,35 @@ final class AppState {
         return daysSinceContact(for: companion) >= interval
     }
 
-    /// 首页「该联系了」清单，最久没联系的排前面
+    /// 首页联系周期清单，最久没联系的排前面
     var needsAttention: [Companion] {
-        activeCompanions
+        currentCompanions
             .filter { isOverdue($0) }
             .sorted { daysSinceContact(for: $0) > daysSinceContact(for: $1) }
     }
 
+    /// 用户明确标记、尚未完成的事后任务。有日期的优先，并按最近到期排序。
+    var pendingFollowUps: [Encounter] {
+        encounters
+            .filter(\.hasPendingFollowUp)
+            .sorted { lhs, rhs in
+                switch (lhs.followUpDate, rhs.followUpDate) {
+                case let (left?, right?):
+                    if left != right { return left < right }
+                    return lhs.date > rhs.date
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    return lhs.date > rhs.date
+                }
+            }
+    }
+
     /// 30 天内要过生日的人
     var upcomingBirthdays: [Companion] {
-        activeCompanions
+        currentCompanions
             .compactMap { companion -> (Companion, Int)? in
                 guard let days = companion.daysUntilBirthday, days <= 30 else { return nil }
                 return (companion, days)
@@ -147,7 +169,7 @@ final class AppState {
         return counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
     }
 
-    // MARK: - 名单
+    // MARK: - 对象
 
     /// 应用筛选 + 搜索 + 排序
     func filteredCompanions() -> [Companion] {
@@ -168,6 +190,9 @@ final class AppState {
         if companion.notes.lowercased().contains(query) { return true }
         if companion.contactNote.lowercased().contains(query) { return true }
         if companion.metChannel.lowercased().contains(query) { return true }
+        if companion.expectations.lowercased().contains(query) { return true }
+        if companion.boundaries.lowercased().contains(query) { return true }
+        if companion.safetyNotes.lowercased().contains(query) { return true }
         if companion.tags.contains(where: { $0.lowercased().contains(query) }) { return true }
         if let city = catalog.city(id: companion.cityID) {
             if city.name.contains(query) { return true }
@@ -204,7 +229,7 @@ final class AppState {
         return list.sorted(by: compare)
     }
 
-    /// 分组后的名单
+    /// 分组后的对象列表
     func rosterSections() -> [RosterSection] {
         let list = filteredCompanions()
 
@@ -285,8 +310,7 @@ final class AppState {
     func makeDraftCompanion(cityID: String? = nil) -> Companion {
         Companion(
             paletteIndex: (companions.count + 1) % Palette.avatarGradients.count,
-            cityID: cityID ?? companions.last?.cityID ?? "310000",
-            reminderIntervalDays: settings.defaultReminderDays
+            cityID: cityID ?? companions.last?.cityID ?? "310000"
         )
     }
 
@@ -346,7 +370,6 @@ final class AppState {
         companions[index].rating = clamped
         companions[index].updatedAt = Date()
         persistCompanions()
-        Haptics.shared.play(.selection)
     }
 
     // MARK: - 修改：记录
@@ -510,7 +533,7 @@ final class AppState {
     }
 
     private func rebuildBuckets() {
-        let grouped = Dictionary(grouping: activeCompanions, by: \.cityID)
+        let grouped = Dictionary(grouping: currentCompanions, by: \.cityID)
         let maxCount = max(1, grouped.values.map(\.count).max() ?? 1)
 
         buckets = grouped.compactMap { cityID, members -> CityBucket? in
@@ -528,42 +551,38 @@ final class AppState {
     }
 
     private func rebuildStats() {
-        var result = RosterStats()
-        let active = activeCompanions
+        var result = IntimacyStats()
+        let current = currentCompanions
 
-        result.activeCount = active.count
-        result.archivedCount = companions.count - active.count
-        result.cityCount = Set(active.map(\.cityID)).count
-
-        for companion in active {
-            result.stageBreakdown[companion.stage, default: 0] += 1
-        }
+        result.activeCount = current.count
 
         let calendar = Calendar.current
         let monthStart = calendar.dateInterval(of: .month, for: Date())?.start ?? Date.distantPast
 
-        var moodTotal = 0
-        var moodCount = 0
+        var experienceTotal = 0.0
+        var experienceCount = 0
         for encounter in encounters {
-            result.spendAllTime += encounter.cost ?? 0
-            moodTotal += encounter.mood
-            moodCount += 1
-            if encounter.date >= monthStart {
-                result.encountersThisMonth += 1
-                if encounter.kind.isInPerson { result.meetupsThisMonth += 1 }
-                result.spendThisMonth += encounter.cost ?? 0
+            if encounter.kind.isIntimate {
+                result.totalIntimacyCount += 1
+                if let rating = encounter.experienceRating {
+                    experienceTotal += rating
+                    experienceCount += 1
+                }
+                if encounter.date >= monthStart {
+                    result.intimaciesThisMonth += 1
+                    if encounter.protectionStatus.isRecorded {
+                        result.safetyRecordedThisMonth += 1
+                    }
+                    if encounter.protectionStatus.hasBarrierGap {
+                        result.unprotectedThisMonth += 1
+                    }
+                }
             }
         }
-        result.averageMood = moodCount > 0 ? Double(moodTotal) / Double(moodCount) : nil
-
-        if let longest = active
-            .filter({ $0.stage.isActive })
-            .max(by: { daysSinceContact(for: $0) < daysSinceContact(for: $1) }) {
-            result.longestSilenceName = longest.displayName
-            result.longestSilenceDays = daysSinceContact(for: longest)
-        }
-
-        result.busiestCityName = buckets.first?.city.name
+        result.pendingFollowUpCount = pendingFollowUps.count
+        result.averageExperience = experienceCount > 0
+            ? experienceTotal / Double(experienceCount)
+            : nil
 
         stats = result
     }

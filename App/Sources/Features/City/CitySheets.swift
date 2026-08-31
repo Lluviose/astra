@@ -27,7 +27,7 @@ struct CityDetailSheet: View {
                         .listRowSeparator(.hidden)
                 }
 
-                Section("这座城市的人") {
+                Section("这座城市的对象") {
                     ForEach(bucket.companions) { companion in
                         NavigationLink(value: companion.id) {
                             CompanionRow(companion: companion, showCity: false)
@@ -47,8 +47,8 @@ struct CityDetailSheet: View {
                         Haptics.shared.play(.mediumTap)
                         var draft = app.makeDraftCompanion(cityID: bucket.city.id)
                         draft.cityID = bucket.city.id
-                        dismiss()
                         onAdd(draft)
+                        dismiss()
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -73,7 +73,7 @@ struct CityDetailSheet: View {
                     Text("\(bucket.city.shortProvince) · \(bucket.city.tier.label)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(bucket.count) 人")
+                    Text("\(bucket.count) 个对象")
                         .font(.title3.weight(.bold))
                 }
 
@@ -175,8 +175,8 @@ struct CityPickerSheet: View {
     private func row(_ city: City) -> some View {
         Button {
             Haptics.shared.play(.cityFocus)
-            dismiss()
             onSelect(city)
+            dismiss()
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {

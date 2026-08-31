@@ -61,7 +61,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # 面容 / 触控 ID 解锁；App 不申请定位、通讯录、相册等任何其它权限
-        NSFaceIDUsageDescription: 用面容 ID 解锁星图，避免其他人打开你的私人档案。
+        NSFaceIDUsageDescription: 用面容 ID 解锁星图，保护你的私密关系与亲密记录。
         # 档案不对外暴露：关闭 iTunes 文件共享与"文件"App 可见
         UIFileSharingEnabled: false
         LSSupportsOpeningDocumentsInPlace: false

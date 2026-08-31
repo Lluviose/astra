@@ -82,7 +82,7 @@ private struct EditorCityPickerRoute: View {
     }
 }
 
-// MARK: - 档案编辑器
+// MARK: - 对象档案编辑器
 
 struct CompanionEditor: View {
 
@@ -97,12 +97,15 @@ struct CompanionEditor: View {
     @State private var newTag = ""
     @State private var showAddTagDialog = false
     @State private var showUnsavedAlert = false
+    @State private var hasMetDate: Bool
 
     private var isNew: Bool { !app.companions.contains { $0.id == initial.id } }
+    private var hasUnsavedChanges: Bool { draft != initial }
 
     init(companion: Companion) {
         self.initial = companion
         _draft = State(initialValue: companion)
+        _hasMetDate = State(initialValue: companion.metDate != nil)
     }
 
     var body: some View {
@@ -110,24 +113,21 @@ struct CompanionEditor: View {
             Form {
                 basicSection
                 statusSection
+                intimacySection
                 citySection
                 tagsSection
+                optionalInfoSection
                 detailSection
                 if !isNew {
                     dangerSection
                 }
             }
-            .navigationTitle(isNew ? "添加" : "编辑")
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(isNew ? "添加对象" : "编辑对象")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") {
-                        if isNew {
-                            dismiss()
-                        } else {
-                            showUnsavedAlert = true
-                        }
-                    }
+                    Button("取消") { cancel() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("保存") { save() }
@@ -137,6 +137,14 @@ struct CompanionEditor: View {
             }
             .navigationDestination(isPresented: $isPickingCity) {
                 EditorCityPickerRoute(cityID: $draft.cityID)
+            }
+            .interactiveDismissDisabled(hasUnsavedChanges)
+            .onChange(of: hasMetDate) { _, enabled in
+                if enabled, draft.metDate == nil {
+                    draft.metDate = Date()
+                } else if !enabled {
+                    draft.metDate = nil
+                }
             }
             .alert("放弃未保存的修改？", isPresented: $showUnsavedAlert) {
                 Button("继续编辑", role: .cancel) {}
@@ -157,38 +165,50 @@ struct CompanionEditor: View {
                 Button("取消", role: .cancel) {}
             }
             .confirmationDialog("确定删除这条档案？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("删除档案及全部记录", role: .destructive) {
+                Button("删除对象及全部记录", role: .destructive) {
                     app.delete(companionID: initial.id)
                     dismiss()
                 }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("连同相处记录一起删除，且无法恢复。")
+                Text("连同全部亲密记录一起删除，且无法恢复。")
             }
         }
     }
 
     private func save() {
+        draft.rating = min(max(draft.rating, 0), 5)
+        if let metDate = draft.metDate, metDate > Date() {
+            draft.metDate = Date()
+        }
         app.upsert(draft)
         dismiss()
+    }
+
+    private func cancel() {
+        if hasUnsavedChanges {
+            showUnsavedAlert = true
+        } else {
+            dismiss()
+        }
     }
 
     // MARK: 基本信息
 
     private var basicSection: some View {
-        Section("基本信息") {
+        Section("代号") {
             HStack(spacing: 12) {
                 AvatarView(
                     companion: draft,
                     size: 56,
                     showRing: false
                 )
-                TextField("名字（可留空）", text: $draft.name)
+                TextField("代号或昵称（可留空）", text: $draft.name)
                     .textInputAutocapitalization(.never)
             }
 
             HStack {
-                Text("头像符号")
+                Text("头像")
                 Spacer()
                 TextField("emoji 或首字", text: $draft.emoji)
                     .multilineTextAlignment(.trailing)
@@ -196,39 +216,18 @@ struct CompanionEditor: View {
                     .textInputAutocapitalization(.never)
             }
 
-            Picker("年龄", selection: $draft.age) {
-                Text("未设置").tag(Int?.none)
-                ForEach(18...60, id: \.self) { age in
-                    Text("\(age)").tag(Int?.some(age))
-                }
-            }
-
-            Picker("身高", selection: $draft.heightCM) {
-                Text("未设置").tag(Int?.none)
-                ForEach(140...200, id: \.self) { cm in
-                    Text("\(cm) cm").tag(Int?.some(cm))
-                }
-            }
-
-            HStack {
-                Text("生日")
-                Spacer()
-                MonthDayMenu(month: $draft.birthdayMonth, day: $draft.birthdayDay)
-            }
-
-            TextField("职业", text: $draft.occupation)
+            TextField("联系方式备注", text: $draft.contactNote)
         }
     }
 
-    // MARK: 关系状态
+    // MARK: 相处状态
 
     private var statusSection: some View {
-        Section("关系状态") {
+        Section("相处状态") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(RelationStage.allCases, id: \.self) { stage in
                         Button {
-                            Haptics.shared.play(.selection)
                             draft.stage = stage
                         } label: {
                             HStack(spacing: 5) {
@@ -255,17 +254,34 @@ struct CompanionEditor: View {
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
 
             HStack {
-                Text("心动指数")
+                Text("默契度")
                 Spacer()
                 RatingPicker(rating: $draft.rating, size: 24)
             }
         }
     }
 
+    // MARK: 期待、边界与安全
+
+    private var intimacySection: some View {
+        Section {
+            TextField("相处期待（如：固定见面、只约不聊）", text: $draft.expectations, axis: .vertical)
+                .lineLimit(2...4)
+            TextField("边界与禁区", text: $draft.boundaries, axis: .vertical)
+                .lineLimit(2...5)
+            TextField("安全备忘", text: $draft.safetyNotes, axis: .vertical)
+                .lineLimit(2...5)
+        } header: {
+            Text("边界与安全")
+        } footer: {
+            Text("只记录双方已经明确沟通的内容；同意可以随时撤回。")
+        }
+    }
+
     // MARK: 城市与认识渠道
 
     private var citySection: some View {
-        Section("城市") {
+        Section("认识与城市") {
             Button {
                 Haptics.shared.play(.lightTap)
                 isPickingCity = true
@@ -282,11 +298,19 @@ struct CompanionEditor: View {
             }
             .buttonStyle(.plain)
 
-            TextField("怎么认识的（如：朋友介绍）", text: $draft.metChannel)
-            DatePicker("认识时间", selection: Binding(
-                get: { draft.metDate ?? Date() },
-                set: { draft.metDate = $0 }
-            ), displayedComponents: .date)
+            TextField("怎么认识的（如：App、朋友介绍）", text: $draft.metChannel)
+            Toggle("记录认识日期", isOn: $hasMetDate)
+            if hasMetDate {
+                DatePicker(
+                    "第一次认识",
+                    selection: Binding(
+                        get: { draft.metDate ?? Date() },
+                        set: { draft.metDate = $0 }
+                    ),
+                    in: ...Date(),
+                    displayedComponents: .date
+                )
+            }
         }
     }
 
@@ -299,7 +323,8 @@ struct CompanionEditor: View {
                     TagChip(
                         title: tag,
                         isOn: draft.tags.contains(tag),
-                        tint: Palette.accent
+                        tint: Palette.accent,
+                        cue: draft.tags.contains(tag) ? .toggleOff : .toggleOn
                     ) {
                         toggle(tag: tag)
                     }
@@ -308,52 +333,77 @@ struct CompanionEditor: View {
                     TagChip(
                         title: tag,
                         isOn: draft.tags.contains(tag),
-                        tint: Color.secondary
+                        tint: Color.secondary,
+                        cue: draft.tags.contains(tag) ? .toggleOff : .toggleOn
                     ) {
                         toggle(tag: tag)
                     }
                 }
-                TagChip(title: "+ 自定义", isOn: false, tint: Color.secondary) {
+                TagChip(title: "+ 自定义", isOn: false, tint: Color.secondary, cue: .lightTap) {
                     showAddTagDialog = true
                 }
             }
         } header: {
-            Text("标签")
+            Text("相处标签")
         } footer: {
-            Text("标签用于筛选，不会出现在任何联网功能里。")
+            Text("标签用于快速回忆与筛选，只保存在本机。")
         }
     }
 
     private func toggle(tag: String) {
         if let index = draft.tags.firstIndex(of: tag) {
             draft.tags.remove(at: index)
-            Haptics.shared.play(.toggleOff)
         } else {
             draft.tags.append(tag)
-            Haptics.shared.play(.toggleOn)
         }
     }
 
-    // MARK: 联系与备注
+    // MARK: 可选背景
+
+    private var optionalInfoSection: some View {
+        Section("可选背景") {
+            Picker("年龄", selection: $draft.age) {
+                Text("未设置").tag(Int?.none)
+                ForEach(18...80, id: \.self) { age in
+                    Text("\(age)").tag(Int?.some(age))
+                }
+            }
+
+            Picker("身高", selection: $draft.heightCM) {
+                Text("未设置").tag(Int?.none)
+                ForEach(140...210, id: \.self) { cm in
+                    Text("\(cm) cm").tag(Int?.some(cm))
+                }
+            }
+
+            HStack {
+                Text("生日")
+                Spacer()
+                MonthDayMenu(month: $draft.birthdayMonth, day: $draft.birthdayDay)
+            }
+
+            TextField("职业", text: $draft.occupation)
+        }
+    }
+
+    // MARK: 联系节奏与备注
 
     private var detailSection: some View {
         Section {
-            Picker("联系提醒", selection: $draft.reminderIntervalDays) {
-                Text("不提醒").tag(Int?.none)
+            Picker("联系周期", selection: $draft.reminderIntervalDays) {
+                Text("不设置").tag(Int?.none)
                 Text("7 天").tag(Int?.some(7))
                 Text("14 天").tag(Int?.some(14))
                 Text("30 天").tag(Int?.some(30))
                 Text("60 天").tag(Int?.some(60))
             }
 
-            TextField("联系方式备注", text: $draft.contactNote)
-
-            TextField("备注", text: $draft.notes, axis: .vertical)
+            TextField("其他私密备注", text: $draft.notes, axis: .vertical)
                 .lineLimit(3...6)
         } header: {
-            Text("联系与备注")
+            Text("联系节奏")
         } footer: {
-            Text("超过提醒天数没有互动的人，会出现在名单页的「该联系了」提醒里。")
+            Text("到达设定周期后，只做温和提示；是否联系始终由你决定。")
         }
     }
 
@@ -361,7 +411,7 @@ struct CompanionEditor: View {
 
     private var dangerSection: some View {
         Section {
-            Button("删除这条档案", role: .destructive) {
+            Button("删除这个对象", role: .destructive) {
                 Haptics.shared.play(.warning)
                 showDeleteConfirm = true
             }
@@ -376,6 +426,7 @@ private struct TagChip: View {
     let title: String
     let isOn: Bool
     let tint: Color
+    let cue: HapticCue
     let action: () -> Void
 
     var body: some View {
@@ -396,7 +447,7 @@ private struct TagChip: View {
             }
             .glassCapsule(interactive: true, shadowRadius: 6)
         }
-        .buttonStyle(HapticButtonStyle(cue: .selection))
+        .buttonStyle(HapticButtonStyle(cue: cue))
     }
 }
 
@@ -429,16 +480,17 @@ struct MonthDayMenu: View {
                 Button("\(m) 月") {
                     Haptics.shared.play(.selection)
                     month = m
-                    if day == nil { day = 1 }
+                    day = min(day ?? 1, daysInMonth(m))
                 }
             }
-            Divider()
-            Menu("具体日期") {
-                ForEach(1...31, id: \.self) { d in
-                    Button("\(d) 日") {
-                        Haptics.shared.play(.selection)
-                        day = d
-                        if month == nil { month = 1 }
+            if let month {
+                Divider()
+                Menu("具体日期") {
+                    ForEach(1...daysInMonth(month), id: \.self) { d in
+                        Button("\(d) 日") {
+                            Haptics.shared.play(.selection)
+                            day = d
+                        }
                     }
                 }
             }
@@ -446,5 +498,17 @@ struct MonthDayMenu: View {
             Text(monthLabel)
                 .foregroundStyle(month == nil ? .secondary : .primary)
         }
+    }
+
+    private func daysInMonth(_ month: Int) -> Int {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.year = 2024 // 闰年，允许记录 2 月 29 日生日。
+        components.month = month
+        components.day = 1
+        guard let date = components.date,
+              let range = components.calendar?.range(of: .day, in: .month, for: date)
+        else { return 31 }
+        return range.count
     }
 }

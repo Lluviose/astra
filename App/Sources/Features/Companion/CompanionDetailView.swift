@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 单条档案详情：全部信息 + 相处时间线 + 快捷记录
+/// 单个对象详情：相处状态、边界与安全、亲密记录和快捷入口。
 struct CompanionDetailView: View {
 
     let companionID: UUID
@@ -47,7 +47,7 @@ struct CompanionDetailView: View {
                             app.toggleArchive(companion)
                         } label: {
                             Label(
-                                companion.isArchived ? "移出档案库" : "归档",
+                                companion.isArchived ? "恢复到对象列表" : "归档",
                                 systemImage: companion.isArchived ? "tray.and.arrow.up" : "archivebox"
                             )
                         }
@@ -75,13 +75,13 @@ struct CompanionDetailView: View {
             isPresented: $showDeleteConfirm,
             titleVisibility: .visible
         ) {
-            Button("删除档案及全部记录", role: .destructive) {
+            Button("删除对象及全部记录", role: .destructive) {
                 app.delete(companionID: companionID)
                 dismiss()
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("连同相处记录一起删除，且无法恢复。")
+            Text("连同全部亲密记录一起删除，且无法恢复。")
         }
     }
 
@@ -91,7 +91,7 @@ struct CompanionDetailView: View {
         List {
             if companion.isArchived {
                 Section {
-                    Label("已归档，不会出现在地图和名单里", systemImage: "archivebox.fill")
+                    Label("已归档，不计入当前对象与城市足迹", systemImage: "archivebox.fill")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -107,11 +107,14 @@ struct CompanionDetailView: View {
                 }
             }
             relationshipSection(companion)
+            if hasIntimacyNotes(companion) {
+                intimacyInfoSection(companion)
+            }
             infoSection(companion)
             timelineSection(companion)
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(companion.displayName)
+        .navigationTitle(app.namesRevealed ? companion.displayName : "对象档案")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -147,25 +150,31 @@ struct CompanionDetailView: View {
     private func quickActionsSection(_ companion: Companion) -> some View {
         Section {
             HStack(spacing: 10) {
-                quickAction("message.fill", "聊了") { app.logQuickContact(for: companion, kind: .chat) }
-                quickAction("phone.fill", "通话") { app.logQuickContact(for: companion, kind: .call) }
-                quickAction("person.2.fill", "见了") { app.logQuickContact(for: companion, kind: .meet) }
-                quickAction("gift.fill", "送礼") { app.logQuickContact(for: companion, kind: .gift) }
+                quickAction("flame.fill", "亲密") {
+                    editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
+                }
+                quickAction("moon.fill", "过夜") {
+                    editingEncounter = Encounter(companionID: companion.id, kind: .overnight, cityID: companion.cityID)
+                }
+                quickAction("person.2.fill", "见面") { app.logQuickContact(for: companion, kind: .meet) }
+                quickAction("heart.text.square.fill", "聊骚") {
+                    editingEncounter = Encounter(companionID: companion.id, kind: .flirting, cityID: companion.cityID)
+                }
             }
             .padding(.vertical, 4)
 
             Button {
                 Haptics.shared.play(.lightTap)
-                editingEncounter = Encounter(companionID: companion.id, cityID: companion.cityID)
+                editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
             } label: {
-                Label("记一笔（带细节）", systemImage: "square.and.pencil")
+                Label("记录一次（带细节）", systemImage: "square.and.pencil")
                     .frame(maxWidth: .infinity, alignment: .center)
             }
             .buttonStyle(.borderless)
             .font(.subheadline.weight(.semibold))
             .tint(Palette.accent)
         } header: {
-            Text("刚发生过什么？")
+            Text("刚刚发生了什么？")
         }
     }
 
@@ -187,10 +196,10 @@ struct CompanionDetailView: View {
         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.95))
     }
 
-    // MARK: 关系
+    // MARK: 相处
 
     private func relationshipSection(_ companion: Companion) -> some View {
-        Section("关系") {
+        Section("相处") {
             Menu {
                 ForEach(RelationStage.allCases) { stage in
                     Button {
@@ -219,7 +228,7 @@ struct CompanionDetailView: View {
             .buttonStyle(.plain)
 
             HStack {
-                Text("心动指数")
+                Text("默契度")
                 Spacer()
                 RatingPicker(
                     rating: Binding(
@@ -232,10 +241,43 @@ struct CompanionDetailView: View {
         }
     }
 
+    // MARK: 边界与安全
+
+    private func intimacyInfoSection(_ companion: Companion) -> some View {
+        Section("边界与安全") {
+            if !companion.expectations.isEmpty {
+                privateNoteRow("相处期待", symbol: "text.bubble.fill", text: companion.expectations, tint: Palette.accent)
+            }
+            if !companion.boundaries.isEmpty {
+                privateNoteRow("边界与禁区", symbol: "hand.raised.fill", text: companion.boundaries, tint: Palette.warning)
+            }
+            if !companion.safetyNotes.isEmpty {
+                privateNoteRow("安全备忘", symbol: "checkmark.shield.fill", text: companion.safetyNotes, tint: Palette.safe)
+            }
+        }
+    }
+
+    private func privateNoteRow(_ title: String, symbol: String, text: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func hasIntimacyNotes(_ companion: Companion) -> Bool {
+        !companion.expectations.isEmpty || !companion.boundaries.isEmpty || !companion.safetyNotes.isEmpty
+    }
+
     // MARK: 信息
 
     private func infoSection(_ companion: Companion) -> some View {
-        Section("信息") {
+        Section("基本线索") {
             if let days = companion.daysUntilBirthday {
                 LabeledContent("生日") {
                     HStack(spacing: 5) {
@@ -286,7 +328,7 @@ struct CompanionDetailView: View {
         Section {
             let encounters = app.encounters(for: companion.id)
             if encounters.isEmpty {
-                Text("还没有相处记录，用上面的按钮记一笔吧。")
+                Text("还没有记录，用上面的按钮记下第一次吧。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -309,13 +351,13 @@ struct CompanionDetailView: View {
                 }
             }
         } header: {
-            Text("相处记录")
+            Text("全部记录")
         }
     }
 
     private func overdueNote(_ companion: Companion) -> String? {
         guard app.isOverdue(companion), let interval = companion.reminderIntervalDays else { return nil }
-        return "超过 \(interval) 天没互动了，要不要联系一下？"
+        return "到了你设置的 \(interval) 天联系周期。想见再联系，不必勉强。"
     }
 }
 
@@ -346,8 +388,11 @@ struct EncounterRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
                     if showName, let companion {
-                        Text(companion.displayName)
-                            .font(.subheadline.weight(.semibold))
+                        MaskedName(
+                            name: companion.displayName,
+                            revealed: app.namesRevealed,
+                            font: .subheadline.weight(.semibold)
+                        )
                     }
                     Text(encounter.kind.label)
                         .font(.subheadline)
@@ -365,6 +410,10 @@ struct EncounterRow: View {
                     if let cityName {
                         Label(cityName, systemImage: "mappin")
                     }
+                    if encounter.kind.isIntimate, encounter.protectionStatus.isRecorded {
+                        Label(encounter.protectionStatus.compactLabel, systemImage: encounter.protectionStatus.symbolName)
+                            .foregroundStyle(encounter.protectionStatus.tint)
+                    }
                     if let cost = encounter.cost, cost > 0 {
                         Label(Format.money(cost), systemImage: "yensign.circle")
                     }
@@ -375,6 +424,53 @@ struct EncounterRow: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+                if encounter.kind.isIntimate,
+                   !encounter.activities.isEmpty || encounter.boundaryFeeling.needsFollowUp || encounter.hasPendingFollowUp {
+                    HStack(spacing: 6) {
+                        if !encounter.activities.isEmpty {
+                            Text(encounter.activitySummary)
+                                .lineLimit(1)
+                        }
+                        if encounter.boundaryFeeling.needsFollowUp {
+                            Label("边界待回看", systemImage: "exclamationmark.bubble.fill")
+                                .foregroundStyle(Palette.warning)
+                        }
+                        if encounter.hasPendingFollowUp {
+                            Label("待跟进", systemImage: "checklist")
+                                .foregroundStyle(Palette.warning)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+
+                if encounter.kind.isConversation,
+                   !encounter.conversationSummary.isEmpty
+                    || !encounter.digitalBoundaries.isEmpty
+                    || !encounter.conversationSafetyFlags.isEmpty
+                    || encounter.hasPendingFollowUp {
+                    HStack(spacing: 6) {
+                        if !encounter.conversationSummary.isEmpty {
+                            Text(encounter.conversationSummary)
+                                .lineLimit(1)
+                        }
+                        if !encounter.digitalBoundaries.isEmpty {
+                            Label("隐私已聊", systemImage: "hand.raised.fill")
+                                .foregroundStyle(Palette.accent)
+                        }
+                        if !encounter.conversationSafetyFlags.isEmpty {
+                            Label("账号安全待留意", systemImage: "lock.shield.fill")
+                                .foregroundStyle(Palette.warning)
+                        }
+                        if encounter.hasPendingFollowUp {
+                            Label("待跟进", systemImage: "checklist")
+                                .foregroundStyle(Palette.warning)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(.vertical, 2)

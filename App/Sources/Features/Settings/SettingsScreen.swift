@@ -43,6 +43,7 @@ struct SettingsScreen: View {
         NavigationStack {
             Form {
                 privacySection
+                principlesSection
                 hapticsSection
                 appearanceSection
                 dataSection
@@ -76,7 +77,7 @@ struct SettingsScreen: View {
             Button("覆盖（清空后导入）", role: .destructive) { finishImport(replace: true) }
             Button("取消", role: .cancel) { pendingImportData = nil }
         } message: {
-            Text("合并：同一个人以更新时间较新的为准。覆盖：本机数据会被备份里的内容替换。")
+            Text("合并：同一对象以更新时间较新的为准。覆盖：本机数据会被备份里的内容替换。")
         }
         .alert("导入失败", isPresented: Binding(
             get: { showImportError != nil },
@@ -93,7 +94,7 @@ struct SettingsScreen: View {
             Button("好", role: .cancel) {}
         } message: {
             if let summary = importSummary {
-                Text("新增 \(summary.companionsAdded) 人，更新 \(summary.companionsUpdated) 人，新增 \(summary.encountersAdded) 条记录。")
+                Text("新增 \(summary.companionsAdded) 个对象，更新 \(summary.companionsUpdated) 个对象，新增 \(summary.encountersAdded) 条记录。")
             }
         }
         .alert("无法开启锁定", isPresented: $showLockUnavailable) {
@@ -112,7 +113,7 @@ struct SettingsScreen: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("所有档案、相处记录和设置都会被删除，且无法恢复。建议先导出一份备份。")
+            Text("所有对象档案、亲密记录和设置都会被删除，且无法恢复。建议先导出一份备份。")
         }
     }
 
@@ -131,7 +132,7 @@ struct SettingsScreen: View {
             .onChange(of: app.settings.appLockEnabled) { _, enabled in
                 guard enabled else { return }
                 if lock.canAuthenticate {
-                    Task { await lock.authenticate() }
+                    lock.configure(enabled: true, lockNow: true)
                 } else {
                     var updated = app.settings
                     updated.appLockEnabled = false
@@ -143,7 +144,7 @@ struct SettingsScreen: View {
 
             if app.settings.appLockEnabled {
                 Button {
-                    Task { await lock.authenticate() }
+                    lock.lockNow()
                 } label: {
                     Label("立即锁定", systemImage: "lock.fill")
                 }
@@ -155,13 +156,26 @@ struct SettingsScreen: View {
             .accessibilityHint("切到多任务界面时，用毛玻璃盖住内容")
 
             Toggle(isOn: app.settingsBinding(\.maskNamesByDefault)) {
-                Label("默认隐藏名字", systemImage: "person.crop.circle.badge.questionmark")
+                Label("默认隐藏代号", systemImage: "person.crop.circle.badge.questionmark")
             }
-            .accessibilityHint("名单里的名字会模糊显示，直到你点眼睛图标")
+            .accessibilityHint("对象的代号会模糊显示，直到你点眼睛图标")
         } header: {
             Text("隐私")
         } footer: {
-            Text("星图不联网、不申请任何系统权限。你的数据只存在这台设备上。")
+            Text("星图不会上传档案，也不申请通讯录、相册或定位权限。亲密数据只存在这台设备上。")
+        }
+    }
+
+    // MARK: 使用原则
+
+    private var principlesSection: some View {
+        Section {
+            Label("只记录成年人之间自愿、知情、可随时撤回的相处。", systemImage: "hand.raised.fill")
+            Label("边界和防护状态来自明确沟通，不替对方做推断。", systemImage: "checkmark.shield.fill")
+        } header: {
+            Text("相处原则")
+        } footer: {
+            Text("App 负责帮助回忆，不替你判断关系，也不代替专业健康建议。")
         }
     }
 
@@ -195,7 +209,7 @@ struct SettingsScreen: View {
         } header: {
             Text("触感")
         } footer: {
-            Text("地图选点、升降面板、保存档案这些动作都有对应的原生触感。")
+            Text("记录、切换状态、打开城市足迹和保存档案都有对应的原生触感。")
         }
     }
 
@@ -254,7 +268,7 @@ struct SettingsScreen: View {
         } header: {
             Text("数据")
         } footer: {
-            Text("\(app.companions.count) 条档案 · \(app.encounters.count) 条记录。备份文件是明文 JSON，请存放在自己信任的位置。")
+            Text("\(app.companions.count) 个对象 · \(app.encounters.count) 条记录。备份文件是明文 JSON，请存放在自己信任的位置。")
         }
     }
 
@@ -301,6 +315,9 @@ struct AboutView: View {
 
                     Text("星图")
                         .font(.title2.weight(.bold))
+                    Text("只属于你的亲密记录")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     Text("版本 \(Bundle.main.appVersion)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -313,7 +330,7 @@ struct AboutView: View {
             Section("技术") {
                 LabeledContent("最低系统", value: "iOS 18")
                 LabeledContent("界面", value: "SwiftUI · 液态玻璃")
-                LabeledContent("地图", value: "MapKit · 仅中国大陆")
+                LabeledContent("城市足迹", value: "MapKit · 城市级")
                 LabeledContent("触感", value: "Core Haptics")
                 LabeledContent("存储", value: "纯本地")
             }
@@ -328,12 +345,12 @@ struct PrivacyView: View {
         List {
             Section {
                 Label {
-                    Text("不联网")
+                    Text("不上传档案")
                         .font(.headline)
                 } icon: {
                     Image(systemName: "wifi.slash").foregroundStyle(Palette.accent)
                 }
-                Text("星图没有一行网络代码：不发请求、没有统计 SDK、没有云同步。所有数据只写在本机沙盒。")
+                Text("星图没有账号、统计 SDK 或云同步。MapKit 只负责显示城市底图；对象、边界与亲密记录不会上传。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -346,6 +363,18 @@ struct PrivacyView: View {
                     Image(systemName: "nosign").foregroundStyle(Palette.accent)
                 }
                 Text("不读通讯录、不定位、不访问相册。唯一的系统交互是可选的面容 / 触控 ID 解锁。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Label {
+                    Text("成年人、自愿与知情")
+                        .font(.headline)
+                } icon: {
+                    Image(systemName: "hand.raised.fill").foregroundStyle(Palette.accent)
+                }
+                Text("本 App 只用于记录成年人之间自愿、知情且可随时撤回的相处。记录边界不是一次性授权，每次都应重新确认。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

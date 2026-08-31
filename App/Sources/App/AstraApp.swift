@@ -37,7 +37,7 @@ struct AstraApp: App {
 }
 
 enum AppTab: Hashable {
-    case map
+    case home
     case roster
     case timeline
     case settings
@@ -48,21 +48,21 @@ struct RootView: View {
     @Environment(AppState.self) private var app
     @Environment(AppLock.self) private var lock
 
-    @State private var selection: AppTab = .map
+    @State private var selection: AppTab = .home
 
     var body: some View {
         ZStack {
             TabView(selection: tabSelection) {
-                Tab("地图", systemImage: "map.fill", value: AppTab.map) {
-                    MapScreen()
+                Tab("概览", systemImage: "sparkles", value: AppTab.home) {
+                    HomeScreen()
                 }
 
-                Tab("名单", systemImage: "person.2.fill", value: AppTab.roster) {
+                Tab("对象", systemImage: "person.2.fill", value: AppTab.roster) {
                     RosterScreen()
                 }
                 .badge(app.needsAttention.count)
 
-                Tab("动态", systemImage: "chart.line.uptrend.xyaxis", value: AppTab.timeline) {
+                Tab("记录", systemImage: "clock.arrow.circlepath", value: AppTab.timeline) {
                     TimelineScreen()
                 }
 

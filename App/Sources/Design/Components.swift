@@ -68,7 +68,7 @@ struct AvatarView: View {
     let text: String
     let paletteIndex: Int
     var size: CGFloat = 46
-    /// 外圈描边颜色，用来表达关系阶段
+    /// 外圈描边颜色，用来表达相处状态
     var ringColor: Color?
     var isDimmed: Bool = false
 
@@ -135,12 +135,11 @@ struct GlassChip: View {
 
     var body: some View {
         Button {
-            Haptics.shared.play(isOn ? .toggleOff : .toggleOn)
             action()
         } label: {
             label
         }
-        .buttonStyle(HapticButtonStyle(cue: .selection))
+        .buttonStyle(HapticButtonStyle(cue: isOn ? .toggleOff : .toggleOn))
         .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 
@@ -204,7 +203,7 @@ struct StageBadge: View {
     }
 }
 
-// MARK: - 心动指数
+// MARK: - 默契度
 
 struct RatingStars: View {
     let rating: Int
@@ -219,7 +218,7 @@ struct RatingStars: View {
                     .foregroundStyle(index <= rating ? tint : Color.secondary.opacity(0.35))
             }
         }
-        .accessibilityLabel("心动指数 \(rating) 星")
+        .accessibilityLabel("默契度 \(rating) 星")
     }
 }
 
@@ -322,12 +321,12 @@ struct GlassIconButton: View {
     var size: CGFloat = 44
     var tint: Color?
     var isActive: Bool = false
+    var cue: HapticCue = .lightTap
     var accessibilityText: String
     var action: () -> Void
 
     var body: some View {
         Button {
-            Haptics.shared.play(.lightTap)
             action()
         } label: {
             Image(systemName: systemImage)
@@ -340,7 +339,7 @@ struct GlassIconButton: View {
                 .glassCircle(interactive: true)
                 .contentShape(Circle())
         }
-        .buttonStyle(HapticButtonStyle(cue: .selection, scale: 0.92))
+        .buttonStyle(HapticButtonStyle(cue: cue, scale: 0.92))
         .accessibilityLabel(accessibilityText)
     }
 }

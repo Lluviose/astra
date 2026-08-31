@@ -7,18 +7,32 @@ final class BackupServiceTests: XCTestCase {
         let companion = Companion(
             name: "测试",
             cityID: "330100",
-            stage: .dating,
+            stage: .casual,
             rating: 4,
-            tags: ["温柔", "爱笑"],
+            expectations: "偶尔见面",
+            boundaries: "提前确认",
+            safetyNotes: "只记已沟通的信息",
+            tags: ["尊重", "守时"],
             notes: "备注内容"
         )
         let encounter = Encounter(
             companionID: companion.id,
             date: Date(timeIntervalSince1970: 1_750_000_000),
-            kind: .meal,
+            kind: .intimacy,
             place: "湖滨银泰",
             cost: 328,
-            mood: 5
+            physicalRating: 4,
+            emotionalRating: 5,
+            activities: [.kissing, .oralReceiving],
+            boundaryFeeling: .comfortable,
+            personalStates: [.clearheaded],
+            protectionStatus: .protected,
+            safetyMeasures: [.externalCondom, .lubricant],
+            safetyNote: "已确认",
+            meetAgainIntent: .yes,
+            followUpKinds: [.testing],
+            followUpDate: Date(timeIntervalSince1970: 1_750_086_400),
+            followUpNote: "预约检测"
         )
 
         let data = try BackupService.encode(companions: [companion], encounters: [encounter])
@@ -27,12 +41,22 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(decoded.format, BackupService.formatIdentifier)
         XCTAssertEqual(decoded.companions.count, 1)
         XCTAssertEqual(decoded.companions.first?.name, "测试")
-        XCTAssertEqual(decoded.companions.first?.stage, .dating)
-        XCTAssertEqual(decoded.companions.first?.tags, ["温柔", "爱笑"])
+        XCTAssertEqual(decoded.companions.first?.stage, .casual)
+        XCTAssertEqual(decoded.companions.first?.expectations, "偶尔见面")
+        XCTAssertEqual(decoded.companions.first?.boundaries, "提前确认")
+        XCTAssertEqual(decoded.companions.first?.tags, ["尊重", "守时"])
         XCTAssertEqual(decoded.encounters.count, 1)
 
         let decodedEncounter = try XCTUnwrap(decoded.encounters.first)
         XCTAssertEqual(decodedEncounter.cost, 328)
+        XCTAssertEqual(decodedEncounter.protectionStatus, .protected)
+        XCTAssertEqual(decodedEncounter.activities, [.kissing, .oralReceiving])
+        XCTAssertEqual(decodedEncounter.safetyMeasures, [.externalCondom, .lubricant])
+        XCTAssertEqual(decodedEncounter.boundaryFeeling, .comfortable)
+        XCTAssertEqual(decodedEncounter.physicalRating, 4)
+        XCTAssertEqual(decodedEncounter.emotionalRating, 5)
+        XCTAssertEqual(decodedEncounter.followUpKinds, [.testing])
+        XCTAssertEqual(decodedEncounter.safetyNote, "已确认")
         XCTAssertEqual(
             decodedEncounter.date.timeIntervalSince1970,
             encounter.date.timeIntervalSince1970,
@@ -49,14 +73,46 @@ final class BackupServiceTests: XCTestCase {
         }
     }
 
+    func testConversationDetailsRoundTrip() throws {
+        let companion = Companion(name: "她", cityID: "310000", stage: .flirting)
+        let encounter = Encounter(
+            companionID: companion.id,
+            kind: .flirting,
+            emotionalRating: 4,
+            chatProgress: .discussingMeet,
+            explicitContentComfort: .limited,
+            acceptedExplicitMedia: [.text],
+            conversationTopics: [.chatPace, .boundaries, .meetingPlan],
+            digitalBoundaries: [.noScreenshots, .noForwarding],
+            conversationSafetyFlags: [.identityNotConfirmed, .suspiciousLink],
+            meetAgainIntent: .yes,
+            followUpKinds: [.planMeet],
+            followUpNote: "等她确认周末时间"
+        )
+
+        let data = try BackupService.encode(companions: [companion], encounters: [encounter])
+        let decoded = try BackupService.decode(data)
+        let record = try XCTUnwrap(decoded.encounters.first)
+
+        XCTAssertEqual(record.kind, .flirting)
+        XCTAssertEqual(record.chatProgress, .discussingMeet)
+        XCTAssertEqual(record.explicitContentComfort, .limited)
+        XCTAssertEqual(record.acceptedExplicitMedia, [.text])
+        XCTAssertEqual(record.conversationTopics, [.chatPace, .boundaries, .meetingPlan])
+        XCTAssertEqual(record.digitalBoundaries, [.noScreenshots, .noForwarding])
+        XCTAssertEqual(record.conversationSafetyFlags, [.identityNotConfirmed, .suspiciousLink])
+        XCTAssertTrue(record.hasConversationSafetyConcern)
+        XCTAssertEqual(record.followUpKinds, [.planMeet])
+    }
+
     func testCompanionDecodesWithMissingOptionalFields() throws {
-        // 旧版本备份里没有 tags / isArchived 等字段，导入不能失败
+        // 局部字段缺失时仍能给出稳定默认值。
         let json = """
         {"id": "\(UUID().uuidString)", "name": "旧档案", "cityID": "310000"}
         """
         let companion = try JSONDecoder().decode(Companion.self, from: Data(json.utf8))
         XCTAssertEqual(companion.name, "旧档案")
-        XCTAssertEqual(companion.stage, .talking)
+        XCTAssertEqual(companion.stage, .chatting)
         XCTAssertTrue(companion.tags.isEmpty)
         XCTAssertFalse(companion.isArchived)
         XCTAssertNil(companion.birthdayMonth)

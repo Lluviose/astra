@@ -59,6 +59,14 @@ final class AppLock {
         }
     }
 
+    /// 立即进入锁屏；锁屏视图出现后会发起系统验证。
+    func lockNow() {
+        guard isEnabled else { return }
+        isObscured = false
+        lastErrorMessage = nil
+        isLocked = true
+    }
+
     /// 场景状态变化。
     /// - `.inactive`（下拉控制中心、进入多任务）只盖遮罩，不上锁，否则一个系统弹窗就会把人锁在外面；
     /// - `.background`（真的离开了）才上锁。

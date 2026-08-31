@@ -67,6 +67,23 @@ enum Format {
         }
     }
 
+    /// 待跟进日期：今天 / 明天 / 已超期 2 天 / 5 天后 / 9月18日
+    static func followUpDue(_ date: Date?) -> String {
+        guard let date else { return "未设日期" }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: date)
+        let days = calendar.dateComponents([.day], from: today, to: target).day ?? 0
+
+        switch days {
+        case 0: return "今天"
+        case 1: return "明天"
+        case ..<0: return "已超期 \(-days) 天"
+        case 2...7: return "\(days) 天后"
+        default: return DateFormatter.dayShort.string(from: target)
+        }
+    }
+
     static func height(_ cm: Int?) -> String? {
         guard let cm else { return nil }
         return "\(cm) cm"

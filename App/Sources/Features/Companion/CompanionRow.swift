@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 名字打码显示。开启「默认隐藏名字」后，未揭示状态下做模糊处理。
+/// 代号打码显示。开启「默认隐藏代号」后，未揭示状态下做模糊处理。
 struct MaskedName: View {
     let name: String
     let revealed: Bool
@@ -12,11 +12,11 @@ struct MaskedName: View {
             .lineLimit(1)
             .blur(radius: revealed ? 0 : 5)
             .animation(.easeInOut(duration: 0.2), value: revealed)
-            .accessibilityLabel(revealed ? name : "名字已隐藏")
+            .accessibilityLabel(revealed ? name : "代号已隐藏")
     }
 }
 
-/// 名单 / 城市面板通用的一行
+/// 对象页 / 城市面板通用的一行
 struct CompanionRow: View {
 
     let companion: Companion
@@ -25,7 +25,9 @@ struct CompanionRow: View {
     @Environment(AppState.self) private var app
 
     private var isOverdue: Bool { app.isOverdue(companion) }
-    private var days: Int { app.daysSinceContact(for: companion) }
+    private var intimateEncounters: [Encounter] {
+        app.encounters(for: companion.id).filter { $0.kind.isIntimate }
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -39,6 +41,12 @@ struct CompanionRow: View {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 9))
                             .foregroundStyle(Color(red: 0.98, green: 0.66, blue: 0.28))
+                    }
+                    if isOverdue {
+                        Image(systemName: "bell.badge.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Palette.warning)
+                            .accessibilityLabel("到了联系周期")
                     }
                     if let daysToBirthday = companion.daysUntilBirthday, daysToBirthday <= 14 {
                         Image(systemName: "birthday.cake.fill")
@@ -68,13 +76,17 @@ struct CompanionRow: View {
 
             VStack(alignment: .trailing, spacing: 6) {
                 RatingStars(rating: companion.rating, size: 10)
-                Text(Format.silence(days: days))
+                Text(intimacySummary)
                     .font(.caption2)
-                    .foregroundStyle(isOverdue ? Palette.accent : .secondary)
-                    .fontWeight(isOverdue ? .semibold : .regular)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    private var intimacySummary: String {
+        guard let latest = intimateEncounters.first else { return "还没记亲密" }
+        return "\(intimateEncounters.count) 次 · \(Format.relativeDay(latest.date))"
     }
 }

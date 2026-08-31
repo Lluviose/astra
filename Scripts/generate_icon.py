@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""星图 App 图标生成器 —— 只用 Python 标准库，不依赖 PIL/numpy。
+"""星图 App 图标生成器 —— 私密、抽象的双轨相遇符号。
 
 用法（在 Astra 目录下）：
     python Scripts/generate_icon.py
@@ -125,14 +125,14 @@ def rng(seed):
 def render_icon(size):
     buf = make_canvas(size)
 
-    # 夜空渐变：左上深靛 → 右下深紫
+    # 夜色渐变：左上午夜紫 → 右下酒红
     for y in range(size):
         t = y / size
         for x in range(size):
             tt = (t + x / size) / 2
-            r = int(10 + 8 * tt)
-            g = int(14 + 8 * tt)
-            b = int(44 - 16 * tt)
+            r = int(12 + 24 * tt)
+            g = int(8 + 2 * tt)
+            b = int(34 + 12 * (1 - tt))
             i = (y * size + x) * 4
             buf[i] = r
             buf[i + 1] = g
@@ -141,41 +141,39 @@ def render_icon(size):
 
     # 星点
     gen = rng(0xA57A)
-    for _ in range(130):
+    for _ in range(76):
         x = next(gen) * size
         y = next(gen) * size
-        radius = 0.8 + next(gen) * 2.2
-        alpha = int(60 + next(gen) * 150)
+        radius = 0.7 + next(gen) * 1.8
+        alpha = int(45 + next(gen) * 120)
         fill_disc(buf, size, x, y, radius, (255, 255, 255, alpha))
 
-    # 右下角珊瑚光晕
-    glow_r = size * 0.52
-    fill_disc(buf, size, size * 0.62, size * 0.60, glow_r, (250, 84, 107, 44))
-    fill_disc(buf, size, size * 0.62, size * 0.60, glow_r * 0.62, (250, 84, 107, 52))
+    # 交会光晕：紫与莓红各自成团，但在中心叠加。
+    glow_r = size * 0.42
+    fill_disc(buf, size, size * 0.39, size * 0.56, glow_r, (121, 56, 236, 34))
+    fill_disc(buf, size, size * 0.66, size * 0.43, glow_r, (245, 64, 126, 34))
 
-    # 地图大头针：白色玻璃圆头 + 珊瑚针杆
-    cx, cy = size * 0.5, size * 0.442
-    ring_r = size * 0.235
-    ring_t = size * 0.055
+    # 两条轨道与两个相遇点。符号保持抽象，桌面上不暴露 App 用途。
+    cx, cy = size * 0.5, size * 0.5
+    outer_r = size * 0.245
+    inner_r = size * 0.138
+    fill_ring(buf, size, cx, cy, outer_r, size * 0.047, (255, 255, 255, 226))
+    fill_ring(buf, size, cx, cy, inner_r, size * 0.024, (202, 158, 255, 178))
 
-    # 针杆（圆头斜下方）
-    stem_angle = -0.62  # 朝右下
-    for k in range(14):
-        t = k / 13.0
-        dist = ring_r - ring_t * 0.4 + t * size * 0.115
-        px = cx + math.cos(stem_angle) * dist
-        py = cy + math.sin(stem_angle) * dist
-        width = size * 0.028 * (1 - t * 0.55)
-        fill_disc(buf, size, px, py, width, (250, 84, 107, 255))
-    # 针尖圆点
-    fill_disc(buf, size, cx + math.cos(stem_angle) * (ring_r + size * 0.118), cy + math.sin(stem_angle) * (ring_r + size * 0.118), size * 0.034, (250, 84, 107, 255))
+    angle_a = -0.66
+    angle_b = math.pi - 0.66
+    ax = cx + math.cos(angle_a) * outer_r
+    ay = cy + math.sin(angle_a) * outer_r
+    bx = cx + math.cos(angle_b) * outer_r
+    by = cy + math.sin(angle_b) * outer_r
 
-    # 白色圆环
-    fill_ring(buf, size, cx, cy, ring_r, ring_t, (255, 255, 255, 235))
-    # 环内：珊瑚点 + 玻璃高光
-    dot_r = size * 0.115
-    fill_disc(buf, size, cx, cy, dot_r, (250, 84, 107, 255))
-    fill_disc(buf, size, cx - dot_r * 0.32, cy - dot_r * 0.36, dot_r * 0.46, (255, 200, 205, 120))
+    fill_disc(buf, size, ax, ay, size * 0.065, (247, 68, 127, 255))
+    fill_disc(buf, size, ax - size * 0.015, ay - size * 0.020, size * 0.021, (255, 221, 232, 150))
+    fill_disc(buf, size, bx, by, size * 0.050, (151, 88, 246, 255))
+    fill_disc(buf, size, bx - size * 0.011, by - size * 0.015, size * 0.016, (232, 215, 255, 140))
+
+    # 中心的低调实心点让图标在小尺寸下仍有清晰焦点。
+    fill_disc(buf, size, cx, cy, size * 0.042, (255, 255, 255, 220))
 
     return to_rgba(buf, size)
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 名单页的筛选条件。空集合表示「不限」。
+/// 对象页的筛选条件。空集合表示「不限」。
 struct RosterFilter: Codable, Hashable, Sendable {
     var stages: Set<RelationStage> = []
     var cityIDs: Set<String> = []
@@ -8,7 +8,7 @@ struct RosterFilter: Codable, Hashable, Sendable {
     /// 0 表示不限
     var minRating: Int = 0
     var includeArchived: Bool = false
-    /// 只看「该联系了」的人
+    /// 只看已经到达联系周期的对象
     var needsContactOnly: Bool = false
 
     static let `default` = RosterFilter()
@@ -26,7 +26,7 @@ struct RosterFilter: Codable, Hashable, Sendable {
         return count
     }
 
-    /// - Parameter isOverdue: 是否已超过该人的提醒间隔
+    /// - Parameter isOverdue: 是否已超过该对象的联系周期
     func matches(_ companion: Companion, isOverdue: Bool) -> Bool {
         if !includeArchived, companion.isArchived { return false }
         if !stages.isEmpty, !stages.contains(companion.stage) { return false }
@@ -62,10 +62,10 @@ enum RosterSort: String, CaseIterable, Codable, Sendable, Identifiable {
 
     var label: String {
         switch self {
-        case .lastContact: "最近联系"
-        case .rating: "心动指数"
-        case .stage: "关系阶段"
-        case .name: "名字"
+        case .lastContact: "最近互动"
+        case .rating: "默契度"
+        case .stage: "相处状态"
+        case .name: "代号"
         case .city: "城市"
         case .added: "添加时间"
         }
@@ -75,7 +75,7 @@ enum RosterSort: String, CaseIterable, Codable, Sendable, Identifiable {
         switch self {
         case .lastContact: "clock.arrow.circlepath"
         case .rating: "star.fill"
-        case .stage: "heart.text.square"
+        case .stage: "circle.grid.2x2.fill"
         case .name: "textformat.abc"
         case .city: "map"
         case .added: "calendar.badge.plus"
@@ -93,26 +93,20 @@ enum RosterGrouping: String, CaseIterable, Codable, Sendable, Identifiable {
     var label: String {
         switch self {
         case .none: "不分组"
-        case .stage: "按阶段"
+        case .stage: "按状态"
         case .city: "按城市"
         }
     }
 }
 
-// MARK: - 统计
+// MARK: - 亲密记录统计
 
-struct RosterStats: Hashable, Sendable {
+struct IntimacyStats: Hashable, Sendable {
     var activeCount: Int = 0
-    var archivedCount: Int = 0
-    var cityCount: Int = 0
-    var stageBreakdown: [RelationStage: Int] = [:]
-    var encountersThisMonth: Int = 0
-    var meetupsThisMonth: Int = 0
-    var spendThisMonth: Double = 0
-    var spendAllTime: Double = 0
-    var averageMood: Double?
-    /// 最久没联系的人
-    var longestSilenceName: String?
-    var longestSilenceDays: Int?
-    var busiestCityName: String?
+    var totalIntimacyCount: Int = 0
+    var intimaciesThisMonth: Int = 0
+    var safetyRecordedThisMonth: Int = 0
+    var unprotectedThisMonth: Int = 0
+    var pendingFollowUpCount: Int = 0
+    var averageExperience: Double?
 }
