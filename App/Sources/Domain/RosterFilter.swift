@@ -108,5 +108,8 @@ struct IntimacyStats: Hashable, Sendable {
     var safetyRecordedThisMonth: Int = 0
     var unprotectedThisMonth: Int = 0
     var pendingFollowUpCount: Int = 0
+    var overnightCount: Int = 0
+    var photoCount: Int = 0
+    var cityCount: Int = 0
     var averageExperience: Double?
 }

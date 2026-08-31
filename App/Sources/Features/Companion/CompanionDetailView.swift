@@ -11,6 +11,7 @@ struct CompanionDetailView: View {
     @State private var showEditor = false
     @State private var editingEncounter: Encounter?
     @State private var showDeleteConfirm = false
+    @State private var viewingPhotoIndex: Int?
 
     private var companion: Companion? { app.companion(id: companionID) }
 
@@ -81,7 +82,13 @@ struct CompanionDetailView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("连同全部亲密记录一起删除，且无法恢复。")
+            Text("连同约过的记录和照片一起删掉，回不来。")
+        }
+        .sheet(isPresented: Binding(
+            get: { viewingPhotoIndex != nil },
+            set: { if !$0 { viewingPhotoIndex = nil } }
+        )) {
+            PhotoViewer(ids: app.albumIDs(for: companionID), index: viewingPhotoIndex ?? 0)
         }
     }
 
@@ -99,6 +106,7 @@ struct CompanionDetailView: View {
 
             headerSection(companion)
             quickActionsSection(companion)
+            albumSection(companion)
             if let overdueNote = overdueNote(companion) {
                 Section {
                     Label(overdueNote, systemImage: "bell.badge.fill")
@@ -137,6 +145,17 @@ struct CompanionDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                let hookups = app.hookupCount(for: companion.id)
+                let photos = app.albumIDs(for: companion.id).count
+                if hookups > 0 || photos > 0 {
+                    Text([
+                        hookups > 0 ? "约成 \(hookups) 次" : nil,
+                        photos > 0 ? "照片 \(photos)" : nil,
+                    ].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.coral)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
@@ -150,7 +169,7 @@ struct CompanionDetailView: View {
     private func quickActionsSection(_ companion: Companion) -> some View {
         Section {
             HStack(spacing: 10) {
-                quickAction("flame.fill", "亲密") {
+                quickAction("flame.fill", "约成") {
                     editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
                 }
                 quickAction("moon.fill", "过夜") {
@@ -167,14 +186,14 @@ struct CompanionDetailView: View {
                 Haptics.shared.play(.lightTap)
                 editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
             } label: {
-                Label("记录一次（带细节）", systemImage: "square.and.pencil")
+                Label("记细节 / 留照片", systemImage: "camera.fill")
                     .frame(maxWidth: .infinity, alignment: .center)
             }
             .buttonStyle(.borderless)
             .font(.subheadline.weight(.semibold))
             .tint(Palette.accent)
         } header: {
-            Text("刚刚发生了什么？")
+            Text("刚发生了什么？")
         }
     }
 
@@ -196,10 +215,34 @@ struct CompanionDetailView: View {
         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.95))
     }
 
+    private func albumSection(_ companion: Companion) -> some View {
+        let ids = app.albumIDs(for: companion.id)
+        return Group {
+            if !ids.isEmpty {
+                Section {
+                    if app.namesRevealed {
+                        PhotoStrip(
+                            ids: ids,
+                            onOpen: { viewingPhotoIndex = $0 }
+                        )
+                    } else {
+                        Label("点右上角眼睛再看照片", systemImage: "eye.slash")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("私藏")
+                } footer: {
+                    Text("头像和每次留下的照片都在这儿，只存在这台手机。")
+                }
+            }
+        }
+    }
+
     // MARK: 相处
 
     private func relationshipSection(_ companion: Companion) -> some View {
-        Section("相处") {
+        Section("怎么约") {
             Menu {
                 ForEach(RelationStage.allCases) { stage in
                     Button {
@@ -244,12 +287,12 @@ struct CompanionDetailView: View {
     // MARK: 边界与安全
 
     private func intimacyInfoSection(_ companion: Companion) -> some View {
-        Section("边界与安全") {
+        Section("说过的规矩") {
             if !companion.expectations.isEmpty {
-                privateNoteRow("相处期待", symbol: "text.bubble.fill", text: companion.expectations, tint: Palette.accent)
+                privateNoteRow("怎么约", symbol: "text.bubble.fill", text: companion.expectations, tint: Palette.accent)
             }
             if !companion.boundaries.isEmpty {
-                privateNoteRow("边界与禁区", symbol: "hand.raised.fill", text: companion.boundaries, tint: Palette.warning)
+                privateNoteRow("她说过不行的", symbol: "hand.raised.fill", text: companion.boundaries, tint: Palette.warning)
             }
             if !companion.safetyNotes.isEmpty {
                 privateNoteRow("安全备忘", symbol: "checkmark.shield.fill", text: companion.safetyNotes, tint: Palette.safe)
@@ -328,7 +371,7 @@ struct CompanionDetailView: View {
         Section {
             let encounters = app.encounters(for: companion.id)
             if encounters.isEmpty {
-                Text("还没有记录，用上面的按钮记下第一次吧。")
+                Text("还没记过。上面四个按钮，点一下就行。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -357,7 +400,7 @@ struct CompanionDetailView: View {
 
     private func overdueNote(_ companion: Companion) -> String? {
         guard app.isOverdue(companion), let interval = companion.reminderIntervalDays else { return nil }
-        return "到了你设置的 \(interval) 天联系周期。想见再联系，不必勉强。"
+        return "已经 \(interval) 天没约了。想见再开口，不必硬聊。"
     }
 }
 
@@ -413,6 +456,9 @@ struct EncounterRow: View {
                     if encounter.kind.isIntimate, encounter.protectionStatus.isRecorded {
                         Label(encounter.protectionStatus.compactLabel, systemImage: encounter.protectionStatus.symbolName)
                             .foregroundStyle(encounter.protectionStatus.tint)
+                    }
+                    if !encounter.photoIDs.isEmpty {
+                        Label("\(encounter.photoIDs.count)", systemImage: "photo")
                     }
                     if let cost = encounter.cost, cost > 0 {
                         Label(Format.money(cost), systemImage: "yensign.circle")

@@ -7,13 +7,21 @@ struct BackupPayload: Codable, Sendable {
     var exportedAt: Date
     var companions: [Companion]
     var encounters: [Encounter]
+    /// JPEG 二进制，key 是 MediaStore 的 id。v1 备份没有这一项。
+    var media: [String: Data]
 
-    init(companions: [Companion], encounters: [Encounter], exportedAt: Date = Date()) {
+    init(
+        companions: [Companion],
+        encounters: [Encounter],
+        media: [String: Data] = [:],
+        exportedAt: Date = Date()
+    ) {
         self.format = BackupService.formatIdentifier
         self.version = BackupService.currentVersion
         self.exportedAt = exportedAt
         self.companions = companions
         self.encounters = encounters
+        self.media = media
     }
 
     init(from decoder: Decoder) throws {
@@ -23,6 +31,7 @@ struct BackupPayload: Codable, Sendable {
         exportedAt = try c.decodeIfPresent(Date.self, forKey: .exportedAt) ?? Date()
         companions = try c.decodeIfPresent([Companion].self, forKey: .companions) ?? []
         encounters = try c.decodeIfPresent([Encounter].self, forKey: .encounters) ?? []
+        media = try c.decodeIfPresent([String: Data].self, forKey: .media) ?? [:]
     }
 }
 
@@ -43,7 +52,7 @@ enum BackupError: LocalizedError {
 enum BackupService {
 
     static let formatIdentifier = "astra.backup"
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
@@ -58,8 +67,12 @@ enum BackupService {
         return decoder
     }
 
-    static func encode(companions: [Companion], encounters: [Encounter]) throws -> Data {
-        try encoder.encode(BackupPayload(companions: companions, encounters: encounters))
+    static func encode(
+        companions: [Companion],
+        encounters: [Encounter],
+        media: [String: Data] = [:]
+    ) throws -> Data {
+        try encoder.encode(BackupPayload(companions: companions, encounters: encounters, media: media))
     }
 
     static func decode(_ data: Data) throws -> BackupPayload {

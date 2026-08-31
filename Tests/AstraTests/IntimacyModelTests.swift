@@ -61,7 +61,7 @@ final class IntimacyModelTests: XCTestCase {
 
         encounter.followUpKinds = [.testing, .message]
         XCTAssertTrue(encounter.hasPendingFollowUp)
-        XCTAssertEqual(encounter.followUpSummary, "发消息确认、安排检测")
+        XCTAssertEqual(encounter.followUpSummary, "回个消息、去做检测")
 
         encounter.isFollowUpDone = true
         XCTAssertFalse(encounter.hasPendingFollowUp)
@@ -72,7 +72,7 @@ final class IntimacyModelTests: XCTestCase {
             companionID: UUID(),
             activities: [.toys, .kissing, .analReceptive, .oralGiving]
         )
-        XCTAssertEqual(encounter.activitySummary, "亲吻、口交 · 主动、肛交 · 接受 等 4 项")
+        XCTAssertEqual(encounter.activitySummary, "亲亲、口 · 我给她、肛 · 我在下 等 4 项")
     }
 
     func testOnlyUncertainBoundaryStatesSuggestFollowUp() {
@@ -88,7 +88,7 @@ final class IntimacyModelTests: XCTestCase {
 
         encounter.chatProgress = .discussingMeet
         encounter.explicitContentComfort = .limited
-        XCTAssertEqual(encounter.conversationSummary, "在聊见面 · 露骨内容：有范围 / 条件")
+        XCTAssertEqual(encounter.conversationSummary, "在约见面 · 露骨内容：有范围")
     }
 
     func testSlowDownAndDeclineShouldNotBeEscalated() {
@@ -105,7 +105,7 @@ final class IntimacyModelTests: XCTestCase {
             explicitContentComfort: .limited,
             acceptedExplicitMedia: [.videoCall, .text]
         )
-        XCTAssertEqual(encounter.acceptedExplicitMediaSummary, "露骨文字、露骨视频通话")
+        XCTAssertEqual(encounter.acceptedExplicitMediaSummary, "黄段子 / 露骨文字、视频开黄腔")
     }
 
     func testConversationSafetyUsesObservableFlagsWithoutAScore() {

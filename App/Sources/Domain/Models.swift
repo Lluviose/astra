@@ -16,13 +16,13 @@ enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifia
 
     var label: String {
         switch self {
-        case .new: "新认识"
-        case .chatting: "在聊天"
-        case .flirting: "暧昧升温"
-        case .casual: "偶尔见面"
-        case .regular: "固定见面"
-        case .paused: "暂停联系"
-        case .ended: "已经结束"
+        case .new: "刚认识"
+        case .chatting: "聊上了"
+        case .flirting: "暧昧中"
+        case .casual: "偶尔约"
+        case .regular: "固定约"
+        case .paused: "先搁着"
+        case .ended: "结束了"
         }
     }
 
@@ -80,6 +80,8 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     var stage: RelationStage
     /// 0...5
     var rating: Int
+    /// 头像照片，存在本机沙盒
+    var photoID: String?
     var age: Int?
     var heightCM: Int?
     /// 生日只存月/日，不强制要年份
@@ -114,6 +116,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         cityID: String = "310000",
         stage: RelationStage = .chatting,
         rating: Int = 3,
+        photoID: String? = nil,
         age: Int? = nil,
         heightCM: Int? = nil,
         birthdayMonth: Int? = nil,
@@ -140,6 +143,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         self.cityID = cityID
         self.stage = stage
         self.rating = rating
+        self.photoID = photoID
         self.age = age
         self.heightCM = heightCM
         self.birthdayMonth = birthdayMonth
@@ -170,6 +174,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         cityID = try c.decodeIfPresent(String.self, forKey: .cityID) ?? "310000"
         stage = RelationStage(rawValue: try c.decodeIfPresent(String.self, forKey: .stage) ?? "") ?? .chatting
         rating = try c.decodeIfPresent(Int.self, forKey: .rating) ?? 3
+        photoID = try c.decodeIfPresent(String.self, forKey: .photoID)
         age = try c.decodeIfPresent(Int.self, forKey: .age)
         heightCM = try c.decodeIfPresent(Int.self, forKey: .heightCM)
         birthdayMonth = try c.decodeIfPresent(Int.self, forKey: .birthdayMonth)
@@ -244,13 +249,13 @@ enum EncounterKind: String, Codable, CaseIterable, Hashable, Sendable, Identifia
 
     var label: String {
         switch self {
-        case .intimacy: "亲密见面"
+        case .intimacy: "约成了"
         case .overnight: "过夜"
         case .meet: "见面"
         case .meal: "吃饭"
-        case .outing: "一起出门"
-        case .trip: "旅行"
-        case .flirting: "暧昧聊天"
+        case .outing: "出去玩"
+        case .trip: "一起旅行"
+        case .flirting: "聊骚"
         case .call: "通话"
         case .chat: "聊天"
         case .gift: "送礼"
@@ -326,13 +331,13 @@ enum ChatProgress: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
     var label: String {
         switch self {
         case .notRecorded: "未记录"
-        case .gettingToKnow: "继续了解"
-        case .flirting: "已进入调情"
-        case .expectationsClear: "期待已聊清"
-        case .discussingMeet: "在聊见面"
-        case .meetScheduled: "已约好见面"
-        case .slowingDown: "放慢一点"
-        case .stopped: "停止推进"
+        case .gettingToKnow: "还在摸底"
+        case .flirting: "已经聊骚了"
+        case .expectationsClear: "想约的事聊清了"
+        case .discussingMeet: "在约见面"
+        case .meetScheduled: "约好了"
+        case .slowingDown: "先缓一缓"
+        case .stopped: "不推进了"
         }
     }
 }
@@ -350,10 +355,10 @@ enum ExplicitContentComfort: String, Codable, CaseIterable, Hashable, Sendable, 
     var label: String {
         switch self {
         case .notRecorded: "未记录"
-        case .explicitlyOkay: "明确接受"
-        case .limited: "有范围 / 条件"
-        case .wantsSlower: "希望慢一点"
-        case .declined: "明确不接受"
+        case .explicitlyOkay: "她说可以"
+        case .limited: "有范围"
+        case .wantsSlower: "想慢一点"
+        case .declined: "她说不行"
         }
     }
 
@@ -371,9 +376,9 @@ enum ExplicitMedium: String, Codable, CaseIterable, Hashable, Sendable, Identifi
 
     var label: String {
         switch self {
-        case .text: "露骨文字"
-        case .intimateImages: "私密图片 / 视频"
-        case .videoCall: "露骨视频通话"
+        case .text: "黄段子 / 露骨文字"
+        case .intimateImages: "私密照片 / 视频"
+        case .videoCall: "视频开黄腔"
         }
     }
 }
@@ -532,13 +537,13 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
 
     var label: String {
         switch self {
-        case .kissing: "亲吻"
-        case .touching: "抚触"
-        case .oralGiving: "口交 · 主动"
-        case .oralReceiving: "口交 · 接受"
-        case .vaginalPenetration: "阴道性交"
-        case .analInsertive: "肛交 · 主动"
-        case .analReceptive: "肛交 · 接受"
+        case .kissing: "亲亲"
+        case .touching: "上手"
+        case .oralGiving: "口 · 我给她"
+        case .oralReceiving: "口 · 她给我"
+        case .vaginalPenetration: "做爱"
+        case .analInsertive: "肛 · 我在上"
+        case .analReceptive: "肛 · 我在下"
         case .toys: "玩具"
         case .other: "其他"
         }
@@ -641,9 +646,9 @@ enum MeetAgainIntent: String, Codable, CaseIterable, Hashable, Sendable, Identif
     var label: String {
         switch self {
         case .notRecorded: "未决定"
-        case .yes: "想继续"
+        case .yes: "还想约"
         case .maybe: "看情况"
-        case .no: "到这里"
+        case .no: "不再约"
         }
     }
 }
@@ -662,13 +667,13 @@ enum FollowUpKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
 
     var label: String {
         switch self {
-        case .message: "发消息确认"
-        case .planMeet: "安排见面"
-        case .accountSafety: "账号安全 / 求助"
-        case .testing: "安排检测"
+        case .message: "回个消息"
+        case .planMeet: "再约一次"
+        case .accountSafety: "账号有点不对"
+        case .testing: "去做检测"
         case .exposureConsult: "暴露咨询"
-        case .pregnancy: "妊娠相关"
-        case .symptomCheck: "留意身体状况"
+        case .pregnancy: "担心怀孕"
+        case .symptomCheck: "留意身体"
         case .other: "其他"
         }
     }
@@ -718,6 +723,8 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     var followUpNote: String
     var isFollowUpDone: Bool
     var note: String
+    /// 这次留下的照片，存在本机沙盒
+    var photoIDs: [String]
 
     init(
         id: UUID = UUID(),
@@ -746,7 +753,8 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         followUpDate: Date? = nil,
         followUpNote: String = "",
         isFollowUpDone: Bool = false,
-        note: String = ""
+        note: String = "",
+        photoIDs: [String] = []
     ) {
         self.id = id
         self.companionID = companionID
@@ -775,6 +783,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.followUpNote = followUpNote
         self.isFollowUpDone = isFollowUpDone
         self.note = note
+        self.photoIDs = photoIDs
     }
 
     init(from decoder: Decoder) throws {
@@ -806,6 +815,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         followUpNote = try c.decodeIfPresent(String.self, forKey: .followUpNote) ?? ""
         isFollowUpDone = try c.decodeIfPresent(Bool.self, forKey: .isFollowUpDone) ?? false
         note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+        photoIDs = try c.decodeIfPresent([String].self, forKey: .photoIDs) ?? []
     }
 
     /// 仅对已填写的维度求平均，避免把“未记录”误作中性分。
@@ -857,10 +867,10 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
 
 enum TagSuggestions {
     static let common = [
-        "边界清楚", "尊重", "沟通直接", "会聊天", "守时", "情绪稳定",
-        "固定见面", "偶尔见面", "只约不聊", "需要提前约", "可以过夜", "不留宿",
-        "先确认再聊露骨", "只聊文字", "不发私密图", "不截屏", "先视频确认", "见面前聊防护",
-        "同城", "异地", "周末", "工作日", "夜猫子", "早睡",
-        "健身", "爱旅行", "能喝", "不喝酒", "声音好听", "会打扮",
+        "好看", "会聊", "主动", "听话", "反差", "声好听", "身材好", "会打扮",
+        "固定约", "偶尔约", "只约不聊", "能过夜", "不留宿", "得提前约",
+        "同城", "异地", "周末", "夜猫子", "能喝", "不喝酒",
+        "先确认再发图", "只聊文字", "不发私密图", "不截屏",
+        "见面前聊套", "边界清楚", "沟通直接", "守时",
     ]
 }

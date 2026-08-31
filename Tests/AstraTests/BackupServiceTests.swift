@@ -39,6 +39,7 @@ final class BackupServiceTests: XCTestCase {
         let decoded = try BackupService.decode(data)
 
         XCTAssertEqual(decoded.format, BackupService.formatIdentifier)
+        XCTAssertEqual(decoded.version, BackupService.currentVersion)
         XCTAssertEqual(decoded.companions.count, 1)
         XCTAssertEqual(decoded.companions.first?.name, "测试")
         XCTAssertEqual(decoded.companions.first?.stage, .casual)
@@ -116,5 +117,50 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertTrue(companion.tags.isEmpty)
         XCTAssertFalse(companion.isArchived)
         XCTAssertNil(companion.birthdayMonth)
+        XCTAssertNil(companion.photoID)
+    }
+
+    func testEncounterDecodesMissingPhotoIDs() throws {
+        let id = UUID()
+        let json = """
+        {"id": "\(UUID().uuidString)", "companionID": "\(id.uuidString)", "kind": "intimacy"}
+        """
+        let encounter = try JSONDecoder().decode(Encounter.self, from: Data(json.utf8))
+        XCTAssertTrue(encounter.photoIDs.isEmpty)
+        XCTAssertEqual(encounter.kind, .intimacy)
+    }
+
+    func testMediaRoundTripInBackup() throws {
+        let companion = Companion(name: "她", photoID: "avatar-1")
+        let encounter = Encounter(companionID: companion.id, kind: .intimacy, photoIDs: ["shot-1"])
+        let media = [
+            "avatar-1": Data([0xFF, 0xD8, 0xFF, 0xD9]),
+            "shot-1": Data([0x00, 0x01, 0x02]),
+        ]
+
+        let data = try BackupService.encode(companions: [companion], encounters: [encounter], media: media)
+        let decoded = try BackupService.decode(data)
+
+        XCTAssertEqual(decoded.version, 2)
+        XCTAssertEqual(decoded.companions.first?.photoID, "avatar-1")
+        XCTAssertEqual(decoded.encounters.first?.photoIDs, ["shot-1"])
+        XCTAssertEqual(decoded.media["avatar-1"], media["avatar-1"])
+        XCTAssertEqual(decoded.media["shot-1"], media["shot-1"])
+    }
+
+    func testV1BackupWithoutMediaStillDecodes() throws {
+        let json = """
+        {
+          "format": "astra.backup",
+          "version": 1,
+          "exportedAt": "2026-08-01T00:00:00Z",
+          "companions": [],
+          "encounters": []
+        }
+        """
+        let payload = try BackupService.decode(Data(json.utf8))
+        XCTAssertEqual(payload.version, 1)
+        XCTAssertTrue(payload.media.isEmpty)
+        XCTAssertTrue(payload.companions.isEmpty)
     }
 }

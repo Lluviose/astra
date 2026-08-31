@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 流式布局
 
@@ -71,12 +72,16 @@ struct AvatarView: View {
     /// 外圈描边颜色，用来表达相处状态
     var ringColor: Color?
     var isDimmed: Bool = false
+    var photoID: String? = nil
+    var ignorePrivacyMask: Bool = false
+
+    @Environment(AppState.self) private var app
+    @State private var photo: UIImage?
 
     var body: some View {
         ZStack {
             Circle().fill(Palette.avatarGradient(paletteIndex))
 
-            // 顶部内高光，让圆片看起来像一颗玻璃珠
             Circle()
                 .fill(
                     LinearGradient(
@@ -86,15 +91,24 @@ struct AvatarView: View {
                     )
                 )
 
-            Text(text)
-                .font(.system(size: size * 0.40, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-                .padding(.horizontal, size * 0.1)
+            if let photo {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else {
+                Text(text)
+                    .font(.system(size: size * 0.40, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .padding(.horizontal, size * 0.1)
+            }
         }
         .frame(width: size, height: size)
+        .clipShape(Circle())
         .saturation(isDimmed ? 0.25 : 1)
         .overlay {
             Circle().strokeBorder(.white.opacity(0.32), lineWidth: max(0.8, size * 0.022))
@@ -107,18 +121,28 @@ struct AvatarView: View {
             }
         }
         .shadow(color: .black.opacity(0.14), radius: size * 0.12, y: size * 0.05)
+        .blur(radius: shouldObscure ? 8 : 0)
         .accessibilityHidden(true)
+        .task(id: photoID) {
+            photo = photoID.flatMap { MediaStore.image(id: $0) }
+        }
+    }
+
+    private var shouldObscure: Bool {
+        !ignorePrivacyMask && !app.namesRevealed && photoID != nil
     }
 }
 
 extension AvatarView {
-    init(companion: Companion, size: CGFloat = 46, showRing: Bool = true) {
+    init(companion: Companion, size: CGFloat = 46, showRing: Bool = true, ignorePrivacyMask: Bool = false) {
         self.init(
             text: companion.initial,
             paletteIndex: companion.paletteIndex,
             size: size,
             ringColor: showRing ? companion.stage.tint : nil,
-            isDimmed: companion.isArchived
+            isDimmed: companion.isArchived,
+            photoID: companion.photoID,
+            ignorePrivacyMask: ignorePrivacyMask
         )
     }
 }

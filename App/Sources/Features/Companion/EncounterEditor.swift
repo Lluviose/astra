@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 记录编辑器：基础信息保持快速，亲密细节按真实行为与本人感受展开。
 struct EncounterEditor: View {
@@ -19,6 +20,10 @@ struct EncounterEditor: View {
     @State private var showDeleteConfirm = false
     @State private var showUnsavedAlert = false
     @FocusState private var isCostFocused: Bool
+    @State private var sessionPhotoIDs: Set<String> = []
+    @State private var viewingPhotoIndex: Int?
+
+    private let maxPhotos = 8
 
     private var isNew: Bool { !app.encounters.contains { $0.id == initial.id } }
     private var companion: Companion? { app.companion(id: initial.companionID) }
@@ -63,6 +68,7 @@ struct EncounterEditor: View {
                 }
 
                 experienceSection
+                photosSection
                 followUpSection
                 notesSection
 
@@ -77,7 +83,7 @@ struct EncounterEditor: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记录一次" : "编辑记录")
+            .navigationTitle(isNew ? "记一笔" : "改记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -98,7 +104,7 @@ struct EncounterEditor: View {
             .interactiveDismissDisabled(hasUnsavedChanges)
             .alert("放弃未保存的修改？", isPresented: $showUnsavedAlert) {
                 Button("继续编辑", role: .cancel) {}
-                Button("放弃修改", role: .destructive) { dismiss() }
+                Button("放弃修改", role: .destructive) { abandon() }
             } message: {
                 Text("关闭后，本次修改不会保留。")
             }
@@ -132,6 +138,12 @@ struct EncounterEditor: View {
                 } else if !hasDate {
                     draft.followUpDate = nil
                 }
+            }
+            .sheet(isPresented: Binding(
+                get: { viewingPhotoIndex != nil },
+                set: { if !$0 { viewingPhotoIndex = nil } }
+            )) {
+                PhotoViewer(ids: draft.photoIDs, index: viewingPhotoIndex ?? 0)
             }
         }
     }
@@ -173,9 +185,9 @@ struct EncounterEditor: View {
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
         } header: {
-            Text("基础")
+            Text("这次")
         } footer: {
-            Text("先记对象、时间和类型即可保存；其他细节都可以以后补。")
+            Text("对象、时间和类型填了就能存。照片、细节以后再补也行。")
         }
     }
 
@@ -215,7 +227,7 @@ struct EncounterEditor: View {
                     }
 
                     if draft.acceptedExplicitMedia.isEmpty {
-                        Label("还没记录具体形式，发送前仍需分别确认。", systemImage: "questionmark.bubble.fill")
+                    Label("还没记她到底接不接受哪种，先别发。", systemImage: "questionmark.bubble.fill")
                             .font(.caption)
                             .foregroundStyle(Palette.warning)
                     }
@@ -287,17 +299,17 @@ struct EncounterEditor: View {
             if draft.explicitContentComfort.shouldNotEscalate {
                 Label(
                     draft.explicitContentComfort == .notRecorded
-                        ? "尚未记录她的明确接受，先不要升级露骨话题。"
-                        : "她已经表达放慢或不接受，先停止升级露骨话题。",
+                        ? "她还没说可以，先别往黄的推。"
+                        : "她说慢一点或不行，就停。",
                     systemImage: "pause.circle.fill"
                 )
                     .font(.caption)
                     .foregroundStyle(Palette.warning)
             }
         } header: {
-            Text("聊天进展")
+            Text("聊到哪了")
         } footer: {
-            Text("仅限双方均已确认成年。没有得到明确接受时，不继续升级露骨文字、图片或视频；接受一种形式也不代表接受其他形式。不截屏、不转发默认优先。")
+            Text("两个人都得是成年。她没说可以，就别往黄的推。答应发文字不等于答应发图。默认不截屏、不转发。")
         }
     }
 
@@ -319,9 +331,9 @@ struct EncounterEditor: View {
             }
             .padding(.vertical, 4)
         } header: {
-            Text("发生了什么")
+            Text("做了什么")
         } footer: {
-            Text("按实际行为记录，不从对象性别或身份推断。检测建议还需结合接触部位、时间和专业意见。")
+            Text("发生了什么就勾什么，别靠猜。")
         }
     }
 
@@ -355,7 +367,7 @@ struct EncounterEditor: View {
                 .padding(.vertical, 4)
 
                 if draft.boundaryFeeling.needsFollowUp {
-                    Label("如果仍有疑问，可以在下方添加“发消息确认”或其他后续。", systemImage: "arrow.down.circle")
+                    Label("要是心里打鼓，下面可以勾「回个消息」或去做检测。", systemImage: "arrow.down.circle")
                         .font(.caption)
                         .foregroundStyle(Palette.warning)
                 }
@@ -393,7 +405,7 @@ struct EncounterEditor: View {
                 }
                 .padding(.vertical, 4)
 
-                TextField("检测、防护或身体情况备忘（可选）", text: $draft.safetyNote, axis: .vertical)
+            TextField("检测、有没有戴套、身体情况（可选）", text: $draft.safetyNote, axis: .vertical)
                     .lineLimit(2...4)
             } label: {
                 Label("具体方式与备忘", systemImage: "checkmark.shield.fill")
@@ -405,9 +417,9 @@ struct EncounterEditor: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("防护与健康")
+            Text("套和健康")
         } footer: {
-            Text("避孕与 STI 防护不是一回事，各种方式的作用也不同。这里只记事实，不计算“安全分”。")
+            Text("戴套、吃药、避孕不是一回事。这儿只记事实，不算分。")
         }
     }
 
@@ -435,9 +447,9 @@ struct EncounterEditor: View {
                 }
             }
         } header: {
-            Text("我的感受与下一步")
+            Text("爽不爽，还想不想约")
         } footer: {
-            Text("记录自己的身体、情绪和意愿，不评价性表现，也不需要为了统计而打分。")
+            Text("记你自己的感觉就行，不用给她打分。")
         }
     }
 
@@ -500,7 +512,7 @@ struct EncounterEditor: View {
                 }
             }
         } footer: {
-            Text("跟进项完全由你添加；没有选择时，应用不会替你推断或制造焦虑。")
+            Text("跟进全靠你自己勾。没勾就不会烦你。")
         }
     }
 
@@ -525,8 +537,8 @@ struct EncounterEditor: View {
 
             TextField(
                 draft.kind.isConversation
-                    ? "只记她明确说过的期待、边界或下次话题"
-                    : "下次想记得的事、默契或私人备注",
+                    ? "她明确说过的尺度、下次想聊什么"
+                    : "下次想记得的，或者单纯想写两句",
                 text: $draft.note,
                 axis: .vertical
             )
@@ -613,9 +625,54 @@ struct EncounterEditor: View {
     }
 
     private var continuationPrompt: String {
-        if draft.kind.isConversation { return "我还想继续聊吗" }
-        if draft.kind.isInPerson { return "我还想继续见吗" }
-        return "我还想继续吗"
+        if draft.kind.isConversation { return "还想聊吗" }
+        if draft.kind.isInPerson { return "还想约吗" }
+        return "还想继续吗"
+    }
+
+    private var photosSection: some View {
+        Section {
+            if !draft.photoIDs.isEmpty {
+                PhotoStrip(
+                    ids: draft.photoIDs,
+                    editable: true,
+                    onDelete: removePhoto,
+                    onOpen: { viewingPhotoIndex = $0 }
+                )
+            }
+
+            if draft.photoIDs.count < maxPhotos {
+                PhotoAddBar(remaining: maxPhotos - draft.photoIDs.count, onPicked: addPhotos)
+            }
+        } header: {
+            Text("这次的照片")
+        } footer: {
+            Text("最多 \(maxPhotos) 张。只存在星图里，不进系统相册，也不上传。")
+        }
+    }
+
+    private func addPhotos(_ images: [UIImage]) {
+        let room = maxPhotos - draft.photoIDs.count
+        for image in images.prefix(max(0, room)) {
+            if let id = MediaStore.save(image: image, kind: .photo) {
+                draft.photoIDs.append(id)
+                sessionPhotoIDs.insert(id)
+            }
+        }
+        Haptics.shared.play(.toggleOn)
+    }
+
+    private func removePhoto(_ id: String) {
+        draft.photoIDs.removeAll { $0 == id }
+        if sessionPhotoIDs.contains(id) {
+            MediaStore.delete(id: id)
+            sessionPhotoIDs.remove(id)
+        }
+    }
+
+    private func discardSessionPhotos() {
+        MediaStore.delete(ids: Array(sessionPhotoIDs))
+        sessionPhotoIDs.removeAll()
     }
 
     private var barrierGuidanceText: String {
@@ -736,6 +793,7 @@ struct EncounterEditor: View {
         if draft.protectionStatus != .protected, draft.protectionStatus != .partial {
             removeBarrierMeasures()
         }
+        sessionPhotoIDs.removeAll()
         app.upsert(draft)
         dismiss()
     }
@@ -744,7 +802,13 @@ struct EncounterEditor: View {
         if hasUnsavedChanges {
             showUnsavedAlert = true
         } else {
+            discardSessionPhotos()
             dismiss()
         }
+    }
+
+    private func abandon() {
+        discardSessionPhotos()
+        dismiss()
     }
 }

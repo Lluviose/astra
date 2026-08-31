@@ -38,6 +38,13 @@ struct HomeScreen: View {
                     LazyVStack(spacing: 18) {
                         hero
 
+                        NavigationLink {
+                            AchievementsScreen()
+                        } label: {
+                            AchievementPreviewRow(achievements: app.achievements)
+                        }
+                        .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.98))
+
                         if !app.pendingFollowUps.isEmpty {
                             followUpCard
                         }
@@ -118,40 +125,45 @@ struct HomeScreen: View {
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("关系不必定义，\n边界值得记清。")
+                Text("猎艳笔记，\n只给你自己看。")
                     .font(.system(size: 29, weight: .bold, design: .rounded))
                     .tracking(-0.6)
-                Text("记录亲密对象、每次相见，以及只属于你的安全备忘。")
+                Text("约成了、过夜、留照片，次数和成就都记在这台手机上。")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.76))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(spacing: 10) {
-                heroMetric(value: "\(app.stats.activeCount)", label: "当前对象")
-                heroMetric(value: "\(app.stats.intimaciesThisMonth)", label: "本月亲密")
-                heroMetric(value: "\(app.stats.safetyRecordedThisMonth)", label: "已记防护")
+                heroMetric(value: "\(app.stats.activeCount)", label: "她")
+                heroMetric(value: "\(app.stats.totalIntimacyCount)", label: "约成")
+                heroMetric(value: "\(app.stats.intimaciesThisMonth)", label: "本月")
             }
 
             HStack(spacing: 10) {
                 Menu {
                     Button {
-                        beginRecording(kind: .flirting)
-                    } label: {
-                        Label("暧昧聊天", systemImage: EncounterKind.flirting.symbolName)
-                    }
-                    Button {
                         beginRecording(kind: .intimacy)
                     } label: {
-                        Label("亲密见面", systemImage: EncounterKind.intimacy.symbolName)
+                        Label("约成了", systemImage: EncounterKind.intimacy.symbolName)
+                    }
+                    Button {
+                        beginRecording(kind: .overnight)
+                    } label: {
+                        Label("过夜", systemImage: EncounterKind.overnight.symbolName)
+                    }
+                    Button {
+                        beginRecording(kind: .flirting)
+                    } label: {
+                        Label("聊骚", systemImage: EncounterKind.flirting.symbolName)
                     }
                     Button {
                         beginRecording(kind: .meet)
                     } label: {
-                        Label("其他见面", systemImage: EncounterKind.meet.symbolName)
+                        Label("见面", systemImage: EncounterKind.meet.symbolName)
                     }
                 } label: {
-                    Label("记录一次", systemImage: "plus.circle.fill")
+                    Label("记一笔", systemImage: "plus.circle.fill")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -163,7 +175,7 @@ struct HomeScreen: View {
                     Haptics.shared.play(.mediumTap)
                     beginAddingCompanion()
                 } label: {
-                    Label("添加对象", systemImage: "person.badge.plus")
+                    Label("加个人", systemImage: "person.badge.plus")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -259,14 +271,14 @@ struct HomeScreen: View {
     private var safetyCard: some View {
         homeCard(title: "安全小结", symbol: "checkmark.shield.fill", tint: Palette.safe) {
             if app.stats.intimaciesThisMonth == 0 {
-                Label("记录亲密见面时，可以顺手补充防护状态和安全备忘。", systemImage: "shield.lefthalf.filled")
+                Label("约成的时候，可以顺手记有没有戴套。", systemImage: "shield.lefthalf.filled")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("本月已填写 \(app.stats.safetyRecordedThisMonth) / \(app.stats.intimaciesThisMonth) 次")
+                        Text("本月约成 \(app.stats.intimaciesThisMonth) 次，套记了 \(app.stats.safetyRecordedThisMonth) 次")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text("不做评判，只帮你记住")
@@ -282,7 +294,7 @@ struct HomeScreen: View {
 
                     if app.stats.unprotectedThisMonth > 0 {
                         Label(
-                            "有 \(app.stats.unprotectedThisMonth) 次标记为部分使用或未用屏障；需要时可在具体记录里添加检测或咨询。",
+                            "有 \(app.stats.unprotectedThisMonth) 次没戴全或没戴；要做检测的话，去那条记录里勾一下。",
                             systemImage: "exclamationmark.shield.fill"
                         )
                         .font(.caption)
@@ -296,7 +308,7 @@ struct HomeScreen: View {
     // MARK: - 最近对象 / 记录
 
     private var peopleCard: some View {
-        homeCard(title: "最近互动", symbol: "person.2.fill", tint: Palette.accent) {
+        homeCard(title: "最近约过", symbol: "person.2.fill", tint: Palette.accent) {
             ForEach(Array(recentCompanions.enumerated()), id: \.element.id) { index, companion in
                 NavigationLink(value: companion.id) {
                     CompanionRow(companion: companion)
@@ -347,7 +359,7 @@ struct HomeScreen: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("城市足迹")
                         .font(.headline)
-                    Text(app.buckets.isEmpty ? "还没有点亮城市" : "\(app.buckets.count) 座城市 · \(app.currentCompanions.count) 个对象")
+                    Text(app.buckets.isEmpty ? "还没点亮城市" : "\(app.buckets.count) 座城市 · \(app.currentCompanions.count) 个人")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

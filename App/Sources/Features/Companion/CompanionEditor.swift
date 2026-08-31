@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 城市选择（编辑表单里的内嵌路由）
 
@@ -98,9 +99,13 @@ struct CompanionEditor: View {
     @State private var showAddTagDialog = false
     @State private var showUnsavedAlert = false
     @State private var hasMetDate: Bool
+    @State private var pendingAvatar: UIImage?
+    @State private var removeExistingPhoto = false
 
     private var isNew: Bool { !app.companions.contains { $0.id == initial.id } }
-    private var hasUnsavedChanges: Bool { draft != initial }
+    private var hasUnsavedChanges: Bool {
+        draft != initial || pendingAvatar != nil || removeExistingPhoto
+    }
 
     init(companion: Companion) {
         self.initial = companion
@@ -123,7 +128,7 @@ struct CompanionEditor: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "添加对象" : "编辑对象")
+            .navigationTitle(isNew ? "记下她" : "改档案")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -148,7 +153,7 @@ struct CompanionEditor: View {
             }
             .alert("放弃未保存的修改？", isPresented: $showUnsavedAlert) {
                 Button("继续编辑", role: .cancel) {}
-                Button("放弃修改", role: .destructive) { dismiss() }
+                Button("放弃修改", role: .destructive) { abandon() }
             } message: {
                 Text("关闭后，本次修改不会保留。")
             }
@@ -171,7 +176,7 @@ struct CompanionEditor: View {
                 }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("连同全部亲密记录一起删除，且无法恢复。")
+                Text("连同约过的记录和照片一起删掉，回不来。")
             }
         }
     }
@@ -180,6 +185,11 @@ struct CompanionEditor: View {
         draft.rating = min(max(draft.rating, 0), 5)
         if let metDate = draft.metDate, metDate > Date() {
             draft.metDate = Date()
+        }
+        if let pendingAvatar {
+            draft.photoID = MediaStore.save(image: pendingAvatar, kind: .avatar)
+        } else if removeExistingPhoto {
+            draft.photoID = nil
         }
         app.upsert(draft)
         dismiss()
@@ -193,30 +203,62 @@ struct CompanionEditor: View {
         }
     }
 
+    private func abandon() {
+        dismiss()
+    }
+
     // MARK: 基本信息
 
     private var basicSection: some View {
-        Section("代号") {
+        Section("她是谁") {
             HStack(spacing: 12) {
-                AvatarView(
-                    companion: draft,
-                    size: 56,
-                    showRing: false
-                )
-                TextField("代号或昵称（可留空）", text: $draft.name)
+                avatarPreview
+                TextField("怎么叫她（可留空）", text: $draft.name)
                     .textInputAutocapitalization(.never)
+            }
+
+            AvatarPickerRow(
+                hasPhoto: (draft.photoID != nil && !removeExistingPhoto) || pendingAvatar != nil
+            ) { image in
+                pendingAvatar = image
+                removeExistingPhoto = false
+            } onRemove: {
+                pendingAvatar = nil
+                removeExistingPhoto = true
             }
 
             HStack {
-                Text("头像")
+                Text("没照片就用")
                 Spacer()
                 TextField("emoji 或首字", text: $draft.emoji)
                     .multilineTextAlignment(.trailing)
-                    .frame(width: 180)
+                    .frame(width: 160)
                     .textInputAutocapitalization(.never)
             }
 
-            TextField("联系方式备注", text: $draft.contactNote)
+            TextField("微信 / 备注名", text: $draft.contactNote)
+        }
+    }
+
+    @ViewBuilder
+    private var avatarPreview: some View {
+        if let pendingAvatar {
+            Image(uiImage: pendingAvatar)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 56, height: 56)
+                .clipShape(Circle())
+        } else if removeExistingPhoto {
+            AvatarView(
+                text: draft.initial,
+                paletteIndex: draft.paletteIndex,
+                size: 56,
+                ringColor: nil,
+                photoID: nil,
+                ignorePrivacyMask: true
+            )
+        } else {
+            AvatarView(companion: draft, size: 56, showRing: false, ignorePrivacyMask: true)
         }
     }
 
@@ -265,23 +307,23 @@ struct CompanionEditor: View {
 
     private var intimacySection: some View {
         Section {
-            TextField("相处期待（如：固定见面、只约不聊）", text: $draft.expectations, axis: .vertical)
+            TextField("想怎么约（只约、固定约、先看看）", text: $draft.expectations, axis: .vertical)
                 .lineLimit(2...4)
-            TextField("边界与禁区", text: $draft.boundaries, axis: .vertical)
+            TextField("她说过不行的事", text: $draft.boundaries, axis: .vertical)
                 .lineLimit(2...5)
-            TextField("安全备忘", text: $draft.safetyNotes, axis: .vertical)
+            TextField("安全备忘（检测、套、别的）", text: $draft.safetyNotes, axis: .vertical)
                 .lineLimit(2...5)
         } header: {
-            Text("边界与安全")
+            Text("怎么约、什么不能碰")
         } footer: {
-            Text("只记录双方已经明确沟通的内容；同意可以随时撤回。")
+            Text("只记双方已经说清楚的。她随时可以改主意。")
         }
     }
 
     // MARK: 城市与认识渠道
 
     private var citySection: some View {
-        Section("认识与城市") {
+        Section("哪儿认识的") {
             Button {
                 Haptics.shared.play(.lightTap)
                 isPickingCity = true
@@ -298,11 +340,11 @@ struct CompanionEditor: View {
             }
             .buttonStyle(.plain)
 
-            TextField("怎么认识的（如：App、朋友介绍）", text: $draft.metChannel)
-            Toggle("记录认识日期", isOn: $hasMetDate)
+            TextField("怎么认识的（App、朋友、酒局…）", text: $draft.metChannel)
+            Toggle("记下认识那天", isOn: $hasMetDate)
             if hasMetDate {
                 DatePicker(
-                    "第一次认识",
+                    "第一次碰上",
                     selection: Binding(
                         get: { draft.metDate ?? Date() },
                         set: { draft.metDate = $0 }
@@ -344,9 +386,9 @@ struct CompanionEditor: View {
                 }
             }
         } header: {
-            Text("相处标签")
+            Text("标签")
         } footer: {
-            Text("标签用于快速回忆与筛选，只保存在本机。")
+            Text("方便以后翻出来，只存在这台手机。")
         }
     }
 
@@ -401,9 +443,9 @@ struct CompanionEditor: View {
             TextField("其他私密备注", text: $draft.notes, axis: .vertical)
                 .lineLimit(3...6)
         } header: {
-            Text("联系节奏")
+            Text("多久约一次")
         } footer: {
-            Text("到达设定周期后，只做温和提示；是否联系始终由你决定。")
+            Text("到点只轻轻提醒一下，不想约就别理。")
         }
     }
 
@@ -411,7 +453,7 @@ struct CompanionEditor: View {
 
     private var dangerSection: some View {
         Section {
-            Button("删除这个对象", role: .destructive) {
+            Button("删掉这个人", role: .destructive) {
                 Haptics.shared.play(.warning)
                 showDeleteConfirm = true
             }

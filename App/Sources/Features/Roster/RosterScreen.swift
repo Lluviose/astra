@@ -16,9 +16,9 @@ struct RosterScreen: View {
                 if app.companions.isEmpty {
                     EmptyStateView(
                         symbol: "person.2",
-                        title: "还没有对象",
-                        message: "用代号建一份私密档案，记下相处状态、边界与安全信息。",
-                        actionTitle: "添加对象",
+                        title: "名册还是空的",
+                        message: "记下她是谁、约过几次、留过什么照片。",
+                        actionTitle: "加个人",
                         action: { isPickingCity = true }
                     )
                 } else {
@@ -109,7 +109,7 @@ struct RosterScreen: View {
             }
             Button("取消", role: .cancel) { pendingDeletion = nil }
         } message: {
-            Text("与这个对象关联的全部记录也会删除，且无法恢复。")
+            Text("约过的记录和照片也会一起删掉，回不来。")
         }
     }
 

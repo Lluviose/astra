@@ -72,6 +72,7 @@ final class AppState {
         self.namesRevealed = !self.settings.maskNamesByDefault
 
         Haptics.shared.configure(with: settings)
+        MediaStore.gc(referenced: Self.referencedIDs(companions: self.companions, encounters: self.encounters))
         recompute()
     }
 
@@ -167,6 +168,37 @@ final class AppState {
             for tag in companion.tags { counts[tag, default: 0] += 1 }
         }
         return counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
+    }
+
+    var referencedMediaIDs: Set<String> {
+        Self.referencedIDs(companions: companions, encounters: encounters)
+    }
+
+    var achievements: [Achievement] {
+        AchievementCatalog.evaluate(
+            companions: companions,
+            encounters: encounters,
+            cityCount: buckets.count
+        )
+    }
+
+    var unlockedAchievementCount: Int {
+        achievements.filter(\.isUnlocked).count
+    }
+
+    func albumIDs(for companionID: UUID) -> [String] {
+        var ids: [String] = []
+        if let photoID = companion(id: companionID)?.photoID {
+            ids.append(photoID)
+        }
+        for encounter in encounters(for: companionID) {
+            ids.append(contentsOf: encounter.photoIDs)
+        }
+        return ids
+    }
+
+    func hookupCount(for companionID: UUID) -> Int {
+        encounters.filter { $0.companionID == companionID && $0.kind.isIntimate }.count
     }
 
     // MARK: - 对象
@@ -319,6 +351,9 @@ final class AppState {
         updated.updatedAt = Date()
 
         if let index = companions.firstIndex(where: { $0.id == companion.id }) {
+            if companions[index].photoID != updated.photoID, let old = companions[index].photoID {
+                MediaStore.delete(id: old)
+            }
             companions[index] = updated
             Haptics.shared.play(.success)
         } else {
@@ -329,6 +364,11 @@ final class AppState {
     }
 
     func delete(companionID: UUID) {
+        if let photoID = companion(id: companionID)?.photoID {
+            MediaStore.delete(id: photoID)
+        }
+        let photos = encounters.filter { $0.companionID == companionID }.flatMap(\.photoIDs)
+        MediaStore.delete(ids: photos)
         companions.removeAll { $0.id == companionID }
         encounters.removeAll { $0.companionID == companionID }
         persistCompanions()
@@ -376,6 +416,8 @@ final class AppState {
 
     func upsert(_ encounter: Encounter) {
         if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            let removed = Set(encounters[index].photoIDs).subtracting(encounter.photoIDs)
+            MediaStore.delete(ids: Array(removed))
             encounters[index] = encounter
         } else {
             encounters.append(encounter)
@@ -385,6 +427,9 @@ final class AppState {
     }
 
     func delete(encounterID: UUID) {
+        if let encounter = encounters.first(where: { $0.id == encounterID }) {
+            MediaStore.delete(ids: encounter.photoIDs)
+        }
         encounters.removeAll { $0.id == encounterID }
         persistEncounters()
         Haptics.shared.play(.toggleOff)
@@ -452,7 +497,11 @@ final class AppState {
     // MARK: - 备份
 
     func makeBackup() throws -> Data {
-        try BackupService.encode(companions: companions, encounters: encounters)
+        try BackupService.encode(
+            companions: companions,
+            encounters: encounters,
+            media: MediaStore.collect(ids: Array(referencedMediaIDs))
+        )
     }
 
     @discardableResult
@@ -460,6 +509,8 @@ final class AppState {
         let payload = try BackupService.decode(data)
 
         if replaceExisting {
+            MediaStore.deleteAll()
+            MediaStore.restore(payload.media)
             companions = payload.companions
             encounters = payload.encounters
             persistCompanions()
@@ -471,6 +522,8 @@ final class AppState {
                 encountersAdded: payload.encounters.count
             )
         }
+
+        MediaStore.restore(payload.media)
 
         var added = 0
         var updated = 0
@@ -504,6 +557,7 @@ final class AppState {
 
     func eraseAllLocalData() {
         store.removeAll()
+        MediaStore.deleteAll()
         companions = []
         encounters = []
         settings = .default
@@ -555,6 +609,9 @@ final class AppState {
         let current = currentCompanions
 
         result.activeCount = current.count
+        result.cityCount = buckets.count
+        result.photoCount = referencedMediaIDs.count
+        result.overnightCount = encounters.filter { $0.kind == .overnight }.count
 
         let calendar = Calendar.current
         let monthStart = calendar.dateInterval(of: .month, for: Date())?.start ?? Date.distantPast
@@ -585,5 +642,13 @@ final class AppState {
             : nil
 
         stats = result
+    }
+
+    private static func referencedIDs(companions: [Companion], encounters: [Encounter]) -> Set<String> {
+        var ids = Set(companions.compactMap(\.photoID))
+        for encounter in encounters {
+            ids.formUnion(encounter.photoIDs)
+        }
+        return ids
     }
 }

@@ -22,8 +22,8 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "2"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     DEAD_CODE_STRIPPING: YES
     SWIFT_EMIT_LOC_STRINGS: YES
@@ -60,8 +60,10 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        # 面容 / 触控 ID 解锁；App 不申请定位、通讯录、相册等任何其它权限
-        NSFaceIDUsageDescription: 用面容 ID 解锁星图，保护你的私密关系与亲密记录。
+        # 面容 / 触控 ID 解锁；相机和相册只用于头像 / 艳照，照片留在沙盒
+        NSFaceIDUsageDescription: 用面容 ID 解锁星图，保护你的私密记录和照片。
+        NSCameraUsageDescription: 拍下她的头像或这次留下的照片。照片只存在星图里，不会进系统相册，也不会上传。
+        NSPhotoLibraryUsageDescription: 从相册挑头像或这次留下的照片。只会复制进星图，不会改你的相册。
         # 档案不对外暴露：关闭 iTunes 文件共享与"文件"App 可见
         UIFileSharingEnabled: false
         LSSupportsOpeningDocumentsInPlace: false

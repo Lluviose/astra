@@ -72,7 +72,7 @@ struct TimelineScreen: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     } header: {
-                        Text("近 6 个月亲密记录")
+                        Text("近 6 个月约成")
                     }
                 }
 
@@ -83,7 +83,7 @@ struct TimelineScreen: View {
                             symbol: scope.emptySymbol,
                             title: scope.emptyTitle,
                             message: scope.emptyMessage,
-                            actionTitle: scope == .followUp ? nil : "记录一次",
+                            actionTitle: scope == .followUp ? nil : "记一笔",
                             action: scope == .followUp ? nil : { beginRecording() }
                         )
                     }
@@ -123,7 +123,7 @@ struct TimelineScreen: View {
                     } label: {
                         Image(systemName: "square.and.pencil")
                     }
-                    .accessibilityLabel("记录一次")
+                    .accessibilityLabel("记一笔")
                 }
             }
         }
@@ -211,13 +211,13 @@ struct TimelineScreen: View {
             GridRow {
                 StatTile(
                     value: "\(app.stats.totalIntimacyCount)",
-                    caption: "亲密记录",
+                    caption: "约成次数",
                     systemImage: "flame.fill",
                     tint: Palette.accent
                 )
                 StatTile(
                     value: "\(app.stats.intimaciesThisMonth)",
-                    caption: "本月亲密",
+                    caption: "本月约成",
                     systemImage: "flame.fill",
                     tint: Palette.coral
                 )
@@ -347,11 +347,11 @@ struct TimelineScreen: View {
         let data = monthlyIntimacyCounts
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("共 \(data.reduce(0) { $0 + $1.count }) 次亲密记录")
+                Text("共 \(data.reduce(0) { $0 + $1.count }) 次约成")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 if app.stats.intimaciesThisMonth > 0 {
-                    Text("本月屏障已记 \(app.stats.safetyRecordedThisMonth) / \(app.stats.intimaciesThisMonth)")
+                    Text("本月套记了 \(app.stats.safetyRecordedThisMonth) / \(app.stats.intimaciesThisMonth)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -447,8 +447,8 @@ private enum RecordScope: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: "全部"
-        case .flirting: "暧昧"
-        case .intimate: "亲密"
+        case .flirting: "聊骚"
+        case .intimate: "约成"
         case .followUp: "跟进"
         }
     }
@@ -465,18 +465,18 @@ private enum RecordScope: String, CaseIterable, Identifiable {
     var emptyTitle: String {
         switch self {
         case .all: "还没有记录"
-        case .flirting: "还没有暧昧聊天记录"
-        case .intimate: "还没有亲密记录"
-        case .followUp: "没有待跟进事项"
+        case .flirting: "还没聊骚"
+        case .intimate: "还没约成过"
+        case .followUp: "没有待办"
         }
     }
 
     var emptyMessage: String {
         switch self {
-        case .all: "记下相见、亲密行为、安全信息和自己的感受，形成只属于你的时间线。"
-        case .flirting: "记下她明确表达的尺度、期待、线上隐私约定与下一步；不要靠回复速度猜测意愿。"
-        case .intimate: "记录实际发生的行为、防护与感受；不需要为了统计补写。"
-        case .followUp: "只有你主动添加、尚未完成的事项才会出现在这里。"
+        case .all: "约成、过夜、留照片，都能记在这条时间线上。"
+        case .flirting: "记下她说可以的尺度，别靠回复速度瞎猜。"
+        case .intimate: "做了什么、有没有戴套、爽不爽，以后都能翻到。"
+        case .followUp: "只有你自己勾过、还没做完的才会出现。"
         }
     }
 }

@@ -113,7 +113,7 @@ struct SettingsScreen: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("所有对象档案、亲密记录和设置都会被删除，且无法恢复。建议先导出一份备份。")
+            Text("所有人、约过的记录、照片和设置都会被删掉，回不来。建议先导出一份备份。")
         }
     }
 
@@ -162,7 +162,7 @@ struct SettingsScreen: View {
         } header: {
             Text("隐私")
         } footer: {
-            Text("星图不会上传档案，也不申请通讯录、相册或定位权限。亲密数据只存在这台设备上。")
+            Text("星图不会上传任何东西。头像和艳照只复制进 App 沙盒，不进系统相册，也不进 iCloud 备份。代号打码时，照片也会糊掉。")
         }
     }
 
@@ -170,12 +170,12 @@ struct SettingsScreen: View {
 
     private var principlesSection: some View {
         Section {
-            Label("只记录成年人之间自愿、知情、可随时撤回的相处。", systemImage: "hand.raised.fill")
-            Label("边界和防护状态来自明确沟通，不替对方做推断。", systemImage: "checkmark.shield.fill")
+            Label("只记成年人之间你情我愿、随时能停的相处。", systemImage: "hand.raised.fill")
+            Label("她说过的规矩和有没有戴套，按她明确讲过的记，别替她脑补。", systemImage: "checkmark.shield.fill")
         } header: {
-            Text("相处原则")
+            Text("怎么用")
         } footer: {
-            Text("App 负责帮助回忆，不替你判断关系，也不代替专业健康建议。")
+            Text("星图帮你记得住，不替你下判断，更不替代医生。")
         }
     }
 
@@ -249,7 +249,7 @@ struct SettingsScreen: View {
                     showImportError = "导出失败：\(error.localizedDescription)"
                 }
             } label: {
-                Label("导出备份（JSON）", systemImage: "square.and.arrow.up")
+                Label("导出备份（含照片）", systemImage: "square.and.arrow.up")
             }
 
             Button {
@@ -268,7 +268,7 @@ struct SettingsScreen: View {
         } header: {
             Text("数据")
         } footer: {
-            Text("\(app.companions.count) 个对象 · \(app.encounters.count) 条记录。备份文件是明文 JSON，请存放在自己信任的位置。")
+            Text("\(app.companions.count) 个人 · \(app.encounters.count) 条记录 · \(app.stats.photoCount) 张照片。备份是明文 JSON，照片会一起打进去，请放在只有你能打开的地方。")
         }
     }
 
@@ -315,7 +315,7 @@ struct AboutView: View {
 
                     Text("星图")
                         .font(.title2.weight(.bold))
-                    Text("只属于你的亲密记录")
+                    Text("猎艳、约炮、过夜，都只给你自己看")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("版本 \(Bundle.main.appVersion)")
@@ -332,7 +332,7 @@ struct AboutView: View {
                 LabeledContent("界面", value: "SwiftUI · 液态玻璃")
                 LabeledContent("城市足迹", value: "MapKit · 城市级")
                 LabeledContent("触感", value: "Core Haptics")
-                LabeledContent("存储", value: "纯本地")
+                LabeledContent("存储", value: "本机沙盒 · 含照片")
             }
         }
         .navigationTitle("关于")
@@ -350,19 +350,31 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "wifi.slash").foregroundStyle(Palette.accent)
                 }
-                Text("星图没有账号、统计 SDK 或云同步。MapKit 只负责显示城市底图；对象、边界与亲密记录不会上传。")
+                Text("星图没有账号、统计 SDK 或云同步。MapKit 只负责显示城市底图；她是谁、约过几次、留下的照片都不会上传。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             Section {
                 Label {
-                    Text("不申请权限")
+                    Text("照片不出这台手机")
                         .font(.headline)
                 } icon: {
-                    Image(systemName: "nosign").foregroundStyle(Palette.accent)
+                    Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Palette.accent)
                 }
-                Text("不读通讯录、不定位、不访问相册。唯一的系统交互是可选的面容 / 触控 ID 解锁。")
+                Text("头像和艳照只复制进星图沙盒，不进系统相册，并排除 iCloud 备份。从相册挑图用系统选择器，不必打开完整相册权限。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Label {
+                    Text("可选权限")
+                        .font(.headline)
+                } icon: {
+                    Image(systemName: "camera.fill").foregroundStyle(Palette.accent)
+                }
+                Text("拍照才会要相机。相册用系统选择器，不必交出整本相册。不读通讯录，不定位置。面容 / 触控 ID 仍然可选。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -398,7 +410,7 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "doc.text").foregroundStyle(Palette.accent)
                 }
-                Text("导出的备份是未加密的 JSON，请把它存在只有你自己能访问的位置。")
+                Text("导出的备份是未加密的 JSON，照片会以二进制一起打进去。请把它存在只有你自己能访问的位置。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

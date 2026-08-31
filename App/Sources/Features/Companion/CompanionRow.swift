@@ -86,7 +86,7 @@ struct CompanionRow: View {
     }
 
     private var intimacySummary: String {
-        guard let latest = intimateEncounters.first else { return "还没记亲密" }
-        return "\(intimateEncounters.count) 次 · \(Format.relativeDay(latest.date))"
+        guard let latest = intimateEncounters.first else { return "还没约成" }
+        return "约成 \(intimateEncounters.count) 次 · \(Format.relativeDay(latest.date))"
     }
 }
