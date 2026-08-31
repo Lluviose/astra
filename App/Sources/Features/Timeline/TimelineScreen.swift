@@ -19,7 +19,7 @@ struct TimelineScreen: View {
         switch scope {
         case .all:
             app.timeline()
-        case .flirting:
+        case .chat:
             app.timeline().filter { $0.kind.isConversation }
         case .intimate:
             app.timeline().filter { $0.kind.isIntimate }
@@ -146,7 +146,7 @@ struct TimelineScreen: View {
     }
 
     private func beginRecording() {
-        recordingKind = scope == .flirting ? .flirting : .intimacy
+        recordingKind = scope == .chat ? .chat : .intimacy
         pendingCompanionSelection = nil
 
         if app.currentCompanions.isEmpty {
@@ -197,7 +197,7 @@ struct TimelineScreen: View {
     @ViewBuilder
     private var statsGrid: some View {
         switch scope {
-        case .flirting:
+        case .chat:
             conversationStatsGrid
         case .followUp:
             followUpStatsGrid
@@ -244,7 +244,7 @@ struct TimelineScreen: View {
             GridRow {
                 StatTile(
                     value: "\(conversationRecords.count)",
-                    caption: "暧昧记录",
+                    caption: "聊天记录",
                     systemImage: "heart.text.square.fill",
                     tint: Palette.coral
                 )
@@ -438,7 +438,7 @@ struct TimelineScreen: View {
 
 private enum RecordScope: String, CaseIterable, Identifiable {
     case all
-    case flirting
+    case chat
     case intimate
     case followUp
 
@@ -447,7 +447,7 @@ private enum RecordScope: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: "全部"
-        case .flirting: "聊骚"
+        case .chat: "聊天"
         case .intimate: "约成"
         case .followUp: "跟进"
         }
@@ -456,7 +456,7 @@ private enum RecordScope: String, CaseIterable, Identifiable {
     var emptySymbol: String {
         switch self {
         case .all: "clock.arrow.circlepath"
-        case .flirting: "heart.text.square"
+        case .chat: "message.fill"
         case .intimate: "flame"
         case .followUp: "checkmark.circle"
         }
@@ -465,7 +465,7 @@ private enum RecordScope: String, CaseIterable, Identifiable {
     var emptyTitle: String {
         switch self {
         case .all: "记录册还是空的"
-        case .flirting: "还没聊骚"
+        case .chat: "还没记下聊天"
         case .intimate: "还没约成过"
         case .followUp: "没有待办"
         }
@@ -473,8 +473,8 @@ private enum RecordScope: String, CaseIterable, Identifiable {
 
     var emptyMessage: String {
         switch self {
-        case .all: "约成、过夜、聊骚、留照片，一页页写在这本记录册里。"
-        case .flirting: "记下她说可以的尺度，别靠回复速度瞎猜。"
+        case .all: "约成、过夜、留照片，一页页写在这本记录册里。"
+        case .chat: "记下她说可以的尺度，别靠回复速度瞎猜。"
         case .intimate: "做了什么、有没有戴套、爽不爽，以后都能翻到。"
         case .followUp: "只有你自己勾过、还没做完的才会出现。"
         }

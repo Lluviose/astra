@@ -189,8 +189,8 @@ struct CompanionDetailView: View {
                     editingEncounter = Encounter(companionID: companion.id, kind: .overnight, cityID: companion.cityID)
                 }
                 quickAction("person.2.fill", "见面") { app.logQuickContact(for: companion, kind: .meet) }
-                quickAction("heart.text.square.fill", "聊骚") {
-                    editingEncounter = Encounter(companionID: companion.id, kind: .flirting, cityID: companion.cityID)
+                quickAction("message.fill", "聊天") {
+                    editingEncounter = Encounter(companionID: companion.id, kind: .chat, cityID: companion.cityID)
                 }
             }
             .padding(.vertical, 4)
@@ -246,25 +246,31 @@ struct CompanionDetailView: View {
 
     private func albumSection(_ companion: Companion) -> some View {
         let ids = app.albumIDs(for: companion.id)
-        return Group {
-            if !ids.isEmpty {
-                Section {
-                    if app.namesRevealed {
-                        PhotoStrip(
-                            ids: ids,
-                            onOpen: { viewingPhotoIndex = $0 }
-                        )
-                    } else {
-                        Label("点右上角眼睛再看照片", systemImage: "eye.slash")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("私藏")
-                } footer: {
-                    Text("头像和每次留下的照片都在这儿，只存在这台手机。")
+        let remaining = max(0, AppState.maxAlbumPhotos - companion.albumPhotoIDs.count)
+        return Section {
+            if app.namesRevealed {
+                if !ids.isEmpty {
+                    PhotoStrip(
+                        ids: ids,
+                        editable: true,
+                        onDelete: { app.removeAlbumPhoto($0, from: companion.id) },
+                        onOpen: { viewingPhotoIndex = $0 }
+                    )
+                }
+            } else if !ids.isEmpty {
+                Label("点右上角眼睛再看照片", systemImage: "eye.slash")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            if remaining > 0 {
+                PhotoAddBar(remaining: remaining) { images in
+                    app.addAlbumPhotos(images, to: companion.id)
                 }
             }
+        } header: {
+            Text("私藏")
+        } footer: {
+            Text("档案里就能加。头像、私藏和每次留下的照片都在这儿，只存在这台手机。")
         }
     }
 
@@ -501,11 +507,19 @@ struct EncounterRow: View {
                 .foregroundStyle(.secondary)
 
                 if encounter.kind.isIntimate,
-                   !encounter.activities.isEmpty || encounter.boundaryFeeling.needsFollowUp || encounter.hasPendingFollowUp {
+                   !encounter.activities.isEmpty
+                    || !encounter.climaxDetails.isEmpty
+                    || encounter.boundaryFeeling.needsFollowUp
+                    || encounter.hasPendingFollowUp {
                     HStack(spacing: 6) {
                         if !encounter.activities.isEmpty {
                             Text(encounter.activitySummary)
                                 .lineLimit(1)
+                        }
+                        if !encounter.climaxSummary.isEmpty {
+                            Text(encounter.climaxSummary)
+                                .lineLimit(1)
+                                .foregroundStyle(Palette.coral)
                         }
                         if encounter.boundaryFeeling.needsFollowUp {
                             Label("边界待回看", systemImage: "exclamationmark.bubble.fill")

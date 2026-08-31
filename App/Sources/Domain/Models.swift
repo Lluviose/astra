@@ -4,13 +4,14 @@ import SwiftUI
 // MARK: - 相处状态
 
 enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case new        // 新认识
-    case chatting   // 在聊天
-    case flirting   // 暧昧 / 调情
-    case casual     // 偶尔见面
-    case regular    // 固定见面
-    case paused     // 暂停联系
-    case ended      // 已结束
+    case new        // 刚认识
+    case chatting   // 聊上了
+    case flirting   // 暧昧中
+    case prospect   // 准炮友
+    case casual     // 炮友
+    case regular    // 固定炮友
+    case paused     // 先搁着
+    case ended      // 结束了
 
     var id: String { rawValue }
 
@@ -19,8 +20,9 @@ enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifia
         case .new: "刚认识"
         case .chatting: "聊上了"
         case .flirting: "暧昧中"
-        case .casual: "偶尔约"
-        case .regular: "固定约"
+        case .prospect: "准炮友"
+        case .casual: "炮友"
+        case .regular: "固定炮友"
         case .paused: "先搁着"
         case .ended: "结束了"
         }
@@ -31,7 +33,8 @@ enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifia
         case .new: "sparkles"
         case .chatting: "bubble.left.and.bubble.right.fill"
         case .flirting: "heart.text.square.fill"
-        case .casual: "moon.stars.fill"
+        case .prospect: "bolt.heart.fill"
+        case .casual: "flame.fill"
         case .regular: "repeat.circle.fill"
         case .paused: "pause.circle.fill"
         case .ended: "archivebox"
@@ -43,18 +46,20 @@ enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifia
         case .new: Color(red: 0.52, green: 0.58, blue: 0.72)
         case .chatting: Color(red: 0.95, green: 0.56, blue: 0.30)
         case .flirting: Color(red: 0.93, green: 0.39, blue: 0.60)
-        case .casual: Color(red: 0.94, green: 0.30, blue: 0.50)
+        case .prospect: Color(red: 0.96, green: 0.32, blue: 0.42)
+        case .casual: Color(red: 0.94, green: 0.22, blue: 0.46)
         case .regular: Color(red: 0.67, green: 0.32, blue: 0.94)
         case .paused: Color(red: 0.36, green: 0.62, blue: 0.86)
         case .ended: Color(red: 0.55, green: 0.55, blue: 0.58)
         }
     }
 
-    /// 排序权重：越接近稳定相处越靠前
+    /// 排序权重：越接近稳定约越靠前
     var weight: Int {
         switch self {
-        case .regular: 6
-        case .casual: 5
+        case .regular: 7
+        case .casual: 6
+        case .prospect: 5
         case .flirting: 4
         case .chatting: 3
         case .new: 2
@@ -82,6 +87,8 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     var rating: Int
     /// 头像照片，存在本机沙盒
     var photoID: String?
+    /// 档案里直接留下的私藏，不挂在某一次约上
+    var albumPhotoIDs: [String]
     var age: Int?
     var heightCM: Int?
     /// 生日只存月/日，不强制要年份
@@ -117,6 +124,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         stage: RelationStage = .chatting,
         rating: Int = 3,
         photoID: String? = nil,
+        albumPhotoIDs: [String] = [],
         age: Int? = nil,
         heightCM: Int? = nil,
         birthdayMonth: Int? = nil,
@@ -144,6 +152,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         self.stage = stage
         self.rating = rating
         self.photoID = photoID
+        self.albumPhotoIDs = albumPhotoIDs
         self.age = age
         self.heightCM = heightCM
         self.birthdayMonth = birthdayMonth
@@ -175,6 +184,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         stage = RelationStage(rawValue: try c.decodeIfPresent(String.self, forKey: .stage) ?? "") ?? .chatting
         rating = try c.decodeIfPresent(Int.self, forKey: .rating) ?? 3
         photoID = try c.decodeIfPresent(String.self, forKey: .photoID)
+        albumPhotoIDs = try c.decodeIfPresent([String].self, forKey: .albumPhotoIDs) ?? []
         age = try c.decodeIfPresent(Int.self, forKey: .age)
         heightCM = try c.decodeIfPresent(Int.self, forKey: .heightCM)
         birthdayMonth = try c.decodeIfPresent(Int.self, forKey: .birthdayMonth)
@@ -246,6 +256,11 @@ enum EncounterKind: String, Codable, CaseIterable, Hashable, Sendable, Identifia
     case other
 
     var id: String { rawValue }
+
+    /// 新建记录时可选的类型。旧数据里的「聊骚」仍能解码和显示。
+    static var recordableCases: [EncounterKind] {
+        allCases.filter { $0 != .flirting }
+    }
 
     var label: String {
         switch self {
@@ -332,7 +347,7 @@ enum ChatProgress: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
         switch self {
         case .notRecorded: "未记录"
         case .gettingToKnow: "还在摸底"
-        case .flirting: "已经聊骚了"
+        case .flirting: "已经很黄了"
         case .expectationsClear: "想约的事聊清了"
         case .discussingMeet: "在约见面"
         case .meetScheduled: "约好了"
@@ -479,9 +494,9 @@ enum ProtectionStatus: String, Codable, CaseIterable, Hashable, Sendable, Identi
     var label: String {
         switch self {
         case .notRecorded: "未记录"
-        case .protected: "全程使用安全套 / 屏障"
-        case .partial: "部分行为使用"
-        case .noProtection: "未用安全套 / 屏障"
+        case .protected: "全程戴套"
+        case .partial: "中途摘了"
+        case .noProtection: "无套"
         case .notApplicable: "无对应行为"
         }
     }
@@ -499,9 +514,9 @@ enum ProtectionStatus: String, Codable, CaseIterable, Hashable, Sendable, Identi
     var compactLabel: String {
         switch self {
         case .notRecorded: "屏障未记"
-        case .protected: "全程屏障"
-        case .partial: "部分屏障"
-        case .noProtection: "未用屏障"
+        case .protected: "全程戴套"
+        case .partial: "中途摘了"
+        case .noProtection: "无套"
         case .notApplicable: "无对应行为"
         }
     }
@@ -525,12 +540,28 @@ enum ProtectionStatus: String, Codable, CaseIterable, Hashable, Sendable, Identi
 enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
     case kissing
     case touching
+    case fingering
+    case handjob
+    case titjob
     case oralGiving
     case oralReceiving
+    case sixtyNine
     case vaginalPenetration
     case analInsertive
     case analReceptive
+    case cowgirl
+    case doggy
+    case missionary
+    case standing
+    case spooning
+    case shower
+    case car
+    case outdoor
+    case hotel
     case toys
+    case multipleRounds
+    case dirtyTalk
+    case recorded
     case other
 
     var id: String { rawValue }
@@ -539,13 +570,103 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
         switch self {
         case .kissing: "亲亲"
         case .touching: "上手"
+        case .fingering: "手指进去"
+        case .handjob: "她用手"
+        case .titjob: "乳交"
         case .oralGiving: "口 · 我给她"
         case .oralReceiving: "口 · 她给我"
+        case .sixtyNine: "69"
         case .vaginalPenetration: "做爱"
         case .analInsertive: "肛 · 我在上"
         case .analReceptive: "肛 · 我在下"
+        case .cowgirl: "她骑上来"
+        case .doggy: "后入"
+        case .missionary: "正面"
+        case .standing: "站着做"
+        case .spooning: "侧躺"
+        case .shower: "浴室"
+        case .car: "车震"
+        case .outdoor: "外面做"
+        case .hotel: "开房"
         case .toys: "玩具"
+        case .multipleRounds: "多轮"
+        case .dirtyTalk: "叫床 / 说骚话"
+        case .recorded: "拍了"
         case .other: "其他"
+        }
+    }
+
+    var group: IntimacyActivityGroup {
+        switch self {
+        case .kissing, .touching, .fingering, .handjob, .titjob,
+             .oralGiving, .oralReceiving, .sixtyNine,
+             .vaginalPenetration, .analInsertive, .analReceptive, .toys, .other:
+            .body
+        case .cowgirl, .doggy, .missionary, .standing, .spooning:
+            .position
+        case .shower, .car, .outdoor, .hotel:
+            .place
+        case .multipleRounds, .dirtyTalk, .recorded:
+            .heat
+        }
+    }
+}
+
+enum IntimacyActivityGroup: String, CaseIterable, Identifiable {
+    case body
+    case position
+    case place
+    case heat
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .body: "身体"
+        case .position: "姿势"
+        case .place: "在哪做"
+        case .heat: "更刺激的"
+        }
+    }
+}
+
+/// 这次怎么收的尾，和「做了什么」分开记。
+enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case sheCame
+    case sheMultiple
+    case creampie
+    case pullOut
+    case condomFinish
+    case swallow
+    case facial
+    case onChest
+    case onBody
+    case multiple
+    case edging
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .sheCame: "她高潮了"
+        case .sheMultiple: "她高潮好几次"
+        case .creampie: "内射"
+        case .pullOut: "拔出来射"
+        case .condomFinish: "射在套里"
+        case .swallow: "口爆咽下去"
+        case .facial: "颜射"
+        case .onChest: "射在胸上"
+        case .onBody: "射在身上"
+        case .multiple: "我射了不止一次"
+        case .edging: "一直吊着不让射"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .creampie, .swallow, .facial: Color(red: 0.94, green: 0.22, blue: 0.46)
+        case .sheCame, .sheMultiple: Color(red: 0.93, green: 0.39, blue: 0.60)
+        default: Color(red: 0.95, green: 0.56, blue: 0.30)
         }
     }
 }
@@ -712,6 +833,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     var digitalBoundaries: Set<DigitalBoundary>
     var conversationSafetyFlags: Set<ConversationSafetyFlag>
     var activities: Set<IntimacyActivity>
+    var climaxDetails: Set<ClimaxDetail>
     var boundaryFeeling: BoundaryFeeling
     var personalStates: Set<PersonalState>
     var protectionStatus: ProtectionStatus
@@ -743,6 +865,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         digitalBoundaries: Set<DigitalBoundary> = [],
         conversationSafetyFlags: Set<ConversationSafetyFlag> = [],
         activities: Set<IntimacyActivity> = [],
+        climaxDetails: Set<ClimaxDetail> = [],
         boundaryFeeling: BoundaryFeeling = .notRecorded,
         personalStates: Set<PersonalState> = [],
         protectionStatus: ProtectionStatus = .notRecorded,
@@ -772,6 +895,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.digitalBoundaries = digitalBoundaries
         self.conversationSafetyFlags = conversationSafetyFlags
         self.activities = activities
+        self.climaxDetails = climaxDetails
         self.boundaryFeeling = boundaryFeeling
         self.personalStates = personalStates
         self.protectionStatus = protectionStatus
@@ -804,6 +928,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         digitalBoundaries = try c.decodeIfPresent(Set<DigitalBoundary>.self, forKey: .digitalBoundaries) ?? []
         conversationSafetyFlags = try c.decodeIfPresent(Set<ConversationSafetyFlag>.self, forKey: .conversationSafetyFlags) ?? []
         activities = try c.decodeIfPresent(Set<IntimacyActivity>.self, forKey: .activities) ?? []
+        climaxDetails = try c.decodeIfPresent(Set<ClimaxDetail>.self, forKey: .climaxDetails) ?? []
         boundaryFeeling = try c.decodeIfPresent(BoundaryFeeling.self, forKey: .boundaryFeeling) ?? .notRecorded
         personalStates = try c.decodeIfPresent(Set<PersonalState>.self, forKey: .personalStates) ?? []
         protectionStatus = try c.decodeIfPresent(ProtectionStatus.self, forKey: .protectionStatus) ?? .notRecorded
@@ -843,6 +968,13 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         return remaining > 0 ? "\(visible) 等 \(ordered.count) 项" : visible
     }
 
+    var climaxSummary: String {
+        ClimaxDetail.allCases
+            .filter { climaxDetails.contains($0) }
+            .map(\.label)
+            .joined(separator: "、")
+    }
+
     var conversationSummary: String {
         var parts: [String] = []
         if chatProgress != .notRecorded { parts.append(chatProgress.label) }
@@ -867,8 +999,10 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
 
 enum TagSuggestions {
     static let common = [
-        "好看", "会聊", "主动", "听话", "反差", "声好听", "身材好", "会打扮",
-        "固定约", "偶尔约", "只约不聊", "能过夜", "不留宿", "得提前约",
+        "好看", "胸好", "腰细", "腿长", "会叫", "水多", "紧", "口活好",
+        "主动", "听话", "反差", "声好听", "身材好", "会打扮", "黑丝", "制服",
+        "准炮友", "炮友", "固定炮友", "只约不聊", "能过夜", "不留宿", "得提前约",
+        "无套", "内射", "能口爆", "能颜射", "多轮", "会骑",
         "同城", "异地", "周末", "夜猫子", "能喝", "不喝酒",
         "先确认再发图", "只聊文字", "不发私密图", "不截屏",
         "见面前聊套", "边界清楚", "沟通直接", "守时",

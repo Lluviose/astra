@@ -105,6 +105,8 @@ struct HomeScreen: View {
         }
         .sheet(isPresented: $showMap) {
             MapScreen()
+                .presentationDragIndicator(.visible)
+                .interactiveDismissDisabled(false)
         }
     }
 
@@ -156,14 +158,14 @@ struct HomeScreen: View {
                         Label("过夜", systemImage: EncounterKind.overnight.symbolName)
                     }
                     Button {
-                        beginRecording(kind: .flirting)
-                    } label: {
-                        Label("聊骚", systemImage: EncounterKind.flirting.symbolName)
-                    }
-                    Button {
                         beginRecording(kind: .meet)
                     } label: {
                         Label("见面", systemImage: EncounterKind.meet.symbolName)
+                    }
+                    Button {
+                        beginRecording(kind: .chat)
+                    } label: {
+                        Label("聊天", systemImage: EncounterKind.chat.symbolName)
                     }
                 } label: {
                     Label("记一笔", systemImage: "plus.circle.fill")

@@ -7,6 +7,7 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertTrue(RelationStage.new.isActive)
         XCTAssertTrue(RelationStage.chatting.isActive)
         XCTAssertTrue(RelationStage.flirting.isActive)
+        XCTAssertTrue(RelationStage.prospect.isActive)
         XCTAssertTrue(RelationStage.casual.isActive)
         XCTAssertTrue(RelationStage.regular.isActive)
         XCTAssertFalse(RelationStage.paused.isActive)
@@ -22,6 +23,18 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertTrue(EncounterKind.flirting.isConversation)
         XCTAssertTrue(EncounterKind.chat.isConversation)
         XCTAssertFalse(EncounterKind.intimacy.isConversation)
+        XCTAssertFalse(EncounterKind.recordableCases.contains(.flirting))
+        XCTAssertTrue(EncounterKind.recordableCases.contains(.chat))
+        XCTAssertTrue(EncounterKind.recordableCases.contains(.intimacy))
+    }
+
+    func testProspectSitsBetweenFlirtingAndHookup() {
+        XCTAssertEqual(RelationStage.prospect.label, "准炮友")
+        XCTAssertEqual(RelationStage.casual.label, "炮友")
+        XCTAssertEqual(RelationStage.regular.label, "固定炮友")
+        XCTAssertGreaterThan(RelationStage.prospect.weight, RelationStage.flirting.weight)
+        XCTAssertGreaterThan(RelationStage.casual.weight, RelationStage.prospect.weight)
+        XCTAssertGreaterThan(RelationStage.regular.weight, RelationStage.casual.weight)
     }
 
     func testProtectionRecordingState() {
@@ -73,6 +86,15 @@ final class IntimacyModelTests: XCTestCase {
             activities: [.toys, .kissing, .analReceptive, .oralGiving]
         )
         XCTAssertEqual(encounter.activitySummary, "亲亲、口 · 我给她、肛 · 我在下 等 4 项")
+    }
+
+    func testClimaxSummaryKeepsFinishDetailsSeparate() {
+        let encounter = Encounter(
+            companionID: UUID(),
+            climaxDetails: [.facial, .creampie, .sheCame]
+        )
+        XCTAssertEqual(encounter.climaxSummary, "她高潮了、内射、颜射")
+        XCTAssertTrue(encounter.activitySummary.isEmpty)
     }
 
     func testOnlyUncertainBoundaryStatesSuggestFollowUp() {

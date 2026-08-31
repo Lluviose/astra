@@ -265,7 +265,7 @@ struct CompanionEditor: View {
     // MARK: 相处状态
 
     private var statusSection: some View {
-        Section("相处状态") {
+        Section("现在是什么关系") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(RelationStage.allCases, id: \.self) { stage in
@@ -307,7 +307,7 @@ struct CompanionEditor: View {
 
     private var intimacySection: some View {
         Section {
-            TextField("想怎么约（只约、固定约、先看看）", text: $draft.expectations, axis: .vertical)
+            TextField("想怎么约（只约、当炮友、固定、先看看）", text: $draft.expectations, axis: .vertical)
                 .lineLimit(2...4)
             TextField("她说过不行的事", text: $draft.boundaries, axis: .vertical)
                 .lineLimit(2...5)

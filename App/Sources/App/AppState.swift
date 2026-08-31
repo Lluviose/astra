@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import UIKit
 
 /// 地图上的一座城市 + 落在这座城市的人
 struct CityBucket: Identifiable, Hashable, Sendable {
@@ -213,14 +214,61 @@ final class AppState {
     }
 
     func albumIDs(for companionID: UUID) -> [String] {
+        var seen = Set<String>()
         var ids: [String] = []
-        if let photoID = companion(id: companionID)?.photoID {
-            ids.append(photoID)
+        func append(_ id: String) {
+            if seen.insert(id).inserted { ids.append(id) }
         }
+        guard let companion = companion(id: companionID) else { return [] }
+        if let photoID = companion.photoID { append(photoID) }
+        companion.albumPhotoIDs.forEach(append)
         for encounter in encounters(for: companionID) {
-            ids.append(contentsOf: encounter.photoIDs)
+            encounter.photoIDs.forEach(append)
         }
         return ids
+    }
+
+    static let maxAlbumPhotos = 24
+
+    func addAlbumPhotos(_ images: [UIImage], to companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }) else { return }
+        let room = Self.maxAlbumPhotos - companions[index].albumPhotoIDs.count
+        var added = 0
+        for image in images.prefix(max(0, room)) {
+            if let id = MediaStore.save(image: image, kind: .photo) {
+                companions[index].albumPhotoIDs.append(id)
+                added += 1
+            }
+        }
+        guard added > 0 else { return }
+        companions[index].updatedAt = Date()
+        persistCompanions()
+        Haptics.shared.play(.toggleOn)
+    }
+
+    func removeAlbumPhoto(_ id: String, from companionID: UUID) {
+        var changed = false
+        if let index = companions.firstIndex(where: { $0.id == companionID }) {
+            if companions[index].photoID == id {
+                companions[index].photoID = nil
+                changed = true
+            }
+            if companions[index].albumPhotoIDs.contains(id) {
+                companions[index].albumPhotoIDs.removeAll { $0 == id }
+                changed = true
+            }
+            if changed {
+                companions[index].updatedAt = Date()
+                persistCompanions()
+            }
+        }
+        if let eIndex = encounters.firstIndex(where: { $0.companionID == companionID && $0.photoIDs.contains(id) }) {
+            encounters[eIndex].photoIDs.removeAll { $0 == id }
+            persistEncounters()
+            changed = true
+        }
+        MediaStore.delete(id: id)
+        if changed { Haptics.shared.play(.toggleOff) }
     }
 
     func hookupCount(for companionID: UUID) -> Int {
@@ -393,6 +441,8 @@ final class AppState {
             if companions[index].photoID != updated.photoID, let old = companions[index].photoID {
                 MediaStore.delete(id: old)
             }
+            let removedAlbum = Set(companions[index].albumPhotoIDs).subtracting(updated.albumPhotoIDs)
+            MediaStore.delete(ids: Array(removedAlbum))
             companions[index] = updated
             Haptics.shared.play(.success)
         } else {
@@ -403,8 +453,11 @@ final class AppState {
     }
 
     func delete(companionID: UUID) {
-        if let photoID = companion(id: companionID)?.photoID {
-            MediaStore.delete(id: photoID)
+        if let companion = companion(id: companionID) {
+            if let photoID = companion.photoID {
+                MediaStore.delete(id: photoID)
+            }
+            MediaStore.delete(ids: companion.albumPhotoIDs)
         }
         let photos = encounters.filter { $0.companionID == companionID }.flatMap(\.photoIDs)
         MediaStore.delete(ids: photos)
@@ -725,6 +778,9 @@ final class AppState {
 
     private static func referencedIDs(companions: [Companion], encounters: [Encounter]) -> Set<String> {
         var ids = Set(companions.compactMap(\.photoID))
+        for companion in companions {
+            ids.formUnion(companion.albumPhotoIDs)
+        }
         for encounter in encounters {
             ids.formUnion(encounter.photoIDs)
         }

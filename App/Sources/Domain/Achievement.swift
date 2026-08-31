@@ -110,11 +110,15 @@ enum AchievementCatalog {
         let byID = Dictionary(uniqueKeysWithValues: companions.map { ($0.id, $0) })
         let hookups = encounters.filter(\.kind.isIntimate)
         let overnight = encounters.filter { $0.kind == .overnight }
-        let photos = companions.compactMap(\.photoID) + encounters.flatMap(\.photoIDs)
+        let photos = companions.compactMap(\.photoID)
+            + companions.flatMap(\.albumPhotoIDs)
+            + encounters.flatMap(\.photoIDs)
         let weekendHookups = hookups.filter { Calendar.current.isDateInWeekend($0.date) }
         let nightHookups = hookups.filter { hour($0.date) >= 22 || hour($0.date) < 5 }
         let morningHookups = hookups.filter { let h = hour($0.date); return h >= 5 && h < 10 }
         let regulars = active.filter { $0.stage == .regular }.count
+        let prospects = active.filter { $0.stage == .prospect }.count
+        let casuals = active.filter { $0.stage == .casual || $0.stage == .regular }.count
         let sameDay = maxSameDay(hookups)
         let perGirl = Dictionary(grouping: hookups, by: \.companionID).mapValues(\.count)
         let maxRepeats = perGirl.values.max() ?? 0
@@ -132,6 +136,17 @@ enum AchievementCatalog {
         let flirted = encounters.contains { $0.kind.isConversation }
         let wantAgain = encounters.contains { $0.meetAgainIntent == .yes }
         let sexLogged = encounters.contains { $0.activities.contains(.vaginalPenetration) }
+        let barebacks = hookups.filter { $0.protectionStatus == .noProtection }
+        let creampies = hookups.filter { $0.climaxDetails.contains(.creampie) }
+        let swallows = hookups.filter { $0.climaxDetails.contains(.swallow) }
+        let facials = hookups.filter { $0.climaxDetails.contains(.facial) }
+        let multiRounds = hookups.filter { $0.activities.contains(.multipleRounds) || $0.climaxDetails.contains(.multiple) }
+        let carSex = hookups.filter { $0.activities.contains(.car) }
+        let showerSex = hookups.filter { $0.activities.contains(.shower) }
+        let outdoorSex = hookups.filter { $0.activities.contains(.outdoor) }
+        let cowgirl = hookups.filter { $0.activities.contains(.cowgirl) }
+        let sheCame = hookups.filter { $0.climaxDetails.contains(.sheCame) || $0.climaxDetails.contains(.sheMultiple) }
+        let overnightBareback = overnight.contains { $0.protectionStatus == .noProtection }
 
         return [
             make("first_girl", "猎场开门", "记下第一个她", "名册翻开第一页。", "person.fill.badge.plus", .hunt, .bronze, 0.93, 0.39, 0.60, active.count, 1),
@@ -139,8 +154,11 @@ enum AchievementCatalog {
             make("girls_10", "十人图鉴", "名册里有 10 个人", "一翻就是一页故事。", "square.grid.3x3.fill", .hunt, .silver, 0.94, 0.28, 0.52, active.count, 10),
             make("girls_20", "猎艳达人", "名册里有 20 个人", "这本册子已经很厚了。", "star.fill", .hunt, .gold, 0.95, 0.72, 0.22, active.count, 20),
             make("girls_40", "名册封神", "名册里有 40 个人", "猎场老人。", "crown.fill", .hunt, .gold, 0.95, 0.72, 0.22, active.count, 40),
-            make("regular", "固定一位", "有人变成固定约", "不再是萍水相逢。", "repeat.circle.fill", .hunt, .bronze, 0.67, 0.32, 0.94, regulars, 1),
-            make("regulars_3", "三位固定", "同时有 3 个固定约", "时间表开始要排了。", "person.3.fill", .hunt, .silver, 0.67, 0.32, 0.94, regulars, 3),
+            make("regular", "固定一位", "有人变成固定炮友", "不再是萍水相逢。", "repeat.circle.fill", .hunt, .bronze, 0.67, 0.32, 0.94, regulars, 1),
+            make("regulars_3", "三位固定", "同时有 3 个固定炮友", "时间表开始要排了。", "person.3.fill", .hunt, .silver, 0.67, 0.32, 0.94, regulars, 3),
+            make("prospect", "准炮友", "有人变成准炮友", "马上就要约成了。", "bolt.heart.fill", .hunt, .bronze, 0.96, 0.32, 0.42, prospects, 1),
+            make("fwb", "正式炮友", "有人变成炮友", "不再只是暧昧。", "flame.fill", .hunt, .bronze, 0.94, 0.22, 0.46, casuals, 1),
+            make("fwbs_3", "三个炮友", "同时有 3 个炮友或固定", "猎场开始拥挤。", "person.3.fill", .hunt, .gold, 0.94, 0.22, 0.46, casuals, 3),
             make("repeater", "回头客", "同一个人约成 3 次", "她也还想来。", "arrow.triangle.2.circlepath", .hunt, .bronze, 0.94, 0.28, 0.52, maxRepeats, 3),
             make("repeater_5", "老主顾", "同一个人约成 5 次", "熟门熟路。", "heart.circle.fill", .hunt, .silver, 0.93, 0.39, 0.60, maxRepeats, 5),
 
@@ -170,9 +188,22 @@ enum AchievementCatalog {
             make("weekend", "周末选手", "周末约成过", "周六周日有安排。", "sun.max.fill", .play, .bronze, 0.95, 0.62, 0.25, weekendHookups.count, 1),
             make("night_owl", "深夜局", "晚上 10 点后约成过", "夜才刚刚开始。", "moon.stars.fill", .play, .bronze, 0.58, 0.34, 0.92, nightHookups.count, 1),
             make("morning", "清晨局", "早上 5 到 9 点还在约", "天亮了也不急着走。", "sunrise.fill", .play, .silver, 0.95, 0.72, 0.22, morningHookups.count, 1),
-            make("first_flirt", "先聊上了", "记下过聊骚", "不见面也能推进。", "heart.text.square.fill", .play, .bronze, 0.93, 0.39, 0.60, flirted ? 1 : 0, 1),
+            make("first_flirt", "先聊上了", "记下过聊天", "不见面也能推进。", "bubble.left.and.bubble.right.fill", .play, .bronze, 0.93, 0.39, 0.60, flirted ? 1 : 0, 1),
             make("want_again", "还想约", "约完还想再约", "这次不是句号。", "arrow.forward.circle.fill", .play, .bronze, 0.94, 0.28, 0.52, wantAgain ? 1 : 0, 1),
             make("sex_logged", "记到床上", "勾过做爱", "该记的都记下了。", "heart.fill", .play, .bronze, 0.94, 0.28, 0.52, sexLogged ? 1 : 0, 1),
+            make("bareback", "无套", "第一次无套", "皮肤贴着皮肤。", "exclamationmark.shield.fill", .play, .bronze, 0.94, 0.42, 0.34, barebacks.count, 1),
+            make("bareback_5", "无套常客", "无套 5 次", "已经不怕了。", "flame.fill", .play, .silver, 0.94, 0.22, 0.46, barebacks.count, 5),
+            make("creampie", "内射", "第一次内射", "射进去了。", "drop.fill", .play, .bronze, 0.94, 0.22, 0.46, creampies.count, 1),
+            make("creampie_5", "灌满", "内射 5 次", "她里面都熟了。", "drop.fill", .play, .gold, 0.94, 0.22, 0.46, creampies.count, 5),
+            make("swallow", "口爆", "她咽下去过", "嘴也记下了。", "ellipsis.bubble.fill", .play, .silver, 0.93, 0.39, 0.60, swallows.count, 1),
+            make("facial", "颜射", "射在脸上过", "那张脸记得很清楚。", "sparkles", .play, .silver, 0.95, 0.62, 0.25, facials.count, 1),
+            make("multi_round", "多轮", "一次做了好几轮", "停不下来。", "arrow.2.squarepath", .play, .silver, 0.94, 0.28, 0.52, multiRounds.count, 1),
+            make("car_sex", "车震", "在车里做过", "后座也算猎场。", "car.fill", .play, .bronze, 0.38, 0.60, 0.96, carSex.count, 1),
+            make("shower_sex", "浴室", "在浴室做过", "水还没停。", "drop.fill", .play, .bronze, 0.30, 0.75, 0.60, showerSex.count, 1),
+            make("outdoor_sex", "外面做", "在外面做过", "随时可能被看见。", "leaf.fill", .play, .gold, 0.22, 0.70, 0.56, outdoorSex.count, 1),
+            make("cowgirl", "她骑上来", "她在上面过", "让她自己动。", "heart.circle.fill", .play, .bronze, 0.93, 0.39, 0.60, cowgirl.count, 1),
+            make("she_came", "把她弄高潮", "记下过她高潮", "她也爽到了。", "waveform.path.ecg", .play, .silver, 0.94, 0.28, 0.52, sheCame.count, 1),
+            make("overnight_bareback", "过夜无套", "过夜还无套", "天亮了还在里面。", "moon.haze.fill", .play, .gold, 0.67, 0.32, 0.94, overnightBareback ? 1 : 0, 1),
         ]
     }
 

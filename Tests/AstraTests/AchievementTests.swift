@@ -6,8 +6,8 @@ final class AchievementTests: XCTestCase {
     func testEmptyRosterUnlocksNothing() {
         let items = AchievementCatalog.evaluate(companions: [], encounters: [], cityCount: 0)
         XCTAssertFalse(items.contains(where: \.isUnlocked))
-        XCTAssertEqual(items.count, 34)
-        XCTAssertEqual(Set(items.map(\.id)).count, 34)
+        XCTAssertEqual(items.count, 50)
+        XCTAssertEqual(Set(items.map(\.id)).count, 50)
         XCTAssertEqual(Set(items.map(\.category)).count, AchievementCategory.allCases.count)
     }
 
@@ -109,6 +109,47 @@ final class AchievementTests: XCTestCase {
         XCTAssertTrue(unlocked(items, "want_again"))
         XCTAssertTrue(unlocked(items, "sex_logged"))
         XCTAssertFalse(unlocked(items, "first_flirt"))
+        XCTAssertFalse(unlocked(items, "bareback"))
+        XCTAssertFalse(unlocked(items, "creampie"))
+    }
+
+    func testBarebackCreampieAndPlayDetails() {
+        let girl = Companion(name: "她", stage: .prospect)
+        let encounter = Encounter(
+            companionID: girl.id,
+            kind: .overnight,
+            activities: [.cowgirl, .car, .multipleRounds],
+            climaxDetails: [.creampie, .sheCame, .swallow],
+            protectionStatus: .noProtection
+        )
+        let items = AchievementCatalog.evaluate(
+            companions: [girl],
+            encounters: [encounter],
+            cityCount: 1
+        )
+        XCTAssertTrue(unlocked(items, "prospect"))
+        XCTAssertTrue(unlocked(items, "bareback"))
+        XCTAssertTrue(unlocked(items, "creampie"))
+        XCTAssertTrue(unlocked(items, "swallow"))
+        XCTAssertTrue(unlocked(items, "she_came"))
+        XCTAssertTrue(unlocked(items, "cowgirl"))
+        XCTAssertTrue(unlocked(items, "car_sex"))
+        XCTAssertTrue(unlocked(items, "multi_round"))
+        XCTAssertTrue(unlocked(items, "overnight_bareback"))
+        XCTAssertFalse(unlocked(items, "facial"))
+        XCTAssertFalse(unlocked(items, "bareback_5"))
+        XCTAssertFalse(unlocked(items, "fwb"))
+    }
+
+    func testAlbumPhotosOnDossierCountTowardPrivateCollection() {
+        let girl = Companion(name: "她", albumPhotoIDs: ["a", "b", "c"])
+        let items = AchievementCatalog.evaluate(
+            companions: [girl],
+            encounters: [],
+            cityCount: 0
+        )
+        XCTAssertTrue(unlocked(items, "first_photo"))
+        XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 3)
     }
 
     func testArchivedCompanionsDoNotCountAsActiveGirls() {

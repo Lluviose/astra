@@ -63,6 +63,7 @@ struct EncounterEditor: View {
 
                 if draft.kind.isIntimate {
                     activitySection
+                    climaxSection
                     boundarySection
                     safetySection
                 }
@@ -127,6 +128,11 @@ struct EncounterEditor: View {
                     draft.acceptedExplicitMedia = []
                 }
             }
+            .onChange(of: draft.climaxDetails) { _, details in
+                if details.contains(.creampie), draft.protectionStatus == .notRecorded {
+                    draft.protectionStatus = .noProtection
+                }
+            }
             .onChange(of: draft.protectionStatus) { _, status in
                 if status != .protected, status != .partial {
                     removeBarrierMeasures()
@@ -177,7 +183,7 @@ struct EncounterEditor: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(EncounterKind.allCases) { kind in
+                    ForEach(kindChoices) { kind in
                         kindChip(kind)
                     }
                 }
@@ -317,23 +323,52 @@ struct EncounterEditor: View {
 
     private var activitySection: some View {
         Section {
+            ForEach(IntimacyActivityGroup.allCases) { group in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(group.label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    FlowLayout(spacing: 7, lineSpacing: 8) {
+                        ForEach(IntimacyActivity.allCases.filter { $0.group == group }) { activity in
+                            GlassChip(
+                                title: activity.label,
+                                isOn: draft.activities.contains(activity),
+                                tint: group == .heat || group == .place ? Palette.coral : Palette.accent,
+                                compact: true
+                            ) {
+                                draft.activities = toggled(activity, in: draft.activities)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("床上做了什么")
+        } footer: {
+            Text("姿势、口、她骑上来、车震，发生了就勾。")
+        }
+    }
+
+    private var climaxSection: some View {
+        Section {
             FlowLayout(spacing: 7, lineSpacing: 8) {
-                ForEach(IntimacyActivity.allCases) { activity in
+                ForEach(ClimaxDetail.allCases) { detail in
                     GlassChip(
-                        title: activity.label,
-                        isOn: draft.activities.contains(activity),
-                        tint: Palette.coral,
+                        title: detail.label,
+                        isOn: draft.climaxDetails.contains(detail),
+                        tint: detail.tint,
                         compact: true
                     ) {
-                        draft.activities = toggled(activity, in: draft.activities)
+                        draft.climaxDetails = toggled(detail, in: draft.climaxDetails)
                     }
                 }
             }
             .padding(.vertical, 4)
         } header: {
-            Text("做了什么")
+            Text("这次怎么收的")
         } footer: {
-            Text("发生了什么就勾什么，别靠猜。")
+            Text("无套、内射、口爆、颜射分开勾。她高潮了也可以记。")
         }
     }
 
@@ -383,7 +418,7 @@ struct EncounterEditor: View {
 
     private var safetySection: some View {
         Section {
-            Picker("安全套 / 屏障", selection: $draft.protectionStatus) {
+            Picker("有没有戴套", selection: $draft.protectionStatus) {
                 ForEach(ProtectionStatus.allCases) { status in
                     Label(status.label, systemImage: status.symbolName)
                         .tag(status)
@@ -419,7 +454,7 @@ struct EncounterEditor: View {
         } header: {
             Text("套和健康")
         } footer: {
-            Text("戴套、吃药、避孕不是一回事。这儿只记事实，不算分。")
+            Text("戴套、吃药、避孕不是一回事。无套和内射分开记。")
         }
     }
 
@@ -431,7 +466,7 @@ struct EncounterEditor: View {
                 experiencePicker(
                     title: "身体感受",
                     rating: $draft.physicalRating,
-                    emojis: ["😣", "😕", "😐", "🙂", "😌"]
+                    emojis: ["😣", "😕", "😐", "😋", "🥵"]
                 )
             }
 
@@ -447,7 +482,7 @@ struct EncounterEditor: View {
                 }
             }
         } header: {
-            Text("爽不爽，还想不想约")
+            Text("爽不爽，还想不想再干")
         } footer: {
             Text("记你自己的感觉就行，不用给她打分。")
         }
@@ -538,7 +573,7 @@ struct EncounterEditor: View {
             TextField(
                 draft.kind.isConversation
                     ? "她明确说过的尺度、下次想聊什么"
-                    : "下次想记得的，或者单纯想写两句",
+                    : "她哪里敏感、叫得怎么样、下次想怎么玩",
                 text: $draft.note,
                 axis: .vertical
             )
@@ -547,6 +582,13 @@ struct EncounterEditor: View {
     }
 
     // MARK: - 组件与状态
+
+    private var kindChoices: [EncounterKind] {
+        if draft.kind == .flirting {
+            return [.flirting] + EncounterKind.recordableCases
+        }
+        return EncounterKind.recordableCases
+    }
 
     private func kindChip(_ kind: EncounterKind) -> some View {
         Button {
@@ -760,6 +802,7 @@ struct EncounterEditor: View {
         }
 
         draft.activities = []
+        draft.climaxDetails = []
         draft.boundaryFeeling = .notRecorded
         draft.personalStates = []
         draft.protectionStatus = .notApplicable

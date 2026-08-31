@@ -118,6 +118,7 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertFalse(companion.isArchived)
         XCTAssertNil(companion.birthdayMonth)
         XCTAssertNil(companion.photoID)
+        XCTAssertTrue(companion.albumPhotoIDs.isEmpty)
     }
 
     func testEncounterDecodesMissingPhotoIDs() throws {
@@ -127,14 +128,21 @@ final class BackupServiceTests: XCTestCase {
         """
         let encounter = try JSONDecoder().decode(Encounter.self, from: Data(json.utf8))
         XCTAssertTrue(encounter.photoIDs.isEmpty)
+        XCTAssertTrue(encounter.climaxDetails.isEmpty)
         XCTAssertEqual(encounter.kind, .intimacy)
     }
 
     func testMediaRoundTripInBackup() throws {
-        let companion = Companion(name: "她", photoID: "avatar-1")
-        let encounter = Encounter(companionID: companion.id, kind: .intimacy, photoIDs: ["shot-1"])
+        let companion = Companion(name: "她", photoID: "avatar-1", albumPhotoIDs: ["album-1"])
+        let encounter = Encounter(
+            companionID: companion.id,
+            kind: .intimacy,
+            climaxDetails: [.creampie],
+            photoIDs: ["shot-1"]
+        )
         let media = [
             "avatar-1": Data([0xFF, 0xD8, 0xFF, 0xD9]),
+            "album-1": Data([0x01, 0x02]),
             "shot-1": Data([0x00, 0x01, 0x02]),
         ]
 
@@ -143,9 +151,12 @@ final class BackupServiceTests: XCTestCase {
 
         XCTAssertEqual(decoded.version, 2)
         XCTAssertEqual(decoded.companions.first?.photoID, "avatar-1")
+        XCTAssertEqual(decoded.companions.first?.albumPhotoIDs, ["album-1"])
         XCTAssertEqual(decoded.encounters.first?.photoIDs, ["shot-1"])
+        XCTAssertEqual(decoded.encounters.first?.climaxDetails, [.creampie])
         XCTAssertEqual(decoded.media["avatar-1"], media["avatar-1"])
         XCTAssertEqual(decoded.media["shot-1"], media["shot-1"])
+        XCTAssertEqual(decoded.media["album-1"], media["album-1"])
     }
 
     func testV1BackupWithoutMediaStillDecodes() throws {

@@ -110,20 +110,20 @@ struct MapScreen: View {
             mapLayer
                 .ignoresSafeArea()
 
-            header
-                .frame(maxHeight: .infinity, alignment: .top)
-
-            controlColumn
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 16)
-                .padding(.bottom, 8)
-
             if app.buckets.isEmpty {
                 emptyCard
                     .padding(.horizontal, 28)
                     .padding(.bottom, 120)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            header
+        }
+        .overlay(alignment: .bottomTrailing) {
+            controlColumn
+                .padding(.trailing, 16)
+                .padding(.bottom, 8)
         }
         .animation(.easeInOut(duration: 0.25), value: app.buckets.count)
         .sheet(item: selectedBucketBinding, onDismiss: presentPendingEditor) { bucket in
@@ -187,45 +187,46 @@ struct MapScreen: View {
     // MARK: 顶部信息条
 
     private var header: some View {
-        GlassStack(spacing: 14) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("猎场地图")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                    Text(summaryText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 12)
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(width: 30, height: 30)
-                }
-                .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-                .accessibilityLabel("关闭猎场地图")
-
-                Button {
-                    isJumpingToCity = true
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15, weight: .semibold))
-                        .frame(width: 30, height: 30)
-                }
-                .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-                .accessibilityLabel("搜索城市")
+        HStack(spacing: 10) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
             }
-            .padding(.leading, 16)
-            .padding(.trailing, 10)
-            .padding(.vertical, 9)
-            .glassCapsule(interactive: false, shadowRadius: 14)
-            .padding(.horizontal, 16)
+            .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
+            .accessibilityLabel("关闭猎场地图")
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("猎场地图")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                Text(summaryText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button {
+                isJumpingToCity = true
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
+            .accessibilityLabel("搜索城市")
         }
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .padding(.vertical, 8)
+        .glassCapsule(interactive: true, shadowRadius: 14)
+        .padding(.horizontal, 16)
         .padding(.top, 6)
+        .padding(.bottom, 8)
     }
 
     private var summaryText: String {
