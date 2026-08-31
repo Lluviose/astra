@@ -1,5 +1,6 @@
 import CoreLocation
 import MapKit
+import SwiftUI
 import XCTest
 @testable import Astra
 

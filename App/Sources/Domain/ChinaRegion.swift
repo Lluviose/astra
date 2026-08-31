@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import MapKit
+import SwiftUI
 
 /// 把可视区域与数据都锁死在中国境内。
 enum ChinaRegion {
