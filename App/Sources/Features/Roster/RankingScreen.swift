@@ -53,7 +53,7 @@ enum CompanionRankingMetric: String, CaseIterable, Identifiable {
     @MainActor
     func valueText(for companion: Companion, app: AppState) -> String {
         let value = value(for: companion, app: app)
-        switch self {
+        return switch self {
         case .overall: "\(value) 分"
         case .desire, .chemistry, .afterglow: "\(value) / 10"
         case .hookups: "\(value) 次"
