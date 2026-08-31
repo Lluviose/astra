@@ -20,7 +20,7 @@ struct CompanionDetailView: View {
             if let companion {
                 content(companion)
             } else {
-                EmptyStateView(symbol: "person.crop.circle.badge.questionmark", title: "档案不存在", message: "它可能已经被删除了。")
+                EmptyStateView(symbol: "person.crop.circle.badge.questionmark", title: "档案不存在", message: "这页可能已经从名册里撕掉了。")
             }
         }
         .toolbar {
@@ -48,7 +48,7 @@ struct CompanionDetailView: View {
                             app.toggleArchive(companion)
                         } label: {
                             Label(
-                                companion.isArchived ? "恢复到对象列表" : "归档",
+                                companion.isArchived ? "恢复到名册" : "归档",
                                 systemImage: companion.isArchived ? "tray.and.arrow.up" : "archivebox"
                             )
                         }
@@ -98,7 +98,7 @@ struct CompanionDetailView: View {
         List {
             if companion.isArchived {
                 Section {
-                    Label("已归档，不计入当前对象与城市足迹", systemImage: "archivebox.fill")
+                    Label("已归档，不计入猎场和名册", systemImage: "archivebox.fill")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -122,7 +122,7 @@ struct CompanionDetailView: View {
             timelineSection(companion)
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(app.namesRevealed ? companion.displayName : "对象档案")
+        .navigationTitle(app.namesRevealed ? companion.displayName : "猎获档案")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -147,15 +147,28 @@ struct CompanionDetailView: View {
                 }
 
                 let hookups = app.hookupCount(for: companion.id)
+                let overnight = app.overnightCount(for: companion.id)
                 let photos = app.albumIDs(for: companion.id).count
-                if hookups > 0 || photos > 0 {
-                    Text([
-                        hookups > 0 ? "约成 \(hookups) 次" : nil,
-                        photos > 0 ? "照片 \(photos)" : nil,
-                    ].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Palette.coral)
+                if hookups >= 3 {
+                    Text("回头客")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Palette.coral, in: Capsule())
                 }
+
+                HStack(spacing: 8) {
+                    huntStat("约成", "\(hookups)", Palette.coral)
+                    huntStat("过夜", "\(overnight)", Color(red: 0.58, green: 0.34, blue: 0.92))
+                    huntStat("照片", "\(photos)", Palette.accent)
+                    huntStat(
+                        "最近",
+                        app.lastHookup(for: companion.id).map { Format.relativeDay($0.date) } ?? "—",
+                        Palette.warning
+                    )
+                }
+                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
@@ -213,6 +226,22 @@ struct CompanionDetailView: View {
             .glassCard(cornerRadius: 14, interactive: true, shadowRadius: 6)
         }
         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.95))
+    }
+
+    private func huntStat(_ caption: String, _ value: String, _ tint: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(tint)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+            Text(caption)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func albumSection(_ companion: Companion) -> some View {

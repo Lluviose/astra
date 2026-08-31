@@ -25,7 +25,7 @@ struct RosterScreen: View {
                     rosterList
                 }
             }
-            .navigationTitle("对象")
+            .navigationTitle("名册")
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
@@ -74,7 +74,7 @@ struct RosterScreen: View {
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .accessibilityLabel("添加对象")
+                    .accessibilityLabel("加进名册")
                 }
             }
             .searchable(text: Binding(
@@ -115,6 +115,17 @@ struct RosterScreen: View {
 
     private var rosterList: some View {
         List {
+            Section {
+                HStack(spacing: 12) {
+                    digestChip("\(app.stats.activeCount)", "名册")
+                    digestChip("\(app.stats.totalIntimacyCount)", "约成")
+                    digestChip("\(app.stats.repeatGirlCount)", "回头客")
+                    digestChip("\(app.stats.cityCount)", "城市")
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+            }
+
             if !app.needsAttention.isEmpty {
                 Section {
                     ForEach(app.needsAttention) { companion in
@@ -189,6 +200,18 @@ struct RosterScreen: View {
         guard let city = pendingCitySelection else { return }
         pendingCitySelection = nil
         editorTarget = app.makeDraftCompanion(cityID: city.id)
+    }
+
+    private func digestChip(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.headline.weight(.bold))
+                .monospacedDigit()
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

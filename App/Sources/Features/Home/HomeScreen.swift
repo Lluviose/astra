@@ -53,6 +53,8 @@ struct HomeScreen: View {
                             attentionCard
                         }
 
+                        hottestCard
+
                         safetyCard
 
                         if !recentCompanions.isEmpty {
@@ -70,7 +72,7 @@ struct HomeScreen: View {
                     .padding(.bottom, 28)
                 }
             }
-            .navigationTitle("星图")
+            .navigationTitle("猎场")
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
@@ -111,7 +113,7 @@ struct HomeScreen: View {
     private var hero: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Label("仅存本机", systemImage: "lock.shield.fill")
+                Label("记录册 · 仅存本机", systemImage: "lock.shield.fill")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -119,25 +121,26 @@ struct HomeScreen: View {
 
                 Spacer()
 
-                Image(systemName: "sparkles")
+                Image(systemName: "book.closed.fill")
                     .font(.title3)
                     .foregroundStyle(.white.opacity(0.76))
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("猎艳笔记，\n只给你自己看。")
+                Text("猎艳记录册")
                     .font(.system(size: 29, weight: .bold, design: .rounded))
                     .tracking(-0.6)
-                Text("约成了、过夜、留照片，次数和成就都记在这台手机上。")
+                Text(monthLine)
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.76))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 10) {
-                heroMetric(value: "\(app.stats.activeCount)", label: "她")
-                heroMetric(value: "\(app.stats.totalIntimacyCount)", label: "约成")
-                heroMetric(value: "\(app.stats.intimaciesThisMonth)", label: "本月")
+            HStack(spacing: 8) {
+                heroMetric(value: "\(app.stats.girlsThisMonth)", label: "新人")
+                heroMetric(value: "\(app.stats.intimaciesThisMonth)", label: "约成")
+                heroMetric(value: "\(app.stats.overnightThisMonth)", label: "过夜")
+                heroMetric(value: "\(app.stats.photosThisMonth)", label: "照片")
             }
 
             HStack(spacing: 10) {
@@ -188,6 +191,10 @@ struct HomeScreen: View {
                 }
             }
             .buttonStyle(.plain)
+
+            Text("累计 名册 \(app.stats.activeCount) · 约成 \(app.stats.totalIntimacyCount) · 过夜 \(app.stats.overnightCount)")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
         }
         .foregroundStyle(.white)
         .padding(20)
@@ -203,6 +210,56 @@ struct HomeScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .shadow(color: Palette.accentDeep.opacity(0.28), radius: 22, y: 12)
         .accessibilityElement(children: .contain)
+    }
+
+    private var monthLine: String {
+        if app.stats.intimaciesThisMonth == 0, app.stats.girlsThisMonth == 0 {
+            return "这个月还没动笔。约成、过夜、留照片，都写在这本册子里。"
+        }
+        var parts: [String] = []
+        if app.stats.girlsThisMonth > 0 { parts.append("新人 \(app.stats.girlsThisMonth)") }
+        parts.append("约成 \(app.stats.intimaciesThisMonth)")
+        if app.stats.overnightThisMonth > 0 { parts.append("过夜 \(app.stats.overnightThisMonth)") }
+        if app.stats.photosThisMonth > 0 { parts.append("照片 \(app.stats.photosThisMonth)") }
+        return "本月猎获：" + parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var hottestCard: some View {
+        if let id = app.stats.topCompanionID,
+           let companion = app.companion(id: id) {
+            let count = app.hookupCount(for: id)
+            if count > 0 {
+                NavigationLink(value: companion.id) {
+                    HStack(spacing: 14) {
+                        AvatarView(companion: companion, size: 46)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("猎获最多")
+                                .font(.headline)
+                            HStack(spacing: 6) {
+                                MaskedName(name: companion.displayName, revealed: app.namesRevealed, font: .caption.weight(.semibold))
+                                Text("约成 \(count) 次")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if count >= 3 {
+                                    Text("回头客")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(Palette.coral)
+                                }
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(16)
+                    .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 10)
+                    .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.98))
+            }
+        }
     }
 
     private func heroMetric(value: String, label: String) -> some View {
@@ -308,7 +365,7 @@ struct HomeScreen: View {
     // MARK: - 最近对象 / 记录
 
     private var peopleCard: some View {
-        homeCard(title: "最近约过", symbol: "person.2.fill", tint: Palette.accent) {
+        homeCard(title: "最近猎获", symbol: "person.2.fill", tint: Palette.accent) {
             ForEach(Array(recentCompanions.enumerated()), id: \.element.id) { index, companion in
                 NavigationLink(value: companion.id) {
                     CompanionRow(companion: companion)
@@ -357,7 +414,7 @@ struct HomeScreen: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("城市足迹")
+                    Text("猎场地图")
                         .font(.headline)
                     Text(app.buckets.isEmpty ? "还没点亮城市" : "\(app.buckets.count) 座城市 · \(app.currentCompanions.count) 个人")
                         .font(.caption)

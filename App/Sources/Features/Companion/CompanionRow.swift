@@ -31,7 +31,7 @@ struct CompanionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(companion: companion, size: 46)
+            AvatarView(companion: companion, size: 52)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 5) {
@@ -47,6 +47,11 @@ struct CompanionRow: View {
                             .font(.system(size: 9))
                             .foregroundStyle(Palette.warning)
                             .accessibilityLabel("到了联系周期")
+                    }
+                    if intimateEncounters.count >= 3 {
+                        Text("回头客")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Palette.coral)
                     }
                     if let daysToBirthday = companion.daysUntilBirthday, daysToBirthday <= 14 {
                         Image(systemName: "birthday.cake.fill")
@@ -86,7 +91,11 @@ struct CompanionRow: View {
     }
 
     private var intimacySummary: String {
+        let overnight = intimateEncounters.filter { $0.kind == .overnight }.count
         guard let latest = intimateEncounters.first else { return "还没约成" }
-        return "约成 \(intimateEncounters.count) 次 · \(Format.relativeDay(latest.date))"
+        var parts = ["约成 \(intimateEncounters.count)"]
+        if overnight > 0 { parts.append("过夜 \(overnight)") }
+        parts.append(Format.relativeDay(latest.date))
+        return parts.joined(separator: " · ")
     }
 }

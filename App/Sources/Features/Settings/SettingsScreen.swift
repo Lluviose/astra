@@ -209,7 +209,7 @@ struct SettingsScreen: View {
         } header: {
             Text("触感")
         } footer: {
-            Text("记录、切换状态、打开城市足迹和保存档案都有对应的原生触感。")
+            Text("记下、切状态、打开猎场地图和保存档案都有对应的原生触感。")
         }
     }
 
@@ -315,7 +315,7 @@ struct AboutView: View {
 
                     Text("星图")
                         .font(.title2.weight(.bold))
-                    Text("猎艳、约炮、过夜，都只给你自己看")
+                    Text("猎艳记录册 · 成就册")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("版本 \(Bundle.main.appVersion)")
@@ -330,7 +330,7 @@ struct AboutView: View {
             Section("技术") {
                 LabeledContent("最低系统", value: "iOS 18")
                 LabeledContent("界面", value: "SwiftUI · 液态玻璃")
-                LabeledContent("城市足迹", value: "MapKit · 城市级")
+                LabeledContent("猎场地图", value: "MapKit · 城市级")
                 LabeledContent("触感", value: "Core Haptics")
                 LabeledContent("存储", value: "本机沙盒 · 含照片")
             }

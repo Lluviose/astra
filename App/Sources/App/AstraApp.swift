@@ -40,6 +40,7 @@ enum AppTab: Hashable {
     case home
     case roster
     case timeline
+    case achievements
     case settings
 }
 
@@ -53,18 +54,25 @@ struct RootView: View {
     var body: some View {
         ZStack {
             TabView(selection: tabSelection) {
-                Tab("概览", systemImage: "sparkles", value: AppTab.home) {
+                Tab("猎场", systemImage: "flame.fill", value: AppTab.home) {
                     HomeScreen()
                 }
 
-                Tab("对象", systemImage: "person.2.fill", value: AppTab.roster) {
+                Tab("名册", systemImage: "person.2.fill", value: AppTab.roster) {
                     RosterScreen()
                 }
                 .badge(app.needsAttention.count)
 
-                Tab("记录", systemImage: "clock.arrow.circlepath", value: AppTab.timeline) {
+                Tab("记录册", systemImage: "book.closed.fill", value: AppTab.timeline) {
                     TimelineScreen()
                 }
+
+                Tab("成就册", systemImage: "crown.fill", value: AppTab.achievements) {
+                    NavigationStack {
+                        AchievementsScreen()
+                    }
+                }
+                .badge(app.unseenUnlockCount)
 
                 Tab("设置", systemImage: "gearshape.fill", value: AppTab.settings) {
                     SettingsScreen()
@@ -77,6 +85,18 @@ struct RootView: View {
                     .zIndex(1)
             }
 
+            if !app.pendingUnlocks.isEmpty, !lock.isLocked {
+                UnlockOverlay(
+                    achievements: app.pendingUnlocks,
+                    onKeep: { app.dismissUnlocks() },
+                    onOpenBook: {
+                        app.dismissUnlocks()
+                        selection = .achievements
+                    }
+                )
+                .zIndex(1.5)
+            }
+
             if lock.isLocked {
                 LockScreen()
                     .transition(.opacity)
@@ -85,6 +105,7 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.22), value: lock.isLocked)
         .animation(.easeInOut(duration: 0.12), value: lock.isObscured)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.pendingUnlocks.isEmpty)
     }
 
     /// 切换 Tab 时给一记轻反馈

@@ -114,7 +114,7 @@ struct TimelineScreen: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("记录")
+            .navigationTitle("记录册")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -211,7 +211,7 @@ struct TimelineScreen: View {
             GridRow {
                 StatTile(
                     value: "\(app.stats.totalIntimacyCount)",
-                    caption: "约成次数",
+                    caption: "约成",
                     systemImage: "flame.fill",
                     tint: Palette.accent
                 )
@@ -464,7 +464,7 @@ private enum RecordScope: String, CaseIterable, Identifiable {
 
     var emptyTitle: String {
         switch self {
-        case .all: "还没有记录"
+        case .all: "记录册还是空的"
         case .flirting: "还没聊骚"
         case .intimate: "还没约成过"
         case .followUp: "没有待办"
@@ -473,7 +473,7 @@ private enum RecordScope: String, CaseIterable, Identifiable {
 
     var emptyMessage: String {
         switch self {
-        case .all: "约成、过夜、留照片，都能记在这条时间线上。"
+        case .all: "约成、过夜、聊骚、留照片，一页页写在这本记录册里。"
         case .flirting: "记下她说可以的尺度，别靠回复速度瞎猜。"
         case .intimate: "做了什么、有没有戴套、爽不爽，以后都能翻到。"
         case .followUp: "只有你自己勾过、还没做完的才会出现。"

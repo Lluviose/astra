@@ -47,9 +47,9 @@ enum Format {
     /// 「12 天没联系」用的短文案
     static func silence(days: Int) -> String {
         switch days {
-        case 0: "今天联系过"
-        case 1: "昨天联系过"
-        default: "\(days) 天没联系"
+        case 0: "今天约过"
+        case 1: "昨天约过"
+        default: "\(days) 天没约"
         }
     }
 

@@ -57,6 +57,7 @@ enum RosterSort: String, CaseIterable, Codable, Sendable, Identifiable {
     case name
     case city
     case added
+    case hookups
 
     var id: String { rawValue }
 
@@ -68,6 +69,7 @@ enum RosterSort: String, CaseIterable, Codable, Sendable, Identifiable {
         case .name: "代号"
         case .city: "城市"
         case .added: "添加时间"
+        case .hookups: "约成次数"
         }
     }
 
@@ -79,6 +81,7 @@ enum RosterSort: String, CaseIterable, Codable, Sendable, Identifiable {
         case .name: "textformat.abc"
         case .city: "map"
         case .added: "calendar.badge.plus"
+        case .hookups: "flame.fill"
         }
     }
 }
@@ -112,4 +115,10 @@ struct IntimacyStats: Hashable, Sendable {
     var photoCount: Int = 0
     var cityCount: Int = 0
     var averageExperience: Double?
+    var girlsThisMonth: Int = 0
+    var overnightThisMonth: Int = 0
+    var photosThisMonth: Int = 0
+    var repeatGirlCount: Int = 0
+    var topCompanionID: UUID?
+    var topCityName: String?
 }

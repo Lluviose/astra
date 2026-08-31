@@ -46,6 +46,8 @@ final class AppState {
     private(set) var encounters: [Encounter]
     private(set) var settings: AppSettings
     private(set) var filter: RosterFilter
+    private(set) var seenAchievementIDs: Set<String>
+    private(set) var pendingUnlocks: [Achievement] = []
 
     /// 搜索词是临时状态，不落盘
     var searchText: String = ""
@@ -59,6 +61,7 @@ final class AppState {
     private(set) var stats = IntimacyStats()
 
     private let store: LocalStore
+    private var isBooting = true
 
     // MARK: - 初始化
 
@@ -69,11 +72,14 @@ final class AppState {
         self.encounters = store.load([Encounter].self, for: .encounters, default: [])
         self.settings = store.load(AppSettings.self, for: .settings, default: .default)
         self.filter = store.load(RosterFilter.self, for: .filter, default: .default)
+        self.seenAchievementIDs = store.load(Set<String>.self, for: .seenAchievements, default: [])
         self.namesRevealed = !self.settings.maskNamesByDefault
 
         Haptics.shared.configure(with: settings)
         MediaStore.gc(referenced: Self.referencedIDs(companions: self.companions, encounters: self.encounters))
         recompute()
+        seedSeenAchievementsIfNeeded()
+        isBooting = false
     }
 
     // MARK: - 基础查询
@@ -186,6 +192,26 @@ final class AppState {
         achievements.filter(\.isUnlocked).count
     }
 
+    var unseenUnlockCount: Int {
+        achievements.filter { $0.isUnlocked && !seenAchievementIDs.contains($0.id) }.count
+    }
+
+    func isUnseen(_ achievement: Achievement) -> Bool {
+        achievement.isUnlocked && !seenAchievementIDs.contains(achievement.id)
+    }
+
+    func dismissUnlocks() {
+        seenAchievementIDs.formUnion(pendingUnlocks.map(\.id))
+        pendingUnlocks = []
+        persistSeenAchievements()
+    }
+
+    func markAllUnlockedSeen() {
+        seenAchievementIDs.formUnion(achievements.filter(\.isUnlocked).map(\.id))
+        pendingUnlocks = []
+        persistSeenAchievements()
+    }
+
     func albumIDs(for companionID: UUID) -> [String] {
         var ids: [String] = []
         if let photoID = companion(id: companionID)?.photoID {
@@ -199,6 +225,14 @@ final class AppState {
 
     func hookupCount(for companionID: UUID) -> Int {
         encounters.filter { $0.companionID == companionID && $0.kind.isIntimate }.count
+    }
+
+    func overnightCount(for companionID: UUID) -> Int {
+        encounters.filter { $0.companionID == companionID && $0.kind == .overnight }.count
+    }
+
+    func lastHookup(for companionID: UUID) -> Encounter? {
+        encounters.first { $0.companionID == companionID && $0.kind.isIntimate }
     }
 
     // MARK: - 对象
@@ -256,6 +290,11 @@ final class AppState {
                 return a.rating > b.rating
             case .added:
                 return a.createdAt > b.createdAt
+            case .hookups:
+                let ha = hookupCount(for: a.id)
+                let hb = hookupCount(for: b.id)
+                if ha != hb { return ha > hb }
+                return lastContact(for: a) > lastContact(for: b)
             }
         }
         return list.sorted(by: compare)
@@ -562,6 +601,8 @@ final class AppState {
         encounters = []
         settings = .default
         filter = .default
+        seenAchievementIDs = []
+        pendingUnlocks = []
         searchText = ""
         Haptics.shared.configure(with: settings)
         recompute()
@@ -569,6 +610,10 @@ final class AppState {
     }
 
     // MARK: - 私有
+
+    private func persistSeenAchievements() {
+        store.save(seenAchievementIDs, for: .seenAchievements)
+    }
 
     private func persistCompanions() {
         store.save(companions, for: .companions)
@@ -584,6 +629,24 @@ final class AppState {
         encounters.sort { $0.date > $1.date }
         rebuildBuckets()
         rebuildStats()
+        if !isBooting {
+            captureUnlocks()
+        }
+    }
+
+    private func seedSeenAchievementsIfNeeded() {
+        let unlockedIDs = Set(achievements.filter(\.isUnlocked).map(\.id))
+        guard seenAchievementIDs.isEmpty, !unlockedIDs.isEmpty else { return }
+        seenAchievementIDs = unlockedIDs
+        persistSeenAchievements()
+    }
+
+    private func captureUnlocks() {
+        let fresh = achievements.filter { $0.isUnlocked && !seenAchievementIDs.contains($0.id) }
+        let freshIDs = Set(fresh.map(\.id))
+        let pendingIDs = Set(pendingUnlocks.map(\.id))
+        guard freshIDs != pendingIDs else { return }
+        pendingUnlocks = fresh
     }
 
     private func rebuildBuckets() {
@@ -640,6 +703,22 @@ final class AppState {
         result.averageExperience = experienceCount > 0
             ? experienceTotal / Double(experienceCount)
             : nil
+
+        result.girlsThisMonth = current.filter { $0.createdAt >= monthStart }.count
+        result.overnightThisMonth = encounters.filter { $0.kind == .overnight && $0.date >= monthStart }.count
+        result.photosThisMonth = encounters
+            .filter { $0.date >= monthStart }
+            .reduce(0) { $0 + $1.photoIDs.count }
+
+        var hookupsByGirl: [UUID: Int] = [:]
+        for encounter in encounters where encounter.kind.isIntimate {
+            hookupsByGirl[encounter.companionID, default: 0] += 1
+        }
+        result.repeatGirlCount = hookupsByGirl.values.filter { $0 >= 3 }.count
+        if let top = hookupsByGirl.max(by: { $0.value < $1.value }), top.value > 0 {
+            result.topCompanionID = top.key
+        }
+        result.topCityName = buckets.first?.city.name
 
         stats = result
     }

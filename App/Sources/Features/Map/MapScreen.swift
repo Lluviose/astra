@@ -190,7 +190,7 @@ struct MapScreen: View {
         GlassStack(spacing: 14) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("城市足迹")
+                    Text("猎场地图")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                     Text(summaryText)
                         .font(.caption2)
@@ -207,7 +207,7 @@ struct MapScreen: View {
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-                .accessibilityLabel("关闭城市足迹")
+                .accessibilityLabel("关闭猎场地图")
 
                 Button {
                     isJumpingToCity = true
@@ -286,9 +286,9 @@ struct MapScreen: View {
             Image(systemName: "mappin.slash")
                 .font(.system(size: 30, weight: .light))
                 .foregroundStyle(Palette.accent.opacity(0.7))
-            Text("还没有城市足迹")
+            Text("还没点亮城市")
                 .font(.headline)
-            Text("添加对象并选择常驻或常见面的城市，\n这里就会亮起第一颗点。")
+            Text("加个人进名册并选城市，\n这里就会亮起第一颗点。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
