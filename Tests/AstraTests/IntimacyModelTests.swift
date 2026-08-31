@@ -3,6 +3,55 @@ import XCTest
 
 final class IntimacyModelTests: XCTestCase {
 
+    func testSixDimensionScorecardUsesWeightedOverall() {
+        var scorecard = CompanionScorecard(
+            looks: 8,
+            body: 7,
+            chemistry: 9,
+            initiative: 6,
+            desire: 10,
+            afterglow: 8
+        )
+        XCTAssertEqual(scorecard.overallScore, 82)
+        XCTAssertEqual(scorecard.completedCount, 6)
+        XCTAssertEqual(scorecard.legacyStarRating, 4)
+
+        let companion = Companion(name: "她", rating: 1, scorecard: scorecard)
+        XCTAssertEqual(companion.rating, 4)
+
+        scorecard.set(99, for: .looks)
+        XCTAssertEqual(scorecard.looks, 10)
+    }
+
+    func testLegacyFiveStarRatingSeedsAllScoreDimensions() {
+        let companion = Companion(name: "旧档案", rating: 4)
+        XCTAssertEqual(companion.overallScore, 80)
+        XCTAssertEqual(companion.scorecard.chemistry, 8)
+        XCTAssertEqual(companion.scorecard.desire, 8)
+    }
+
+    func testExplicitBustSizeCombinesBandAndCup() throws {
+        let companion = Companion(name: "她", bustBandCM: 75, bustSize: .d)
+        XCTAssertEqual(companion.bustSizeText, "75D")
+
+        let cupOnly = Companion(name: "她", bustSize: .c)
+        XCTAssertEqual(cupOnly.bustSizeText, "C 杯")
+        XCTAssertEqual(BustSize.k.label, "K 杯")
+
+        let legacy = try JSONDecoder().decode(BustSize.self, from: Data(#""hPlus""#.utf8))
+        XCTAssertEqual(legacy, .h)
+    }
+
+    func testScorecardClampsAndDecodesMissingDimensions() throws {
+        let json = #"{"looks": 99, "desire": 8}"#.data(using: .utf8)!
+        let scorecard = try JSONDecoder().decode(CompanionScorecard.self, from: json)
+
+        XCTAssertEqual(scorecard.looks, 10)
+        XCTAssertEqual(scorecard.desire, 8)
+        XCTAssertEqual(scorecard.chemistry, 0)
+        XCTAssertEqual(scorecard.completedCount, 2)
+    }
+
     func testPausedAndEndedStagesDoNotTriggerCurrentRelationshipFlows() {
         XCTAssertTrue(RelationStage.new.isActive)
         XCTAssertTrue(RelationStage.chatting.isActive)

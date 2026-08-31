@@ -260,7 +260,7 @@ struct AvatarPickerRow: View {
                         .buttonStyle(.bordered)
                 }
             }
-            Text("照片只复制进星图，不进系统相册，也不上传。")
+            Text("照片只复制进星图，不进系统相册或开发者服务器，可随设备 iCloud Backup 恢复。")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

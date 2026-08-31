@@ -689,7 +689,7 @@ struct EncounterEditor: View {
         } header: {
             Text("这次的照片")
         } footer: {
-            Text("最多 \(maxPhotos) 张。只存在星图里，不进系统相册，也不上传。")
+            Text("最多 \(maxPhotos) 张。不进系统相册或开发者服务器，可随设备 iCloud Backup 恢复。")
         }
     }
 

@@ -39,12 +39,12 @@ final class AchievementTests: XCTestCase {
         XCTAssertTrue(unlocked(items, "first_overnight"))
         XCTAssertTrue(unlocked(items, "first_photo"))
         XCTAssertFalse(unlocked(items, "album_10"))
-        XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 3)
+        XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 2)
     }
 
     func testRegularAndDoubleHeader() {
         let girl = Companion(name: "固定", stage: .regular)
-        let day = Date()
+        let day = stableMidday()
         let one = Encounter(companionID: girl.id, date: day, kind: .intimacy)
         let two = Encounter(companionID: girl.id, date: day.addingTimeInterval(3600), kind: .overnight)
         let items = AchievementCatalog.evaluate(
@@ -62,7 +62,7 @@ final class AchievementTests: XCTestCase {
 
     func testRepeaterAndHatTrick() {
         let girl = Companion(name: "她")
-        let day = Date()
+        let day = stableMidday()
         let encounters = (0..<3).map { offset in
             Encounter(
                 companionID: girl.id,
@@ -152,6 +152,13 @@ final class AchievementTests: XCTestCase {
         XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 3)
     }
 
+    func testProfilePhotosDoNotCountTowardPrivateCollection() {
+        let girl = Companion(name: "她", photoID: "avatar", profilePhotoIDs: ["profile"])
+        let items = AchievementCatalog.evaluate(companions: [girl], encounters: [], cityCount: 0)
+        XCTAssertFalse(unlocked(items, "first_photo"))
+        XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 0)
+    }
+
     func testArchivedCompanionsDoNotCountAsActiveGirls() {
         let archived = Companion(name: "旧", isArchived: true)
         let items = AchievementCatalog.evaluate(companions: [archived], encounters: [], cityCount: 0)
@@ -166,7 +173,68 @@ final class AchievementTests: XCTestCase {
         XCTAssertEqual(items.first { $0.id == "first_girl" }?.tier, .bronze)
     }
 
+    func testNextUpPrefersStartedAndNearlyCompleteAchievements() {
+        let items = [
+            achievement(id: "untouched", current: 0, goal: 1),
+            achievement(id: "started", current: 2, goal: 10),
+            achievement(id: "closest", current: 4, goal: 5),
+            achievement(id: "done", current: 1, goal: 1),
+        ]
+
+        XCTAssertEqual(
+            AchievementCatalog.nextUp(in: items, limit: 3).map(\.id),
+            ["closest", "started", "untouched"]
+        )
+    }
+
+    func testNextUpUsesSmallestRemainingGoalForUntouchedAchievements() {
+        let items = [
+            achievement(id: "far", current: 0, goal: 10),
+            achievement(id: "near", current: 0, goal: 1),
+            achievement(id: "middle", current: 0, goal: 3),
+        ]
+
+        XCTAssertEqual(
+            AchievementCatalog.nextUp(in: items, limit: 2).map(\.id),
+            ["near", "middle"]
+        )
+    }
+
+    func testNextUpDoesNotNudgeRiskEscalationAchievements() {
+        let items = [
+            achievement(id: "bareback_5", current: 4, goal: 5),
+            achievement(id: "creampie_5", current: 4, goal: 5),
+            achievement(id: "ordinary", current: 1, goal: 10),
+        ]
+
+        XCTAssertEqual(AchievementCatalog.nextUp(in: items).map(\.id), ["ordinary"])
+    }
+
     private func unlocked(_ items: [Achievement], _ id: String) -> Bool {
         items.first { $0.id == id }?.isUnlocked ?? false
+    }
+
+    /// 固定在当前日历日的中午，避免 CI 恰好在 23 点运行时加时跨到次日。
+    private func stableMidday(reference: Date = Date()) -> Date {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: reference)
+        return calendar.date(byAdding: .hour, value: 12, to: start) ?? start
+    }
+
+    private func achievement(id: String, current: Int, goal: Int) -> Achievement {
+        Achievement(
+            id: id,
+            title: id,
+            detail: "",
+            story: "",
+            symbolName: "sparkles",
+            category: .hunt,
+            tier: .bronze,
+            red: 1,
+            green: 0,
+            blue: 0,
+            current: current,
+            goal: goal
+        )
     }
 }

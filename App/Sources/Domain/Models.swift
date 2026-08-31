@@ -72,6 +72,219 @@ enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifia
     var isActive: Bool { self != .paused && self != .ended }
 }
 
+// MARK: - 私密评分
+
+enum CompanionScoreDimension: String, CaseIterable, Codable, Hashable, Sendable, Identifiable {
+    case looks
+    case body
+    case chemistry
+    case initiative
+    case desire
+    case afterglow
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .looks: "颜值"
+        case .body: "身材"
+        case .chemistry: "床上默契"
+        case .initiative: "主动感"
+        case .desire: "欲望值"
+        case .afterglow: "回味欲"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .chemistry: "默契"
+        case .initiative: "主动"
+        case .afterglow: "回味"
+        default: label
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .looks: "eyes"
+        case .body: "figure.stand"
+        case .chemistry: "bolt.heart.fill"
+        case .initiative: "bolt.fill"
+        case .desire: "flame.fill"
+        case .afterglow: "repeat.circle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .looks: Color(red: 0.92, green: 0.38, blue: 0.68)
+        case .body: Color(red: 0.68, green: 0.34, blue: 0.94)
+        case .chemistry: Color(red: 0.96, green: 0.29, blue: 0.50)
+        case .initiative: Color(red: 0.96, green: 0.58, blue: 0.24)
+        case .desire: Color(red: 0.92, green: 0.18, blue: 0.35)
+        case .afterglow: Color(red: 0.48, green: 0.38, blue: 0.94)
+        }
+    }
+
+    /// 综合分权重，总计 100。床上默契和欲望感更突出。
+    var weight: Int {
+        switch self {
+        case .looks: 16
+        case .body: 16
+        case .chemistry: 24
+        case .initiative: 12
+        case .desire: 20
+        case .afterglow: 12
+        }
+    }
+}
+
+struct CompanionScorecard: Codable, Hashable, Sendable {
+    var looks: Int
+    var body: Int
+    var chemistry: Int
+    var initiative: Int
+    var desire: Int
+    var afterglow: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case looks
+        case body
+        case chemistry
+        case initiative
+        case desire
+        case afterglow
+    }
+
+    init(
+        looks: Int = 0,
+        body: Int = 0,
+        chemistry: Int = 0,
+        initiative: Int = 0,
+        desire: Int = 0,
+        afterglow: Int = 0
+    ) {
+        self.looks = Self.clamp(looks)
+        self.body = Self.clamp(body)
+        self.chemistry = Self.clamp(chemistry)
+        self.initiative = Self.clamp(initiative)
+        self.desire = Self.clamp(desire)
+        self.afterglow = Self.clamp(afterglow)
+    }
+
+    /// 允许旧备份只带部分维度；异常值会收进 0...10，避免一项坏数据拖垮整份档案。
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            looks: try c.decodeIfPresent(Int.self, forKey: .looks) ?? 0,
+            body: try c.decodeIfPresent(Int.self, forKey: .body) ?? 0,
+            chemistry: try c.decodeIfPresent(Int.self, forKey: .chemistry) ?? 0,
+            initiative: try c.decodeIfPresent(Int.self, forKey: .initiative) ?? 0,
+            desire: try c.decodeIfPresent(Int.self, forKey: .desire) ?? 0,
+            afterglow: try c.decodeIfPresent(Int.self, forKey: .afterglow) ?? 0
+        )
+    }
+
+    static let empty = CompanionScorecard()
+
+    static func balanced(fromLegacyRating rating: Int) -> CompanionScorecard {
+        let value = min(max(rating * 2, 0), 10)
+        return CompanionScorecard(
+            looks: value,
+            body: value,
+            chemistry: value,
+            initiative: value,
+            desire: value,
+            afterglow: value
+        )
+    }
+
+    func value(for dimension: CompanionScoreDimension) -> Int {
+        switch dimension {
+        case .looks: looks
+        case .body: body
+        case .chemistry: chemistry
+        case .initiative: initiative
+        case .desire: desire
+        case .afterglow: afterglow
+        }
+    }
+
+    mutating func set(_ value: Int, for dimension: CompanionScoreDimension) {
+        let clamped = Self.clamp(value)
+        switch dimension {
+        case .looks: looks = clamped
+        case .body: body = clamped
+        case .chemistry: chemistry = clamped
+        case .initiative: initiative = clamped
+        case .desire: desire = clamped
+        case .afterglow: afterglow = clamped
+        }
+    }
+
+    var completedCount: Int {
+        CompanionScoreDimension.allCases.filter { value(for: $0) > 0 }.count
+    }
+
+    var overallScore: Int {
+        let scored = CompanionScoreDimension.allCases.filter { value(for: $0) > 0 }
+        guard !scored.isEmpty else { return 0 }
+        let weightedTotal = scored.reduce(0) { result, dimension in
+            result + value(for: dimension) * dimension.weight
+        }
+        let weightTotal = scored.reduce(0) { $0 + $1.weight }
+        return Int((Double(weightedTotal) / Double(weightTotal) * 10).rounded())
+    }
+
+    var legacyStarRating: Int {
+        min(max(Int((Double(overallScore) / 20).rounded()), 0), 5)
+    }
+
+    private static func clamp(_ value: Int) -> Int {
+        min(max(value, 0), 10)
+    }
+}
+
+enum BustSize: String, CaseIterable, Codable, Hashable, Sendable, Identifiable {
+    case notRecorded
+    case aa
+    case a
+    case b
+    case c
+    case d
+    case e
+    case f
+    case g
+    case h
+    case i
+    case j
+    case k
+
+    var id: String { rawValue }
+
+    var label: String {
+        code.isEmpty ? "未记录" : "\(code) 杯"
+    }
+
+    var code: String {
+        switch self {
+        case .notRecorded: ""
+        default: rawValue.uppercased()
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        // 兼容开发期曾写入的笼统 H+，迁移为明确的 H 杯。
+        self = raw == "hPlus" ? .h : (Self(rawValue: raw) ?? .notRecorded)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 // MARK: - 档案
 
 struct Companion: Identifiable, Codable, Hashable, Sendable {
@@ -85,12 +298,19 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     var stage: RelationStage
     /// 0...5
     var rating: Int
+    /// 六维私密评分。`rating` 继续保留，兼容旧备份与五星筛选。
+    var scorecard: CompanionScorecard
     /// 头像照片，存在本机沙盒
     var photoID: String?
+    /// 人物资料照，与艳照私藏分开。
+    var profilePhotoIDs: [String]
     /// 档案里直接留下的私藏，不挂在某一次约上
     var albumPhotoIDs: [String]
     var age: Int?
     var heightCM: Int?
+    /// 内衣尺码：下胸围 + 罩杯。
+    var bustBandCM: Int?
+    var bustSize: BustSize
     /// 生日只存月/日，不强制要年份
     var birthdayMonth: Int?
     var birthdayDay: Int?
@@ -123,10 +343,14 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         cityID: String = "310000",
         stage: RelationStage = .chatting,
         rating: Int = 3,
+        scorecard: CompanionScorecard? = nil,
         photoID: String? = nil,
+        profilePhotoIDs: [String] = [],
         albumPhotoIDs: [String] = [],
         age: Int? = nil,
         heightCM: Int? = nil,
+        bustBandCM: Int? = nil,
+        bustSize: BustSize = .notRecorded,
         birthdayMonth: Int? = nil,
         birthdayDay: Int? = nil,
         occupation: String = "",
@@ -150,11 +374,16 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         self.paletteIndex = paletteIndex
         self.cityID = cityID
         self.stage = stage
-        self.rating = rating
+        let resolvedScorecard = scorecard ?? .balanced(fromLegacyRating: rating)
+        self.scorecard = resolvedScorecard
+        self.rating = resolvedScorecard.legacyStarRating
         self.photoID = photoID
+        self.profilePhotoIDs = profilePhotoIDs
         self.albumPhotoIDs = albumPhotoIDs
         self.age = age
         self.heightCM = heightCM
+        self.bustBandCM = Self.normalizedBustBand(bustBandCM)
+        self.bustSize = bustSize
         self.birthdayMonth = birthdayMonth
         self.birthdayDay = birthdayDay
         self.occupation = occupation
@@ -182,11 +411,17 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         paletteIndex = try c.decodeIfPresent(Int.self, forKey: .paletteIndex) ?? 0
         cityID = try c.decodeIfPresent(String.self, forKey: .cityID) ?? "310000"
         stage = RelationStage(rawValue: try c.decodeIfPresent(String.self, forKey: .stage) ?? "") ?? .chatting
-        rating = try c.decodeIfPresent(Int.self, forKey: .rating) ?? 3
+        let legacyRating = min(max(try c.decodeIfPresent(Int.self, forKey: .rating) ?? 3, 0), 5)
+        scorecard = try c.decodeIfPresent(CompanionScorecard.self, forKey: .scorecard)
+            ?? .balanced(fromLegacyRating: legacyRating)
+        rating = scorecard.legacyStarRating
         photoID = try c.decodeIfPresent(String.self, forKey: .photoID)
+        profilePhotoIDs = try c.decodeIfPresent([String].self, forKey: .profilePhotoIDs) ?? []
         albumPhotoIDs = try c.decodeIfPresent([String].self, forKey: .albumPhotoIDs) ?? []
         age = try c.decodeIfPresent(Int.self, forKey: .age)
         heightCM = try c.decodeIfPresent(Int.self, forKey: .heightCM)
+        bustBandCM = Self.normalizedBustBand(try c.decodeIfPresent(Int.self, forKey: .bustBandCM))
+        bustSize = try c.decodeIfPresent(BustSize.self, forKey: .bustSize) ?? .notRecorded
         birthdayMonth = try c.decodeIfPresent(Int.self, forKey: .birthdayMonth)
         birthdayDay = try c.decodeIfPresent(Int.self, forKey: .birthdayDay)
         occupation = try c.decodeIfPresent(String.self, forKey: .occupation) ?? ""
@@ -208,6 +443,22 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     // MARK: 派生
 
     var displayName: String { name.isEmpty ? "未命名" : name }
+
+    var overallScore: Int { scorecard.overallScore }
+
+    var bustSizeText: String? {
+        if bustSize == .notRecorded {
+            return bustBandCM.map { "\($0) cm（下胸围）" }
+        }
+        if let bustBandCM { return "\(bustBandCM)\(bustSize.code)" }
+        return bustSize.label
+    }
+
+    private static func normalizedBustBand(_ value: Int?) -> Int? {
+        guard let value else { return nil }
+        let rounded = Int((Double(value) / 5).rounded()) * 5
+        return min(max(rounded, 60), 110)
+    }
 
     var initial: String {
         emoji.isEmpty ? String(displayName.prefix(1)) : emoji

@@ -77,6 +77,7 @@ final class AppState {
         self.namesRevealed = !self.settings.maskNamesByDefault
 
         Haptics.shared.configure(with: settings)
+        MediaStore.enableSystemBackup()
         MediaStore.gc(referenced: Self.referencedIDs(companions: self.companions, encounters: self.encounters))
         recompute()
         seedSeenAchievementsIfNeeded()
@@ -220,7 +221,6 @@ final class AppState {
             if seen.insert(id).inserted { ids.append(id) }
         }
         guard let companion = companion(id: companionID) else { return [] }
-        if let photoID = companion.photoID { append(photoID) }
         companion.albumPhotoIDs.forEach(append)
         for encounter in encounters(for: companionID) {
             encounter.photoIDs.forEach(append)
@@ -228,7 +228,32 @@ final class AppState {
         return ids
     }
 
+    func profilePhotoIDs(for companionID: UUID) -> [String] {
+        guard let companion = companion(id: companionID) else { return [] }
+        var seen = Set<String>()
+        return ([companion.photoID].compactMap { $0 } + companion.profilePhotoIDs).filter {
+            seen.insert($0).inserted
+        }
+    }
+
     static let maxAlbumPhotos = 24
+    static let maxProfilePhotos = 8
+
+    func addProfilePhotos(_ images: [UIImage], to companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }) else { return }
+        let room = Self.maxProfilePhotos - companions[index].profilePhotoIDs.count
+        var added = 0
+        for image in images.prefix(max(0, room)) {
+            if let id = MediaStore.save(image: image, kind: .photo) {
+                companions[index].profilePhotoIDs.append(id)
+                added += 1
+            }
+        }
+        guard added > 0 else { return }
+        companions[index].updatedAt = Date()
+        persistCompanions()
+        Haptics.shared.play(.toggleOn)
+    }
 
     func addAlbumPhotos(_ images: [UIImage], to companionID: UUID) {
         guard let index = companions.firstIndex(where: { $0.id == companionID }) else { return }
@@ -249,10 +274,6 @@ final class AppState {
     func removeAlbumPhoto(_ id: String, from companionID: UUID) {
         var changed = false
         if let index = companions.firstIndex(where: { $0.id == companionID }) {
-            if companions[index].photoID == id {
-                companions[index].photoID = nil
-                changed = true
-            }
             if companions[index].albumPhotoIDs.contains(id) {
                 companions[index].albumPhotoIDs.removeAll { $0 == id }
                 changed = true
@@ -269,6 +290,24 @@ final class AppState {
         }
         MediaStore.delete(id: id)
         if changed { Haptics.shared.play(.toggleOff) }
+    }
+
+    func removeProfilePhoto(_ id: String, from companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }) else { return }
+        var changed = false
+        if companions[index].photoID == id {
+            companions[index].photoID = nil
+            changed = true
+        }
+        if companions[index].profilePhotoIDs.contains(id) {
+            companions[index].profilePhotoIDs.removeAll { $0 == id }
+            changed = true
+        }
+        guard changed else { return }
+        companions[index].updatedAt = Date()
+        persistCompanions()
+        MediaStore.delete(id: id)
+        Haptics.shared.play(.toggleOff)
     }
 
     func hookupCount(for companionID: UUID) -> Int {
@@ -307,6 +346,7 @@ final class AppState {
         if companion.expectations.lowercased().contains(query) { return true }
         if companion.boundaries.lowercased().contains(query) { return true }
         if companion.safetyNotes.lowercased().contains(query) { return true }
+        if companion.bustSizeText?.lowercased().contains(query) == true { return true }
         if companion.tags.contains(where: { $0.lowercased().contains(query) }) { return true }
         if let city = catalog.city(id: companion.cityID) {
             if city.name.contains(query) { return true }
@@ -324,18 +364,18 @@ final class AppState {
             case .lastContact:
                 return lastContact(for: a) > lastContact(for: b)
             case .rating:
-                if a.rating != b.rating { return a.rating > b.rating }
+                if a.overallScore != b.overallScore { return a.overallScore > b.overallScore }
                 return lastContact(for: a) > lastContact(for: b)
             case .stage:
                 if a.stage.weight != b.stage.weight { return a.stage.weight > b.stage.weight }
-                return a.rating > b.rating
+                return a.overallScore > b.overallScore
             case .name:
                 return a.displayName.localizedStandardCompare(b.displayName) == .orderedAscending
             case .city:
                 let ca = catalog.city(id: a.cityID)?.pinyin ?? "zzz"
                 let cb = catalog.city(id: b.cityID)?.pinyin ?? "zzz"
                 if ca != cb { return ca < cb }
-                return a.rating > b.rating
+                return a.overallScore > b.overallScore
             case .added:
                 return a.createdAt > b.createdAt
             case .hookups:
@@ -429,19 +469,24 @@ final class AppState {
     func makeDraftCompanion(cityID: String? = nil) -> Companion {
         Companion(
             paletteIndex: (companions.count + 1) % Palette.avatarGradients.count,
-            cityID: cityID ?? companions.last?.cityID ?? "310000"
+            cityID: cityID ?? companions.last?.cityID ?? "310000",
+            rating: 0,
+            scorecard: .empty
         )
     }
 
     func upsert(_ companion: Companion) {
         var updated = companion
+        updated.rating = updated.scorecard.legacyStarRating
         updated.updatedAt = Date()
 
         if let index = companions.firstIndex(where: { $0.id == companion.id }) {
             if companions[index].photoID != updated.photoID, let old = companions[index].photoID {
                 MediaStore.delete(id: old)
             }
+            let removedProfile = Set(companions[index].profilePhotoIDs).subtracting(updated.profilePhotoIDs)
             let removedAlbum = Set(companions[index].albumPhotoIDs).subtracting(updated.albumPhotoIDs)
+            MediaStore.delete(ids: Array(removedProfile))
             MediaStore.delete(ids: Array(removedAlbum))
             companions[index] = updated
             Haptics.shared.play(.success)
@@ -457,6 +502,7 @@ final class AppState {
             if let photoID = companion.photoID {
                 MediaStore.delete(id: photoID)
             }
+            MediaStore.delete(ids: companion.profilePhotoIDs)
             MediaStore.delete(ids: companion.albumPhotoIDs)
         }
         let photos = encounters.filter { $0.companionID == companionID }.flatMap(\.photoIDs)
@@ -498,8 +544,10 @@ final class AppState {
     func setRating(_ rating: Int, for companion: Companion) {
         guard let index = companions.firstIndex(where: { $0.id == companion.id }) else { return }
         let clamped = min(max(rating, 0), 5)
-        guard companions[index].rating != clamped else { return }
+        let migratedScorecard = CompanionScorecard.balanced(fromLegacyRating: clamped)
+        guard companions[index].rating != clamped || companions[index].scorecard != migratedScorecard else { return }
         companions[index].rating = clamped
+        companions[index].scorecard = migratedScorecard
         companions[index].updatedAt = Date()
         persistCompanions()
     }
@@ -779,6 +827,7 @@ final class AppState {
     private static func referencedIDs(companions: [Companion], encounters: [Encounter]) -> Set<String> {
         var ids = Set(companions.compactMap(\.photoID))
         for companion in companions {
+            ids.formUnion(companion.profilePhotoIDs)
             ids.formUnion(companion.albumPhotoIDs)
         }
         for encounter in encounters {

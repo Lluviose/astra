@@ -8,6 +8,7 @@ struct AchievementsScreen: View {
 
     private var items: [Achievement] { app.achievements }
     private var unlocked: [Achievement] { items.filter(\.isUnlocked) }
+    private var nextUp: [Achievement] { AchievementCatalog.nextUp(in: items) }
     private var visible: [Achievement] {
         guard let category else { return items }
         return items.filter { $0.category == category }
@@ -17,6 +18,9 @@ struct AchievementsScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 cover
+                if !nextUp.isEmpty {
+                    nextUpShelf
+                }
                 chapterPicker
                 ForEach(chapters, id: \.category) { chapter in
                     chapterBlock(chapter.category, items: chapter.items)
@@ -62,7 +66,7 @@ struct AchievementsScreen: View {
 
             Text("成就册")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-            Text("猎获、约成、过夜、足迹、私藏、玩法，一页一页点亮。无套、内射也算一章。不算排行榜。")
+            Text("猎获、约成、过夜、足迹、私藏、玩法，一页一页点亮。离你最近的目标会先浮上来，不算排行榜。")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
@@ -77,6 +81,55 @@ struct AchievementsScreen: View {
         .padding(20)
         .background(Palette.heroGradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: Palette.accentDeep.opacity(0.28), radius: 18, y: 10)
+    }
+
+    private var nextUpShelf: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("快要点亮", systemImage: "sparkles")
+                    .font(.headline)
+                    .foregroundStyle(Palette.coral)
+                Spacer()
+                Text("最接近点亮的目标")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(nextUp) { achievement in
+                        Button {
+                            selected = achievement
+                        } label: {
+                            HStack(spacing: 12) {
+                                AchievementProgressRing(achievement: achievement, size: 50)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(achievement.title)
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(.primary)
+                                    Text("还差 \(achievement.remaining) · \(achievement.detail)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                    Text(achievement.progressText)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(achievement.tint)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(14)
+                            .frame(width: 276, alignment: .leading)
+                            .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+                            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        }
+                        .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.98))
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
     }
 
     private func coverMetric(_ value: String, _ label: String) -> some View {
@@ -197,34 +250,65 @@ struct AchievementCard: View {
     }
 }
 
+struct AchievementProgressRing: View {
+    let achievement: Achievement
+    var size: CGFloat = 46
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(achievement.tint.opacity(0.14), lineWidth: max(4, size * 0.09))
+            Circle()
+                .trim(from: 0, to: max(0.035, CGFloat(achievement.progress)))
+                .stroke(
+                    achievement.tint.gradient,
+                    style: StrokeStyle(lineWidth: max(4, size * 0.09), lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            Image(systemName: achievement.symbolName)
+                .font(.system(size: size * 0.32, weight: .semibold))
+                .foregroundStyle(achievement.tint)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
 struct AchievementPreviewRow: View {
     let achievements: [Achievement]
 
     private var unlocked: [Achievement] { achievements.filter(\.isUnlocked) }
-    private var next: Achievement? { achievements.first { !$0.isUnlocked } }
+    private var next: Achievement? { AchievementCatalog.nextUp(in: achievements, limit: 1).first }
 
     var body: some View {
         HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Palette.coral.opacity(0.16))
-                    .frame(width: 46, height: 46)
-                Image(systemName: "crown.fill")
-                    .foregroundStyle(Palette.coral)
+            Group {
+                if let next, !unlocked.isEmpty {
+                    AchievementProgressRing(achievement: next)
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Palette.coral.opacity(0.16))
+                            .frame(width: 46, height: 46)
+                        Image(systemName: "crown.fill")
+                            .foregroundStyle(Palette.coral)
+                    }
+                }
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("成就册")
                     .font(.headline)
-                if let next {
-                    Text("已点亮 \(unlocked.count)/\(achievements.count) · 下一页：\(next.title)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else if unlocked.isEmpty {
+                if unlocked.isEmpty {
                     Text("记下第一个她，成就册就翻开了")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else if let next {
+                    Text("已点亮 \(unlocked.count)/\(achievements.count) · 还差 \(next.remaining)：\(next.title)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 } else {
                     Text("全册点亮了")
                         .font(.caption)

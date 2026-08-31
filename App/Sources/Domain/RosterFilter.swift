@@ -31,7 +31,7 @@ struct RosterFilter: Codable, Hashable, Sendable {
         if !includeArchived, companion.isArchived { return false }
         if !stages.isEmpty, !stages.contains(companion.stage) { return false }
         if !cityIDs.isEmpty, !cityIDs.contains(companion.cityID) { return false }
-        if minRating > 0, companion.rating < minRating { return false }
+        if minRating > 0, companion.overallScore < minRating * 20 { return false }
         if !tags.isEmpty, tags.isDisjoint(with: companion.tags) { return false }
         if needsContactOnly, !isOverdue { return false }
         return true
@@ -64,7 +64,7 @@ enum RosterSort: String, CaseIterable, Codable, Sendable, Identifiable {
     var label: String {
         switch self {
         case .lastContact: "最近互动"
-        case .rating: "默契度"
+        case .rating: "综合评分"
         case .stage: "相处状态"
         case .name: "代号"
         case .city: "城市"

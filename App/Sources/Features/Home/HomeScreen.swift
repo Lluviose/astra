@@ -28,6 +28,20 @@ struct HomeScreen: View {
         app.timeline(limit: 4)
     }
 
+    /// 首页焦点只使用用户自己明确记录的置顶、关系阶段和互动次数，不推断对方意愿。
+    private var focusCompanion: Companion? {
+        app.currentCompanions.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
+            if lhs.stage.weight != rhs.stage.weight { return lhs.stage.weight > rhs.stage.weight }
+
+            let leftHookups = app.hookupCount(for: lhs.id)
+            let rightHookups = app.hookupCount(for: rhs.id)
+            if leftHookups != rightHookups { return leftHookups > rightHookups }
+            if lhs.overallScore != rhs.overallScore { return lhs.overallScore > rhs.overallScore }
+            return app.lastContact(for: lhs) > app.lastContact(for: rhs)
+        }.first
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -37,6 +51,8 @@ struct HomeScreen: View {
                 ScrollView {
                     LazyVStack(spacing: 18) {
                         hero
+
+                        desirePulseCard
 
                         NavigationLink {
                             AchievementsScreen()
@@ -52,8 +68,6 @@ struct HomeScreen: View {
                         if !app.needsAttention.isEmpty {
                             attentionCard
                         }
-
-                        hottestCard
 
                         safetyCard
 
@@ -115,7 +129,7 @@ struct HomeScreen: View {
     private var hero: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Label("记录册 · 仅存本机", systemImage: "lock.shield.fill")
+                Label("私人记录 · 可随设备备份", systemImage: "lock.shield.fill")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -226,42 +240,195 @@ struct HomeScreen: View {
         return "本月猎获：" + parts.joined(separator: " · ")
     }
 
+    // MARK: - 欲望与行动焦点
+
     @ViewBuilder
-    private var hottestCard: some View {
-        if let id = app.stats.topCompanionID,
-           let companion = app.companion(id: id) {
-            let count = app.hookupCount(for: id)
-            if count > 0 {
-                NavigationLink(value: companion.id) {
-                    HStack(spacing: 14) {
-                        AvatarView(companion: companion, size: 46)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("猎获最多")
-                                .font(.headline)
-                            HStack(spacing: 6) {
-                                MaskedName(name: companion.displayName, revealed: app.namesRevealed, font: .caption.weight(.semibold))
-                                Text("约成 \(count) 次")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                if count >= 3 {
-                                    Text("回头客")
-                                        .font(.caption2.weight(.bold))
-                                        .foregroundStyle(Palette.coral)
-                                }
-                            }
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.bold())
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(16)
-                    .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 10)
-                    .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    private var desirePulseCard: some View {
+        if let companion = focusCompanion {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label(focusKicker, systemImage: "sparkles")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                    Spacer()
+                    Label("按你的记录", systemImage: "lock.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.62))
                 }
-                .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.98))
+
+                HStack(spacing: 14) {
+                    AvatarView(companion: companion, size: 58)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        MaskedName(
+                            name: companion.displayName,
+                            revealed: app.namesRevealed,
+                            font: .title3.weight(.bold)
+                        )
+                        Text(focusHeadline(for: companion))
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.76))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    focusPill(companion.stage.label, symbol: companion.stage.symbolName)
+                    if companion.overallScore > 0 {
+                        focusPill("综合 \(companion.overallScore)", symbol: "crown.fill")
+                    }
+                    focusPill("约成 \(app.hookupCount(for: companion.id))", symbol: "flame.fill")
+                    let photoCount = app.albumIDs(for: companion.id).count
+                    if photoCount > 0 {
+                        focusPill("私藏 \(photoCount)", symbol: "photo.fill")
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("升温轨迹")
+                        Spacer()
+                        Text(focusRecency(for: companion))
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.68))
+
+                    ProgressView(value: Double(companion.stage.weight), total: 7)
+                        .tint(.white)
+                }
+
+                HStack(spacing: 10) {
+                    NavigationLink(value: companion.id) {
+                        Label("打开档案", systemImage: "book.pages.fill")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(.white.opacity(0.13), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(.white.opacity(0.20), lineWidth: 0.8)
+                            }
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
+
+                    Button {
+                        beginRecording(focusActionKind(for: companion), with: companion)
+                    } label: {
+                        Label(
+                            focusActionTitle(for: companion),
+                            systemImage: focusActionKind(for: companion).symbolName
+                        )
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundStyle(Palette.accentDeep)
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .waveSent, scale: 0.97))
+                }
             }
+            .foregroundStyle(.white)
+            .padding(18)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.12, green: 0.055, blue: 0.23),
+                        Color(red: 0.39, green: 0.08, blue: 0.32),
+                        Color(red: 0.72, green: 0.15, blue: 0.32),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 26, style: .continuous)
+            )
+            .overlay(alignment: .topTrailing) {
+                Circle()
+                    .fill(.white.opacity(0.08))
+                    .frame(width: 150, height: 150)
+                    .blur(radius: 4)
+                    .offset(x: 62, y: -74)
+                    .allowsHitTesting(false)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .shadow(color: Palette.coral.opacity(0.24), radius: 20, y: 10)
+            .accessibilityElement(children: .contain)
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("下一次，从一个名字开始", systemImage: "sparkles")
+                    .font(.headline)
+                    .foregroundStyle(Palette.coral)
+                Text("先记下一个她。等关系升温、留下记录，首页会把最值得回味和推进的线索放到这里。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    beginAddingCompanion()
+                } label: {
+                    Label("加第一个人", systemImage: "person.badge.plus")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Palette.accent.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(HapticButtonStyle(cue: .mediumTap, scale: 0.97))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .glassCard(cornerRadius: 22, shadowRadius: 10)
         }
+    }
+
+    private var focusKicker: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return (hour >= 18 || hour < 5) ? "今夜焦点" : "下一次焦点"
+    }
+
+    private func focusHeadline(for companion: Companion) -> String {
+        switch companion.stage {
+        case .regular, .casual:
+            return "熟悉的默契还在，打开档案就能回到上一次。"
+        case .prospect:
+            return "已经到了准炮友，下一步先确认彼此今晚想要什么。"
+        case .flirting:
+            return "暧昧正在升温，欲望和边界都值得记清楚。"
+        case .chatting, .new:
+            return "故事刚开场，把节奏慢慢推到你们都舒服的位置。"
+        case .paused, .ended:
+            return "这段记录先留在册子里。"
+        }
+    }
+
+    private func focusRecency(for companion: Companion) -> String {
+        if let last = app.lastHookup(for: companion.id) {
+            return "上次约成 \(Format.relativeDay(last.date))"
+        }
+        return "最近互动 \(Format.relativeDay(app.lastContact(for: companion)))"
+    }
+
+    private func focusActionKind(for companion: Companion) -> EncounterKind {
+        switch companion.stage {
+        case .prospect, .casual, .regular:
+            return .intimacy
+        case .new, .chatting, .flirting, .paused, .ended:
+            return .chat
+        }
+    }
+
+    private func focusActionTitle(for companion: Companion) -> String {
+        focusActionKind(for: companion).isIntimate ? "记下战果" : "记下进展"
+    }
+
+    private func focusPill(_ title: String, symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .font(.caption2.weight(.semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.16), in: Capsule())
+            .foregroundStyle(.white.opacity(0.84))
     }
 
     private func heroMetric(value: String, label: String) -> some View {
@@ -467,6 +634,19 @@ struct HomeScreen: View {
             recordAfterCreatingCompanion = false
             isPickingCompanion = true
         }
+    }
+
+    /// 焦点卡已经确定对象，直接进入编辑器，省掉一次对象选择。
+    private func beginRecording(_ kind: EncounterKind, with companion: Companion) {
+        recordingKind = kind
+        pendingCompanionSelection = nil
+        recordAfterCreatingCompanion = false
+        recordingCompanionID = nil
+        newEncounter = Encounter(
+            companionID: companion.id,
+            kind: kind,
+            cityID: companion.cityID
+        )
     }
 
     private func beginAddingCompanion() {

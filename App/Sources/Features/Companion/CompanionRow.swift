@@ -80,7 +80,7 @@ struct CompanionRow: View {
             Spacer(minLength: 6)
 
             VStack(alignment: .trailing, spacing: 6) {
-                RatingStars(rating: companion.rating, size: 10)
+                CompanionScoreBadge(score: companion.overallScore, compact: true)
                 Text(intimacySummary)
                     .font(.caption2)
                     .foregroundStyle(.secondary)

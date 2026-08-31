@@ -101,10 +101,16 @@ struct CompanionEditor: View {
     @State private var hasMetDate: Bool
     @State private var pendingAvatar: UIImage?
     @State private var removeExistingPhoto = false
+    @State private var pendingProfilePhotos: [UIImage] = []
+    @State private var pendingAlbumPhotos: [UIImage] = []
 
     private var isNew: Bool { !app.companions.contains { $0.id == initial.id } }
     private var hasUnsavedChanges: Bool {
-        draft != initial || pendingAvatar != nil || removeExistingPhoto
+        draft != initial
+            || pendingAvatar != nil
+            || removeExistingPhoto
+            || !pendingProfilePhotos.isEmpty
+            || !pendingAlbumPhotos.isEmpty
     }
 
     init(companion: Companion) {
@@ -117,7 +123,10 @@ struct CompanionEditor: View {
         NavigationStack {
             Form {
                 basicSection
+                profilePhotosEditorSection
+                privatePhotosEditorSection
                 statusSection
+                scoreSection
                 intimacySection
                 citySection
                 tagsSection
@@ -182,15 +191,18 @@ struct CompanionEditor: View {
     }
 
     private func save() {
-        draft.rating = min(max(draft.rating, 0), 5)
+        draft.rating = draft.scorecard.legacyStarRating
         if let metDate = draft.metDate, metDate > Date() {
             draft.metDate = Date()
         }
         if let pendingAvatar {
-            draft.photoID = MediaStore.save(image: pendingAvatar, kind: .avatar)
+            if let savedID = MediaStore.save(image: pendingAvatar, kind: .avatar) {
+                draft.photoID = savedID
+            }
         } else if removeExistingPhoto {
             draft.photoID = nil
         }
+        savePendingPhotos()
         app.upsert(draft)
         dismiss()
     }
@@ -237,6 +249,76 @@ struct CompanionEditor: View {
             }
 
             TextField("微信 / 备注名", text: $draft.contactNote)
+        }
+    }
+
+    private var profilePhotosEditorSection: some View {
+        let remaining = max(0, AppState.maxProfilePhotos - draft.profilePhotoIDs.count - pendingProfilePhotos.count)
+        return Section {
+            Label(
+                "已存 \(draft.profilePhotoIDs.count) · 待保存 \(pendingProfilePhotos.count)",
+                systemImage: "person.crop.rectangle.stack.fill"
+            )
+            .font(.subheadline)
+
+            if remaining > 0 {
+                PhotoAddBar(remaining: remaining) { images in
+                    pendingProfilePhotos.append(contentsOf: images.prefix(remaining))
+                }
+            }
+
+            if !pendingProfilePhotos.isEmpty {
+                Button("清除本次人物资料照", role: .destructive) {
+                    pendingProfilePhotos = []
+                }
+            }
+        } header: {
+            Text("人物资料照")
+        } footer: {
+            Text("普通人物照片放这里，和艳照私藏分开；保存档案后可进入详情浏览和删除。")
+        }
+    }
+
+    private var privatePhotosEditorSection: some View {
+        let remaining = max(0, AppState.maxAlbumPhotos - draft.albumPhotoIDs.count - pendingAlbumPhotos.count)
+        return Section {
+            Label(
+                "已存 \(draft.albumPhotoIDs.count) · 待保存 \(pendingAlbumPhotos.count)",
+                systemImage: "photo.on.rectangle.angled"
+            )
+            .font(.subheadline)
+
+            if remaining > 0 {
+                PhotoAddBar(remaining: min(8, remaining)) { images in
+                    pendingAlbumPhotos.append(contentsOf: images.prefix(remaining))
+                }
+            }
+
+            if !pendingAlbumPhotos.isEmpty {
+                Button("清除本次艳照", role: .destructive) {
+                    pendingAlbumPhotos = []
+                }
+            }
+        } header: {
+            Text("艳照私藏")
+        } footer: {
+            Text("这里只放私密照片；每次最多选择 8 张，档案总计最多 \(AppState.maxAlbumPhotos) 张。")
+        }
+    }
+
+    private func savePendingPhotos() {
+        let profileRoom = max(0, AppState.maxProfilePhotos - draft.profilePhotoIDs.count)
+        for image in pendingProfilePhotos.prefix(profileRoom) {
+            if let id = MediaStore.save(image: image, kind: .photo) {
+                draft.profilePhotoIDs.append(id)
+            }
+        }
+
+        let albumRoom = max(0, AppState.maxAlbumPhotos - draft.albumPhotoIDs.count)
+        for image in pendingAlbumPhotos.prefix(albumRoom) {
+            if let id = MediaStore.save(image: image, kind: .photo) {
+                draft.albumPhotoIDs.append(id)
+            }
         }
     }
 
@@ -294,12 +376,20 @@ struct CompanionEditor: View {
                 .padding(.vertical, 4)
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+        }
+    }
 
-            HStack {
-                Text("默契度")
-                Spacer()
-                RatingPicker(rating: $draft.rating, size: 24)
+    private var scoreSection: some View {
+        Section {
+            NavigationLink {
+                CompanionScoreEditor(scorecard: $draft.scorecard)
+            } label: {
+                ScorecardEditorLink(scorecard: draft.scorecard)
             }
+        } header: {
+            Text("这一眼的感觉")
+        } footer: {
+            Text("六维评分只给你自己看；保存档案时会同步为旧版五星评分，兼容已有筛选与备份。")
         }
     }
 
@@ -388,7 +478,7 @@ struct CompanionEditor: View {
         } header: {
             Text("标签")
         } footer: {
-            Text("方便以后翻出来，只存在这台手机。")
+            Text("方便以后翻出来；只在私人档案里显示，可随设备备份恢复。")
         }
     }
 
@@ -415,6 +505,19 @@ struct CompanionEditor: View {
                 Text("未设置").tag(Int?.none)
                 ForEach(140...210, id: \.self) { cm in
                     Text("\(cm) cm").tag(Int?.some(cm))
+                }
+            }
+
+            Picker("下胸围", selection: $draft.bustBandCM) {
+                Text("未设置").tag(Int?.none)
+                ForEach(Array(stride(from: 60, through: 110, by: 5)), id: \.self) { cm in
+                    Text("\(cm) cm").tag(Int?.some(cm))
+                }
+            }
+
+            Picker("罩杯", selection: $draft.bustSize) {
+                ForEach(BustSize.allCases) { size in
+                    Text(size.label).tag(size)
                 }
             }
 

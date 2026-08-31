@@ -3,12 +3,22 @@ import XCTest
 
 final class BackupServiceTests: XCTestCase {
 
+    func testMediaDirectoryIsEligibleForSystemICloudBackup() throws {
+        MediaStore.enableSystemBackup()
+        let values = try MediaStore.directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertNotEqual(values.isExcludedFromBackup, true)
+    }
+
     func testEncodeDecodeRoundTrip() throws {
         let companion = Companion(
             name: "测试",
             cityID: "330100",
             stage: .casual,
             rating: 4,
+            scorecard: CompanionScorecard(looks: 8, body: 9, chemistry: 10, initiative: 7, desire: 10, afterglow: 9),
+            profilePhotoIDs: ["profile-1"],
+            bustBandCM: 75,
+            bustSize: .d,
             expectations: "偶尔见面",
             boundaries: "提前确认",
             safetyNotes: "只记已沟通的信息",
@@ -43,6 +53,9 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(decoded.companions.count, 1)
         XCTAssertEqual(decoded.companions.first?.name, "测试")
         XCTAssertEqual(decoded.companions.first?.stage, .casual)
+        XCTAssertEqual(decoded.companions.first?.overallScore, 90)
+        XCTAssertEqual(decoded.companions.first?.profilePhotoIDs, ["profile-1"])
+        XCTAssertEqual(decoded.companions.first?.bustSizeText, "75D")
         XCTAssertEqual(decoded.companions.first?.expectations, "偶尔见面")
         XCTAssertEqual(decoded.companions.first?.boundaries, "提前确认")
         XCTAssertEqual(decoded.companions.first?.tags, ["尊重", "守时"])
@@ -118,7 +131,10 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertFalse(companion.isArchived)
         XCTAssertNil(companion.birthdayMonth)
         XCTAssertNil(companion.photoID)
+        XCTAssertTrue(companion.profilePhotoIDs.isEmpty)
         XCTAssertTrue(companion.albumPhotoIDs.isEmpty)
+        XCTAssertEqual(companion.overallScore, 60)
+        XCTAssertNil(companion.bustSizeText)
     }
 
     func testEncounterDecodesMissingPhotoIDs() throws {
@@ -133,7 +149,12 @@ final class BackupServiceTests: XCTestCase {
     }
 
     func testMediaRoundTripInBackup() throws {
-        let companion = Companion(name: "她", photoID: "avatar-1", albumPhotoIDs: ["album-1"])
+        let companion = Companion(
+            name: "她",
+            photoID: "avatar-1",
+            profilePhotoIDs: ["profile-1"],
+            albumPhotoIDs: ["album-1"]
+        )
         let encounter = Encounter(
             companionID: companion.id,
             kind: .intimacy,
@@ -142,6 +163,7 @@ final class BackupServiceTests: XCTestCase {
         )
         let media = [
             "avatar-1": Data([0xFF, 0xD8, 0xFF, 0xD9]),
+            "profile-1": Data([0x03, 0x04]),
             "album-1": Data([0x01, 0x02]),
             "shot-1": Data([0x00, 0x01, 0x02]),
         ]
@@ -149,12 +171,14 @@ final class BackupServiceTests: XCTestCase {
         let data = try BackupService.encode(companions: [companion], encounters: [encounter], media: media)
         let decoded = try BackupService.decode(data)
 
-        XCTAssertEqual(decoded.version, 2)
+        XCTAssertEqual(decoded.version, 3)
         XCTAssertEqual(decoded.companions.first?.photoID, "avatar-1")
+        XCTAssertEqual(decoded.companions.first?.profilePhotoIDs, ["profile-1"])
         XCTAssertEqual(decoded.companions.first?.albumPhotoIDs, ["album-1"])
         XCTAssertEqual(decoded.encounters.first?.photoIDs, ["shot-1"])
         XCTAssertEqual(decoded.encounters.first?.climaxDetails, [.creampie])
         XCTAssertEqual(decoded.media["avatar-1"], media["avatar-1"])
+        XCTAssertEqual(decoded.media["profile-1"], media["profile-1"])
         XCTAssertEqual(decoded.media["shot-1"], media["shot-1"])
         XCTAssertEqual(decoded.media["album-1"], media["album-1"])
     }

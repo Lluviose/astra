@@ -80,7 +80,7 @@ struct RosterScreen: View {
             .searchable(text: Binding(
                 get: { app.searchText },
                 set: { app.searchText = $0 }
-            ), prompt: "代号 / 标签 / 城市")
+            ), prompt: "代号 / 标签 / 城市 / 尺码")
             .autocorrectionDisabled()
         }
         .sheet(isPresented: $showFilter) {
@@ -124,6 +124,16 @@ struct RosterScreen: View {
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)
+            }
+
+            Section {
+                NavigationLink {
+                    RankingScreen()
+                } label: {
+                    RankingPreviewCard()
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             }
 
             if !app.needsAttention.isEmpty {
@@ -249,10 +259,10 @@ struct RosterFilterSheet: View {
                     Toggle("包含已归档", isOn: app.filterBinding(\.includeArchived))
 
                     HStack {
-                        Text("默契度 ≥")
+                        Text("综合评分 ≥")
                         Spacer()
                         Stepper(
-                            app.filter.minRating == 0 ? "不限" : "\(app.filter.minRating) 星",
+                            app.filter.minRating == 0 ? "不限" : "\(app.filter.minRating * 20) 分",
                             value: Binding(
                                 get: { app.filter.minRating },
                                 set: { newValue in

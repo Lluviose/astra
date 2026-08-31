@@ -12,6 +12,7 @@ struct CompanionDetailView: View {
     @State private var editingEncounter: Encounter?
     @State private var showDeleteConfirm = false
     @State private var viewingPhotoIndex: Int?
+    @State private var viewingPhotoIDs: [String] = []
 
     private var companion: Companion? { app.companion(id: companionID) }
 
@@ -88,7 +89,7 @@ struct CompanionDetailView: View {
             get: { viewingPhotoIndex != nil },
             set: { if !$0 { viewingPhotoIndex = nil } }
         )) {
-            PhotoViewer(ids: app.albumIDs(for: companionID), index: viewingPhotoIndex ?? 0)
+            PhotoViewer(ids: viewingPhotoIDs, index: viewingPhotoIndex ?? 0)
         }
     }
 
@@ -106,6 +107,7 @@ struct CompanionDetailView: View {
 
             headerSection(companion)
             quickActionsSection(companion)
+            profilePhotosSection(companion)
             albumSection(companion)
             if let overdueNote = overdueNote(companion) {
                 Section {
@@ -115,6 +117,7 @@ struct CompanionDetailView: View {
                 }
             }
             relationshipSection(companion)
+            scoreSection(companion)
             if hasIntimacyNotes(companion) {
                 intimacyInfoSection(companion)
             }
@@ -254,7 +257,10 @@ struct CompanionDetailView: View {
                         ids: ids,
                         editable: true,
                         onDelete: { app.removeAlbumPhoto($0, from: companion.id) },
-                        onOpen: { viewingPhotoIndex = $0 }
+                        onOpen: {
+                            viewingPhotoIDs = ids
+                            viewingPhotoIndex = $0
+                        }
                     )
                 }
             } else if !ids.isEmpty {
@@ -268,9 +274,43 @@ struct CompanionDetailView: View {
                 }
             }
         } header: {
-            Text("私藏")
+            Text("艳照私藏")
         } footer: {
-            Text("档案里就能加。头像、私藏和每次留下的照片都在这儿，只存在这台手机。")
+            Text("这里只放艳照和每次约会留下的照片，与头像、人物资料照分开。可随设备 iCloud Backup 恢复。")
+        }
+    }
+
+    private func profilePhotosSection(_ companion: Companion) -> some View {
+        let ids = app.profilePhotoIDs(for: companion.id)
+        let remaining = max(0, AppState.maxProfilePhotos - companion.profilePhotoIDs.count)
+        return Section {
+            if app.namesRevealed {
+                if !ids.isEmpty {
+                    PhotoStrip(
+                        ids: ids,
+                        editable: true,
+                        onDelete: { app.removeProfilePhoto($0, from: companion.id) },
+                        onOpen: {
+                            viewingPhotoIDs = ids
+                            viewingPhotoIndex = $0
+                        }
+                    )
+                }
+            } else if !ids.isEmpty {
+                Label("点右上角眼睛再看人物照片", systemImage: "eye.slash")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            if remaining > 0 {
+                PhotoAddBar(remaining: remaining) { images in
+                    app.addProfilePhotos(images, to: companion.id)
+                }
+            }
+        } header: {
+            Text("人物照片")
+        } footer: {
+            Text("头像封面和普通资料照放在这里，最多再加 \(AppState.maxProfilePhotos) 张；不会混进艳照私藏。")
         }
     }
 
@@ -304,17 +344,29 @@ struct CompanionDetailView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+        }
+    }
 
+    private func scoreSection(_ companion: Companion) -> some View {
+        Section {
+            CompanionScoreSummaryView(scorecard: companion.scorecard)
+                .padding(.vertical, 6)
+
+            Button {
+                Haptics.shared.play(.lightTap)
+                showEditor = true
+            } label: {
+                Label("调整六维评分", systemImage: "slider.horizontal.3")
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .buttonStyle(.borderless)
+            .font(.subheadline.weight(.semibold))
+            .tint(Palette.coral)
+        } header: {
             HStack {
-                Text("默契度")
+                Text("私密评分")
                 Spacer()
-                RatingPicker(
-                    rating: Binding(
-                        get: { companion.rating },
-                        set: { app.setRating($0, for: companion) }
-                    ),
-                    size: 22
-                )
+                CompanionScoreBadge(score: companion.overallScore, compact: true)
             }
         }
     }
@@ -371,6 +423,9 @@ struct CompanionDetailView: View {
             }
             if let height = companion.heightCM {
                 LabeledContent("身高", value: "\(height) cm")
+            }
+            if let bustSize = companion.bustSizeText {
+                LabeledContent("胸部尺码", value: bustSize)
             }
             if !companion.occupation.isEmpty {
                 LabeledContent("职业", value: companion.occupation)

@@ -62,7 +62,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         # 面容 / 触控 ID 解锁；相机和相册只用于头像 / 艳照，照片留在沙盒
         NSFaceIDUsageDescription: 用面容 ID 解锁星图，保护你的私密记录和照片。
-        NSCameraUsageDescription: 拍下她的头像或这次留下的照片。照片只存在星图里，不会进系统相册，也不会上传。
+        NSCameraUsageDescription: 拍下她的头像或这次留下的照片。照片不会进系统相册或开发者服务器，可随设备 iCloud Backup 恢复。
         NSPhotoLibraryUsageDescription: 从相册挑头像或这次留下的照片。只会复制进星图，不会改你的相册。
         # 档案不对外暴露：关闭 iTunes 文件共享与"文件"App 可见
         UIFileSharingEnabled: false

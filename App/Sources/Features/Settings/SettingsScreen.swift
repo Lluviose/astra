@@ -162,7 +162,7 @@ struct SettingsScreen: View {
         } header: {
             Text("隐私")
         } footer: {
-            Text("星图不会上传任何东西。头像和艳照只复制进 App 沙盒，不进系统相册，也不进 iCloud 备份。代号打码时，照片也会糊掉。")
+            Text("星图不做账号云同步。档案、设置和全部照片只写进 App 沙盒，并允许进入设备的 iCloud Backup；代号打码时，照片也会糊掉。")
         }
     }
 
@@ -345,24 +345,36 @@ struct PrivacyView: View {
         List {
             Section {
                 Label {
-                    Text("不上传档案")
+                    Text("不传开发者服务器")
                         .font(.headline)
                 } icon: {
                     Image(systemName: "wifi.slash").foregroundStyle(Palette.accent)
                 }
-                Text("星图没有账号、统计 SDK 或云同步。MapKit 只负责显示城市底图；她是谁、约过几次、留下的照片都不会上传。")
+                Text("星图没有账号、统计 SDK 或应用内云同步。MapKit 只负责显示城市底图；档案不会发送到开发者服务器，但可随设备 iCloud Backup 备份。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             Section {
                 Label {
-                    Text("照片不出这台手机")
+                    Text("照片留在 App 沙盒")
                         .font(.headline)
                 } icon: {
                     Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Palette.accent)
                 }
-                Text("头像和艳照只复制进星图沙盒，不进系统相册，并排除 iCloud 备份。从相册挑图用系统选择器，不必打开完整相册权限。")
+                Text("头像、人物资料照和艳照只复制进星图沙盒，不进系统相册；它们允许随设备 iCloud Backup 恢复。从相册挑图用系统选择器，不必打开完整相册权限。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Label {
+                    Text("全量 iCloud Backup")
+                        .font(.headline)
+                } icon: {
+                    Image(systemName: "icloud.and.arrow.up.fill").foregroundStyle(Palette.accent)
+                }
+                Text("对象、记录、设置、头像、人物资料照和艳照都允许进入系统设备备份。它用于整机或 App 恢复，不等同于多设备实时同步。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

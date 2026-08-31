@@ -91,6 +91,7 @@ struct Achievement: Identifiable, Hashable, Sendable {
 
     var tint: Color { Color(red: red, green: green, blue: blue) }
     var isUnlocked: Bool { current >= goal }
+    var remaining: Int { max(0, goal - current) }
     var progress: Double {
         guard goal > 0 else { return 0 }
         return min(1, Double(current) / Double(goal))
@@ -104,14 +105,49 @@ struct Achievement: Identifiable, Hashable, Sendable {
 enum AchievementCatalog {
 
     static let firstTierCityIDs: Set<String> = ["110000", "310000", "440100", "440300"]
+    /// 这些条目可以作为已经发生的私人记录留在全册，但不进入「快要点亮」主动提示。
+    private static let passiveOnlyAchievementIDs: Set<String> = [
+        "bareback",
+        "bareback_5",
+        "creampie",
+        "creampie_5",
+        "outdoor_sex",
+        "overnight_bareback",
+    ]
+
+    /// 把最可能在下一次记录中点亮的目标放到前面。
+    /// 已经有进度的优先，其次比较完成比例、剩余数量，最后保持目录顺序稳定。
+    static func nextUp(in achievements: [Achievement], limit: Int = 3) -> [Achievement] {
+        guard limit > 0 else { return [] }
+
+        return Array(
+            achievements.enumerated()
+                .filter {
+                    !$0.element.isUnlocked
+                        && !passiveOnlyAchievementIDs.contains($0.element.id)
+                }
+                .sorted { lhs, rhs in
+                    let left = lhs.element
+                    let right = rhs.element
+                    let leftStarted = left.current > 0
+                    let rightStarted = right.current > 0
+
+                    if leftStarted != rightStarted { return leftStarted && !rightStarted }
+                    if left.progress != right.progress { return left.progress > right.progress }
+                    if left.remaining != right.remaining { return left.remaining < right.remaining }
+                    return lhs.offset < rhs.offset
+                }
+                .prefix(limit)
+                .map(\.element)
+        )
+    }
 
     static func evaluate(companions: [Companion], encounters: [Encounter], cityCount: Int) -> [Achievement] {
         let active = companions.filter { !$0.isArchived }
         let byID = Dictionary(uniqueKeysWithValues: companions.map { ($0.id, $0) })
         let hookups = encounters.filter(\.kind.isIntimate)
         let overnight = encounters.filter { $0.kind == .overnight }
-        let photos = companions.compactMap(\.photoID)
-            + companions.flatMap(\.albumPhotoIDs)
+        let photos = companions.flatMap(\.albumPhotoIDs)
             + encounters.flatMap(\.photoIDs)
         let weekendHookups = hookups.filter { Calendar.current.isDateInWeekend($0.date) }
         let nightHookups = hookups.filter { hour($0.date) >= 22 || hour($0.date) < 5 }

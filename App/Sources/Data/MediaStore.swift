@@ -1,7 +1,7 @@
 import Foundation
 import UIKit
 
-/// 把头像和照片存进 App 沙盒，不进系统相册、不上传。
+/// 把头像和照片存进 App 沙盒，不进系统相册、不主动上传；允许随设备 iCloud Backup 恢复。
 enum MediaStore {
 
     private static let folderName = "AstraMedia"
@@ -15,12 +15,29 @@ enum MediaStore {
         let url = base.appendingPathComponent(folderName, isDirectory: true)
         if !FileManager.default.fileExists(atPath: url.path) {
             try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-            var values = URLResourceValues()
-            values.isExcludedFromBackup = true
-            var mutable = url
-            try? mutable.setResourceValues(values)
         }
+        markBackupEligible(url)
         return url
+    }
+
+    /// 清除旧版本写下的「排除备份」标记，让全部持久化用户文件进入系统设备备份。
+    /// Caches / tmp 仍遵循 iOS 自身规则；本 App 的档案、设置与照片都不依赖它们。
+    static func enableSystemBackup() {
+        let fileManager = FileManager.default
+        _ = directory // 确保照片目录已经存在。
+
+        let applicationSupport = fileManager.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first
+        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
+        let preferences = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Preferences", isDirectory: true)
+
+        for root in [applicationSupport, documents, preferences].compactMap({ $0 })
+            where fileManager.fileExists(atPath: root.path) {
+            markTreeBackupEligible(root)
+        }
     }
 
     static func url(for id: String) -> URL {
@@ -32,7 +49,9 @@ enum MediaStore {
         let maxSide = kind == .avatar ? avatarMaxSide : photoMaxSide
         guard let data = jpegData(from: image, maxSide: maxSide) else { return nil }
         do {
-            try data.write(to: url(for: id), options: .atomic)
+            let target = url(for: id)
+            try data.write(to: target, options: .atomic)
+            markBackupEligible(target)
             return id
         } catch {
             return nil
@@ -42,7 +61,9 @@ enum MediaStore {
     @discardableResult
     static func save(data: Data, id: String) -> Bool {
         do {
-            try data.write(to: url(for: id), options: .atomic)
+            let target = url(for: id)
+            try data.write(to: target, options: .atomic)
+            markBackupEligible(target)
             return true
         } catch {
             return false
@@ -114,6 +135,24 @@ enum MediaStore {
         let renderer = UIGraphicsImageRenderer(size: newSize)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
+
+    private static func markBackupEligible(_ url: URL) {
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = false
+        var mutable = url
+        try? mutable.setResourceValues(values)
+    }
+
+    private static func markTreeBackupEligible(_ root: URL) {
+        markBackupEligible(root)
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isExcludedFromBackupKey]
+        ) else { return }
+        for case let url as URL in enumerator {
+            markBackupEligible(url)
         }
     }
 }

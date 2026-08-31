@@ -96,7 +96,7 @@ struct AppSettings: Codable, Hashable, Sendable {
 
 // MARK: - 持久化
 
-/// 极简本地存储。对象与亲密记录只写在本机沙盒里。
+/// 极简本地存储。对象与亲密记录的主存储在 App 沙盒，并允许随系统设备备份恢复。
 struct LocalStore {
 
     enum Key: String {
