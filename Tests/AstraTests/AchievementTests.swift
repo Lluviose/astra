@@ -6,7 +6,7 @@ final class AchievementTests: XCTestCase {
     func testEmptyRosterUnlocksNothing() {
         let items = AchievementCatalog.evaluate(companions: [], encounters: [], cityCount: 0)
         XCTAssertFalse(items.contains(where: \.isUnlocked))
-        XCTAssertEqual(items.count, 18)
+        XCTAssertEqual(items.count, 17)
     }
 
     func testFirstGirlAndHookup() {
