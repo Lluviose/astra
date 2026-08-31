@@ -37,21 +37,9 @@ jobs:
       - name: 选择 Xcode 26
         run: |
           set -euo pipefail
-          # macos-15 默认是 16.4；液态玻璃 / iOS 26 SDK 在 Xcode 26
-          XCODE=""
-          for candidate in \
-            /Applications/Xcode_26.3.app \
-            /Applications/Xcode_26.2.app \
-            /Applications/Xcode_26.1.1.app \
-            /Applications/Xcode_26.0.1.app \
-            /Applications/Xcode_26.app
-          do
-            if [ -d "$candidate" ]; then
-              XCODE="$candidate"
-              break
-            fi
-          done
-          if [ -n "$XCODE" ]; then
+          # macos-15 默认可能是 16.x；液态玻璃 / iOS 26 SDK 需要 Xcode 26
+          XCODE="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "${XCODE:-}" ]; then
             sudo xcode-select -s "$XCODE"
             echo "使用 $XCODE"
           else
@@ -87,7 +75,7 @@ jobs:
           if not phones:
               sys.exit("no available iPhone simulator")
           phones.sort(key=lambda item: item[0], reverse=True)
-          preferred = ["iPhone 16", "iPhone 16 Pro", "iPhone 17", "iPhone 17 Pro"]
+          preferred = ["iPhone 16", "iPhone 16 Pro", "iPhone 17", "iPhone 17 Pro", "iPhone 18", "iPhone 18 Pro"]
           for want in preferred:
               for runtime, device in phones:
                   if device["name"] == want:

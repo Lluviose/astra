@@ -11,22 +11,29 @@ enum ChinaRegion {
     static let minLongitude = 73.4
     static let maxLongitude = 135.2
 
-    /// 全国概览视角
+    /// 全国概览：经度跨度要盖住新疆到黑龙江，竖屏上刚好看清整张中国。
     static let overview = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 34.6, longitude: 105.5),
-        span: MKCoordinateSpan(latitudeDelta: 38.0, longitudeDelta: 42.0)
+        center: CLLocationCoordinate2D(latitude: 36.0, longitude: 104.0),
+        span: MKCoordinateSpan(latitudeDelta: 42.0, longitudeDelta: 72.0)
     )
 
     /// 相机中心允许游走的范围——比包络框略大，避免边缘城市卡在屏幕角落无法居中。
     static let cameraCenterBounds = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 34.6, longitude: 105.5),
-        span: MKCoordinateSpan(latitudeDelta: 56.0, longitudeDelta: 68.0)
+        center: CLLocationCoordinate2D(latitude: 36.0, longitude: 104.0),
+        span: MKCoordinateSpan(latitudeDelta: 62.0, longitudeDelta: 82.0)
     )
 
     /// 最近可以推到「街区」级，但本 App 只展示到市，所以下限给到 6km
     static let minimumCameraDistance: CLLocationDistance = 6_000
-    /// 拉到最远刚好装下整个中国
-    static let maximumCameraDistance: CLLocationDistance = 6_400_000
+    /// 竖屏要一眼看全中国（含新疆、黑龙江、海南），需要约 1.8 万公里相机高度。
+    static let maximumCameraDistance: CLLocationDistance = 18_000_000
+
+    /// 交给 SwiftUI Map 的原生边界，拖动手势由 MapKit 自己钳制，不会每帧回写相机。
+    static let cameraBounds = MapCameraBounds(
+        centerCoordinateBounds: cameraCenterBounds,
+        minimumDistance: minimumCameraDistance,
+        maximumDistance: maximumCameraDistance
+    )
 
     /// 把相机中心钳制到包络框内（必要时向外留一点余量）
     static func clamp(center: CLLocationCoordinate2D) -> CLLocationCoordinate2D {

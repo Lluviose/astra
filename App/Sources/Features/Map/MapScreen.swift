@@ -104,8 +104,6 @@ struct MapScreen: View {
     @State private var pendingEditorTarget: Companion?
     @State private var isPickingCity = false
     @State private var isJumpingToCity = false
-    /// 钳制相机时置位，防止 onMapCameraChange 反馈循环
-    @State private var isClampingCamera = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -152,27 +150,12 @@ struct MapScreen: View {
 
     // MARK: 地图层
 
-    // 各分支的 MapStyle 具体类型不同，用 AnyView 统一（样式切换频率极低，性能无影响）
-    private var mapLayer: AnyView {
-        let body = mapBody
-        switch app.settings.mapSkin {
-        case .muted:
-            return AnyView(
-                body.mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
-            )
-        case .standard:
-            return AnyView(
-                body.mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-            )
-        case .satellite:
-            return AnyView(
-                body.mapStyle(.imagery(elevation: .flat))
-            )
-        }
-    }
-
-    private var mapBody: some View {
-        Map(position: $camera, interactionModes: [.pan, .zoom]) {
+    private var mapLayer: some View {
+        Map(
+            position: $camera,
+            bounds: ChinaRegion.cameraBounds,
+            interactionModes: [.pan, .zoom]
+        ) {
             ForEach(app.buckets) { bucket in
                 Annotation("", coordinate: bucket.city.displayCoordinate, anchor: .bottom) {
                     CityBubble(
@@ -186,36 +169,18 @@ struct MapScreen: View {
                 .annotationTitles(.hidden)
             }
         }
-        .onMapCameraChange(frequency: .continuous) { context in
-            clampCamera(context)
-        }
+        .mapStyle(resolvedMapStyle)
     }
 
-    /// 手动把可视范围锁在中国境内（MapCameraBounds 是更晚 SDK 的 API，Xcode 16.4 没有）
-    private func clampCamera(_ context: MapCameraUpdateContext) {
-        guard !isClampingCamera else { return }
-
-        let center = context.camera.centerCoordinate
-        let clampedCenter = ChinaRegion.clamp(center: center)
-        let clampedDistance = ChinaRegion.clamp(distance: context.camera.distance)
-
-        let centerMoved = abs(center.latitude - clampedCenter.latitude) > 0.0001
-            || abs(center.longitude - clampedCenter.longitude) > 0.0001
-        let distanceChanged = abs(context.camera.distance - clampedDistance) > 1
-
-        guard centerMoved || distanceChanged else { return }
-
-        isClampingCamera = true
-        camera = .camera(
-            MapCamera(
-                centerCoordinate: clampedCenter,
-                distance: clampedDistance,
-                heading: context.camera.heading,
-                pitch: context.camera.pitch
-            )
-        )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            isClampingCamera = false
+    /// MapStyle 是具体类型，避免 AnyView 在拖动时拆掉 Map 身份导致卡顿。
+    private var resolvedMapStyle: MapStyle {
+        switch app.settings.mapSkin {
+        case .muted:
+            .standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll)
+        case .standard:
+            .standard(elevation: .flat, pointsOfInterest: .excludingAll)
+        case .satellite:
+            .imagery(elevation: .flat)
         }
     }
 

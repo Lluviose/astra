@@ -120,12 +120,22 @@ struct CityPickerSheet: View {
         app.buckets.map(\.city)
     }
 
-    private var allCitiesByTier: [(CityTier, [City])] {
+    private var featuredTiers: [(CityTier, [City])] {
         let grouped = Dictionary(grouping: app.catalog.cities, by: \.tier)
-        return CityTier.allCases.compactMap { tier in
+        return [CityTier.first, .newFirst, .second].compactMap { tier in
             guard let cities = grouped[tier], !cities.isEmpty else { return nil }
             return (tier, cities.sorted { $0.pinyin < $1.pinyin })
         }
+    }
+
+    private var otherByProvince: [(String, [City])] {
+        let others = app.catalog.cities.filter { $0.tier == .other }
+        let grouped = Dictionary(grouping: others, by: \.shortProvince)
+        return grouped.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            .compactMap { key in
+                guard let cities = grouped[key], !cities.isEmpty else { return nil }
+                return (key, cities.sorted { $0.pinyin < $1.pinyin })
+            }
     }
 
     var body: some View {
@@ -141,8 +151,13 @@ struct CityPickerSheet: View {
                             ForEach(knownCities) { city in row(city) }
                         }
                     }
-                    ForEach(allCitiesByTier, id: \.0) { tier, cities in
+                    ForEach(featuredTiers, id: \.0) { tier, cities in
                         Section(tier.label) {
+                            ForEach(cities) { city in row(city) }
+                        }
+                    }
+                    ForEach(otherByProvince, id: \.0) { province, cities in
+                        Section(province) {
                             ForEach(cities) { city in row(city) }
                         }
                     }

@@ -54,7 +54,7 @@ struct CityCatalog: Sendable {
     func cities(ids: some Sequence<String>) -> [City] { ids.compactMap { index[$0] } }
 
     /// 支持「杭州」「hangzhou」「hz」「浙江」四种输入。
-    func search(_ rawQuery: String, limit: Int = 40) -> [City] {
+    func search(_ rawQuery: String, limit: Int = 80) -> [City] {
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !query.isEmpty else { return [] }
 
