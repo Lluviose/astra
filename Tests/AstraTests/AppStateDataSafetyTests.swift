@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import Astra
 
 final class AppStateDataSafetyTests: XCTestCase {
@@ -70,6 +71,40 @@ final class AppStateDataSafetyTests: XCTestCase {
         )
 
         XCTAssertEqual(result, [orphanID])
+    }
+
+    @MainActor
+    func testProfileAndAlbumPhotosHaveNoApplicationCountLimit() throws {
+        let (defaults, suiteName) = makeDefaults()
+        let sourceData = try XCTUnwrap(
+            UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+                UIColor.systemPurple.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+            }.pngData()
+        )
+        let profileIDs = (0..<9).map { "unlimited-profile-\($0)-\(UUID().uuidString)" }
+        let albumIDs = (0..<25).map { "unlimited-album-\($0)-\(UUID().uuidString)" }
+        let allIDs = profileIDs + albumIDs
+        for id in allIDs {
+            XCTAssertEqual(MediaStore.saveOriginal(data: sourceData, id: id), id)
+        }
+
+        defer {
+            MediaStore.delete(ids: allIDs)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let companion = Companion(name: "她")
+        let store = LocalStore(defaults: defaults)
+        store.save([companion], for: .companions)
+        store.save([Encounter](), for: .encounters)
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+
+        app.addProfilePhotoIDs(profileIDs, to: companion.id)
+        app.addAlbumPhotoIDs(albumIDs, to: companion.id)
+
+        XCTAssertEqual(app.companion(id: companion.id)?.profilePhotoIDs, profileIDs)
+        XCTAssertEqual(app.companion(id: companion.id)?.albumPhotoIDs, albumIDs)
     }
 
     @MainActor

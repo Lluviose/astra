@@ -99,18 +99,19 @@ struct CompanionEditor: View {
     @State private var showAddTagDialog = false
     @State private var showUnsavedAlert = false
     @State private var hasMetDate: Bool
-    @State private var pendingAvatar: UIImage?
+    @State private var pendingAvatarID: String?
+    @State private var pendingAvatarPreview: UIImage?
     @State private var removeExistingPhoto = false
-    @State private var pendingProfilePhotos: [UIImage] = []
-    @State private var pendingAlbumPhotos: [UIImage] = []
+    @State private var pendingProfilePhotoIDs: [String] = []
+    @State private var pendingAlbumPhotoIDs: [String] = []
 
     private var isNew: Bool { !app.companions.contains { $0.id == initial.id } }
     private var hasUnsavedChanges: Bool {
         draft != initial
-            || pendingAvatar != nil
+            || pendingAvatarID != nil
             || removeExistingPhoto
-            || !pendingProfilePhotos.isEmpty
-            || !pendingAlbumPhotos.isEmpty
+            || !pendingProfilePhotoIDs.isEmpty
+            || !pendingAlbumPhotoIDs.isEmpty
     }
 
     init(companion: Companion) {
@@ -180,6 +181,7 @@ struct CompanionEditor: View {
             }
             .confirmationDialog("确定删除这条档案？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("删除对象及全部记录", role: .destructive) {
+                    discardPendingMedia()
                     app.delete(companionID: initial.id)
                     dismiss()
                 }
@@ -195,15 +197,14 @@ struct CompanionEditor: View {
         if let metDate = draft.metDate, metDate > Date() {
             draft.metDate = Date()
         }
-        if let pendingAvatar {
-            if let savedID = MediaStore.save(image: pendingAvatar, kind: .avatar) {
-                draft.photoID = savedID
-            }
+        if let pendingAvatarID {
+            draft.photoID = pendingAvatarID
         } else if removeExistingPhoto {
             draft.photoID = nil
         }
-        savePendingPhotos()
+        commitPendingPhotos()
         app.upsert(draft)
+        releasePendingReferences()
         dismiss()
     }
 
@@ -216,6 +217,7 @@ struct CompanionEditor: View {
     }
 
     private func abandon() {
+        discardPendingMedia()
         dismiss()
     }
 
@@ -230,13 +232,17 @@ struct CompanionEditor: View {
             }
 
             AvatarPickerRow(
-                hasPhoto: (draft.photoID != nil && !removeExistingPhoto) || pendingAvatar != nil
-            ) { image in
-                pendingAvatar = image
+                hasPhoto: (draft.photoID != nil && !removeExistingPhoto) || pendingAvatarID != nil
+            ) { importedID in
+                if let oldID = pendingAvatarID, oldID != importedID {
+                    MediaStore.delete(id: oldID)
+                }
+                pendingAvatarID = importedID
+                pendingAvatarPreview = MediaStore.image(id: importedID)
                 removeExistingPhoto = false
             } onRemove: {
-                pendingAvatar = nil
-                removeExistingPhoto = true
+                discardPendingAvatar()
+                removeExistingPhoto = draft.photoID != nil
             }
 
             HStack {
@@ -253,79 +259,92 @@ struct CompanionEditor: View {
     }
 
     private var profilePhotosEditorSection: some View {
-        let remaining = max(0, AppState.maxProfilePhotos - draft.profilePhotoIDs.count - pendingProfilePhotos.count)
-        return Section {
+        Section {
             Label(
-                "已存 \(draft.profilePhotoIDs.count) · 待保存 \(pendingProfilePhotos.count)",
+                "已存 \(draft.profilePhotoIDs.count) · 待保存 \(pendingProfilePhotoIDs.count)",
                 systemImage: "person.crop.rectangle.stack.fill"
             )
             .font(.subheadline)
 
-            if remaining > 0 {
-                PhotoAddBar(remaining: remaining) { images in
-                    pendingProfilePhotos.append(contentsOf: images.prefix(remaining))
-                }
+            PhotoAddBar { importedIDs in
+                pendingProfilePhotoIDs.append(contentsOf: importedIDs)
             }
 
-            if !pendingProfilePhotos.isEmpty {
+            if !pendingProfilePhotoIDs.isEmpty {
                 Button("清除本次人物资料照", role: .destructive) {
-                    pendingProfilePhotos = []
+                    MediaStore.delete(ids: pendingProfilePhotoIDs)
+                    pendingProfilePhotoIDs = []
                 }
             }
         } header: {
             Text("人物资料照")
         } footer: {
-            Text("普通人物照片放这里，和艳照私藏分开；保存档案后可进入详情浏览和删除。")
+            Text("普通人物照片放这里，和艳照私藏分开；不限制数量，并保留相册源文件画质。")
         }
     }
 
     private var privatePhotosEditorSection: some View {
-        let remaining = max(0, AppState.maxAlbumPhotos - draft.albumPhotoIDs.count - pendingAlbumPhotos.count)
-        return Section {
+        Section {
             Label(
-                "已存 \(draft.albumPhotoIDs.count) · 待保存 \(pendingAlbumPhotos.count)",
+                "已存 \(draft.albumPhotoIDs.count) · 待保存 \(pendingAlbumPhotoIDs.count)",
                 systemImage: "photo.on.rectangle.angled"
             )
             .font(.subheadline)
 
-            if remaining > 0 {
-                PhotoAddBar(remaining: min(8, remaining)) { images in
-                    pendingAlbumPhotos.append(contentsOf: images.prefix(remaining))
-                }
+            PhotoAddBar { importedIDs in
+                pendingAlbumPhotoIDs.append(contentsOf: importedIDs)
             }
 
-            if !pendingAlbumPhotos.isEmpty {
+            if !pendingAlbumPhotoIDs.isEmpty {
                 Button("清除本次艳照", role: .destructive) {
-                    pendingAlbumPhotos = []
+                    MediaStore.delete(ids: pendingAlbumPhotoIDs)
+                    pendingAlbumPhotoIDs = []
                 }
             }
         } header: {
             Text("艳照私藏")
         } footer: {
-            Text("这里只放私密照片；每次最多选择 8 张，档案总计最多 \(AppState.maxAlbumPhotos) 张。")
+            Text("这里只放私密照片；不限制单次选择或档案总数量，并保留相册源文件画质。")
         }
     }
 
-    private func savePendingPhotos() {
-        let profileRoom = max(0, AppState.maxProfilePhotos - draft.profilePhotoIDs.count)
-        for image in pendingProfilePhotos.prefix(profileRoom) {
-            if let id = MediaStore.save(image: image, kind: .photo) {
-                draft.profilePhotoIDs.append(id)
-            }
-        }
+    private func commitPendingPhotos() {
+        var profileIDs = Set(draft.profilePhotoIDs)
+        draft.profilePhotoIDs.append(contentsOf: pendingProfilePhotoIDs.filter {
+            profileIDs.insert($0).inserted
+        })
 
-        let albumRoom = max(0, AppState.maxAlbumPhotos - draft.albumPhotoIDs.count)
-        for image in pendingAlbumPhotos.prefix(albumRoom) {
-            if let id = MediaStore.save(image: image, kind: .photo) {
-                draft.albumPhotoIDs.append(id)
-            }
-        }
+        var albumIDs = Set(draft.albumPhotoIDs)
+        draft.albumPhotoIDs.append(contentsOf: pendingAlbumPhotoIDs.filter {
+            albumIDs.insert($0).inserted
+        })
+    }
+
+    private func discardPendingAvatar() {
+        if let pendingAvatarID { MediaStore.delete(id: pendingAvatarID) }
+        pendingAvatarID = nil
+        pendingAvatarPreview = nil
+    }
+
+    private func discardPendingMedia() {
+        discardPendingAvatar()
+        MediaStore.delete(ids: pendingProfilePhotoIDs + pendingAlbumPhotoIDs)
+        pendingProfilePhotoIDs = []
+        pendingAlbumPhotoIDs = []
+    }
+
+    /// 清空“待提交”标记，但保留刚刚已经写入并被档案引用的源文件。
+    private func releasePendingReferences() {
+        pendingAvatarID = nil
+        pendingAvatarPreview = nil
+        pendingProfilePhotoIDs = []
+        pendingAlbumPhotoIDs = []
     }
 
     @ViewBuilder
     private var avatarPreview: some View {
-        if let pendingAvatar {
-            Image(uiImage: pendingAvatar)
+        if let pendingAvatarPreview {
+            Image(uiImage: pendingAvatarPreview)
                 .resizable()
                 .scaledToFill()
                 .frame(width: 56, height: 56)

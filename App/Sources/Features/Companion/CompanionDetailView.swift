@@ -249,7 +249,6 @@ struct CompanionDetailView: View {
 
     private func albumSection(_ companion: Companion) -> some View {
         let ids = app.albumIDs(for: companion.id)
-        let remaining = max(0, AppState.maxAlbumPhotos - companion.albumPhotoIDs.count)
         return Section {
             if app.namesRevealed {
                 if !ids.isEmpty {
@@ -268,21 +267,18 @@ struct CompanionDetailView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            if remaining > 0 {
-                PhotoAddBar(remaining: remaining) { images in
-                    app.addAlbumPhotos(images, to: companion.id)
-                }
+            PhotoAddBar { importedIDs in
+                app.addAlbumPhotoIDs(importedIDs, to: companion.id)
             }
         } header: {
             Text("艳照私藏")
         } footer: {
-            Text("这里只放艳照和每次约会留下的照片，与头像、人物资料照分开。可随设备 iCloud Backup 恢复。")
+            Text("这里只放艳照和每次约会留下的照片，与头像、人物资料照分开；不限制数量，原图保存，可随设备 iCloud Backup 恢复。")
         }
     }
 
     private func profilePhotosSection(_ companion: Companion) -> some View {
         let ids = app.profilePhotoIDs(for: companion.id)
-        let remaining = max(0, AppState.maxProfilePhotos - companion.profilePhotoIDs.count)
         return Section {
             if app.namesRevealed {
                 if !ids.isEmpty {
@@ -302,15 +298,13 @@ struct CompanionDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if remaining > 0 {
-                PhotoAddBar(remaining: remaining) { images in
-                    app.addProfilePhotos(images, to: companion.id)
-                }
+            PhotoAddBar { importedIDs in
+                app.addProfilePhotoIDs(importedIDs, to: companion.id)
             }
         } header: {
             Text("人物照片")
         } footer: {
-            Text("头像封面和普通资料照放在这里，最多再加 \(AppState.maxProfilePhotos) 张；不会混进艳照私藏。")
+            Text("头像封面和普通资料照放在这里，不限制数量并保留原图；不会混进艳照私藏。")
         }
     }
 

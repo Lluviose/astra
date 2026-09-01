@@ -362,7 +362,7 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Palette.accent)
                 }
-                Text("头像、人物资料照和艳照只复制进星图沙盒，不进系统相册；它们允许随设备 iCloud Backup 恢复。从相册挑图用系统选择器，不必打开完整相册权限。")
+                Text("头像、人物资料照和艳照只复制进星图沙盒，不进系统相册；相册源文件不降采样、不重编码，允许随设备 iCloud Backup 恢复。从相册挑图用系统选择器，不必打开完整相册权限。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

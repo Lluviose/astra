@@ -1,4 +1,3 @@
-import ImageIO
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -6,8 +5,9 @@ import UIKit
 /// 从相册挑图（系统选择器，不必开完整相册权限）。
 struct LibraryPhotoPicker: View {
     var title: String = "从相册选"
-    var selectionLimit: Int = 1
-    var onPicked: ([UIImage]) -> Void
+    /// `nil` 表示不设置应用层选择上限。
+    var selectionLimit: Int? = 1
+    var onImported: ([String]) -> Void
 
     @State private var items: [PhotosPickerItem] = []
     @State private var loadGeneration = UUID()
@@ -15,8 +15,9 @@ struct LibraryPhotoPicker: View {
     var body: some View {
         PhotosPicker(
             selection: $items,
-            maxSelectionCount: max(1, selectionLimit),
+            maxSelectionCount: selectionLimit,
             matching: .images,
+            preferredItemEncoding: .current,
             photoLibrary: .shared()
         ) {
             Label(title, systemImage: "photo.on.rectangle")
@@ -32,37 +33,36 @@ struct LibraryPhotoPicker: View {
     @MainActor
     private func load(_ newItems: [PhotosPickerItem], generation: UUID) async {
         guard !newItems.isEmpty else { return }
-        var images: [UIImage] = []
+        var importedIDs: [String] = []
         for item in newItems {
-            guard loadGeneration == generation else { return }
-            if let data = try? await item.loadTransferable(type: Data.self),
-               let image = downsample(data, maxPixelSize: 1600) {
-                images.append(image)
+            guard loadGeneration == generation else {
+                MediaStore.delete(ids: importedIDs)
+                return
+            }
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                let savedID = await Task.detached(priority: .userInitiated) {
+                    MediaStore.saveOriginal(data: data)
+                }.value
+                guard loadGeneration == generation else {
+                    if let savedID { MediaStore.delete(id: savedID) }
+                    MediaStore.delete(ids: importedIDs)
+                    return
+                }
+                if let savedID { importedIDs.append(savedID) }
             }
         }
-        guard loadGeneration == generation else { return }
-        items = []
-        if !images.isEmpty { onPicked(images) }
-    }
-
-    private func downsample(_ data: Data, maxPixelSize: CGFloat) -> UIImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-        ]
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
-            return nil
+        guard loadGeneration == generation else {
+            MediaStore.delete(ids: importedIDs)
+            return
         }
-        return UIImage(cgImage: image)
+        items = []
+        if !importedIDs.isEmpty { onImported(importedIDs) }
     }
 }
 
 /// 现场拍照。
 struct CameraPicker: UIViewControllerRepresentable {
-    var onImage: (UIImage) -> Void
+    var onData: (Data) -> Void
     var onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
@@ -75,14 +75,14 @@ struct CameraPicker: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 
-    func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage, onCancel: onCancel) }
+    func makeCoordinator() -> Coordinator { Coordinator(onData: onData, onCancel: onCancel) }
 
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onImage: (UIImage) -> Void
+        let onData: (Data) -> Void
         let onCancel: () -> Void
 
-        init(onImage: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
-            self.onImage = onImage
+        init(onData: @escaping (Data) -> Void, onCancel: @escaping () -> Void) {
+            self.onData = onData
             self.onCancel = onCancel
         }
 
@@ -94,11 +94,18 @@ struct CameraPicker: UIViewControllerRepresentable {
             _ picker: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
-            if let image = info[.originalImage] as? UIImage {
-                onImage(image)
-            } else {
-                onCancel()
+            if let imageURL = info[.imageURL] as? URL,
+               let data = try? Data(contentsOf: imageURL),
+               UIImage(data: data) != nil {
+                onData(data)
+                return
             }
+            if let image = info[.originalImage] as? UIImage,
+               let data = image.pngData() {
+                onData(data)
+                return
+            }
+            onCancel()
         }
     }
 }
@@ -158,7 +165,7 @@ struct PhotoStrip: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            LazyHStack(spacing: 8) {
                 ForEach(Array(ids.enumerated()), id: \.offset) { index, id in
                     PhotoThumb(
                         id: id,
@@ -248,8 +255,9 @@ struct PhotoViewer: View {
 }
 
 struct PhotoAddBar: View {
-    var remaining: Int
-    var onPicked: ([UIImage]) -> Void
+    /// `nil` 表示资料照或艳照不设上限；记录照片仍传入剩余数量。
+    var selectionLimit: Int? = nil
+    var onImported: ([String]) -> Void
 
     @State private var showCamera = false
 
@@ -257,8 +265,8 @@ struct PhotoAddBar: View {
         HStack(spacing: 10) {
             LibraryPhotoPicker(
                 title: "相册",
-                selectionLimit: min(max(1, remaining), 8),
-                onPicked: onPicked
+                selectionLimit: selectionLimit,
+                onImported: onImported
             )
                 .buttonStyle(.bordered)
 
@@ -273,9 +281,11 @@ struct PhotoAddBar: View {
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker(
-                onImage: { image in
+                onData: { data in
                     showCamera = false
-                    onPicked([image])
+                    if let id = MediaStore.saveOriginal(data: data) {
+                        onImported([id])
+                    }
                 },
                 onCancel: { showCamera = false }
             )
@@ -287,14 +297,17 @@ struct PhotoAddBar: View {
 /// 头像专用：相册 / 拍照 / 去掉。
 struct AvatarPickerRow: View {
     var hasPhoto: Bool
-    var onPicked: (UIImage) -> Void
+    var onImported: (String) -> Void
     var onRemove: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                PhotoAddBar(remaining: 1) { images in
-                    if let image = images.first { onPicked(image) }
+                PhotoAddBar(selectionLimit: 1) { ids in
+                    if let id = ids.first {
+                        onImported(id)
+                    }
+                    MediaStore.delete(ids: Array(ids.dropFirst()))
                 }
                 if hasPhoto {
                     Button("去掉照片", role: .destructive, action: onRemove)

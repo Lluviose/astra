@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// 记录编辑器：基础信息保持快速，亲密细节按真实行为与本人感受展开。
 struct EncounterEditor: View {
@@ -685,7 +684,10 @@ struct EncounterEditor: View {
             }
 
             if draft.photoIDs.count < maxPhotos {
-                PhotoAddBar(remaining: maxPhotos - draft.photoIDs.count, onPicked: addPhotos)
+                PhotoAddBar(
+                    selectionLimit: maxPhotos - draft.photoIDs.count,
+                    onImported: addPhotos
+                )
             }
         } header: {
             Text("这次的照片")
@@ -694,14 +696,12 @@ struct EncounterEditor: View {
         }
     }
 
-    private func addPhotos(_ images: [UIImage]) {
+    private func addPhotos(_ importedIDs: [String]) {
         let room = maxPhotos - draft.photoIDs.count
-        for image in images.prefix(max(0, room)) {
-            if let id = MediaStore.save(image: image, kind: .photo) {
-                draft.photoIDs.append(id)
-                sessionPhotoIDs.insert(id)
-            }
-        }
+        let accepted = Array(importedIDs.prefix(max(0, room)))
+        draft.photoIDs.append(contentsOf: accepted)
+        sessionPhotoIDs.formUnion(accepted)
+        MediaStore.delete(ids: Array(importedIDs.dropFirst(accepted.count)))
         Haptics.shared.play(.toggleOn)
     }
 

@@ -1,7 +1,6 @@
 import Foundation
 import Observation
 import SwiftUI
-import UIKit
 
 /// 地图上的一座城市 + 落在这座城市的人
 struct CityBucket: Identifiable, Hashable, Sendable {
@@ -246,38 +245,40 @@ final class AppState {
         }
     }
 
-    static let maxAlbumPhotos = 24
-    static let maxProfilePhotos = 8
-
-    func addProfilePhotos(_ images: [UIImage], to companionID: UUID) {
-        guard let index = companions.firstIndex(where: { $0.id == companionID }) else { return }
-        let room = Self.maxProfilePhotos - companions[index].profilePhotoIDs.count
-        var added = 0
-        for image in images.prefix(max(0, room)) {
-            if let id = MediaStore.save(image: image, kind: .photo) {
-                companions[index].profilePhotoIDs.append(id)
-                added += 1
-            }
+    /// 产品约束：人物资料照和艳照不设置应用层数量上限。
+    func addProfilePhotoIDs(_ ids: [String], to companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }) else {
+            deleteUnreferencedMedia(Set(ids))
+            return
         }
-        guard added > 0 else { return }
+        var seen = Set(companions[index].profilePhotoIDs)
+        let added = ids.filter { MediaStore.isValidID($0) && seen.insert($0).inserted }
+        guard !added.isEmpty else {
+            deleteUnreferencedMedia(Set(ids))
+            return
+        }
+        companions[index].profilePhotoIDs.append(contentsOf: added)
         companions[index].updatedAt = Date()
         persistCompanions()
+        deleteUnreferencedMedia(Set(ids).subtracting(added))
         Haptics.shared.play(.toggleOn)
     }
 
-    func addAlbumPhotos(_ images: [UIImage], to companionID: UUID) {
-        guard let index = companions.firstIndex(where: { $0.id == companionID }) else { return }
-        let room = Self.maxAlbumPhotos - companions[index].albumPhotoIDs.count
-        var added = 0
-        for image in images.prefix(max(0, room)) {
-            if let id = MediaStore.save(image: image, kind: .photo) {
-                companions[index].albumPhotoIDs.append(id)
-                added += 1
-            }
+    func addAlbumPhotoIDs(_ ids: [String], to companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }) else {
+            deleteUnreferencedMedia(Set(ids))
+            return
         }
-        guard added > 0 else { return }
+        var seen = Set(companions[index].albumPhotoIDs)
+        let added = ids.filter { MediaStore.isValidID($0) && seen.insert($0).inserted }
+        guard !added.isEmpty else {
+            deleteUnreferencedMedia(Set(ids))
+            return
+        }
+        companions[index].albumPhotoIDs.append(contentsOf: added)
         companions[index].updatedAt = Date()
         persistCompanions()
+        deleteUnreferencedMedia(Set(ids).subtracting(added))
         Haptics.shared.play(.toggleOn)
     }
 

@@ -8,10 +8,6 @@ enum MediaStore {
     private static let allowedIDCharacters = CharacterSet(
         charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
     )
-    private static let jpegQuality: CGFloat = 0.72
-    private static let photoMaxSide: CGFloat = 1600
-    private static let avatarMaxSide: CGFloat = 720
-
     static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
@@ -50,18 +46,19 @@ enum MediaStore {
         return id.unicodeScalars.allSatisfy { allowedIDCharacters.contains($0) }
     }
 
+    /// 产品约束：用户挑选的照片属于原始档案，不得降采样或重新编码。
+    /// 保存相册选择器返回的源文件字节，以保留原始分辨率、编码质量与元数据。
     @discardableResult
-    static func save(image: UIImage, kind: Kind = .photo, id: String = UUID().uuidString) -> String? {
-        guard let target = fileURL(for: id) else { return nil }
-        let maxSide = kind == .avatar ? avatarMaxSide : photoMaxSide
-        guard let data = jpegData(from: image, maxSide: maxSide) else { return nil }
-        do {
-            try data.write(to: target, options: .atomic)
-            markBackupEligible(target)
-            return id
-        } catch {
-            return nil
-        }
+    static func saveOriginal(data: Data, id: String = UUID().uuidString) -> String? {
+        guard UIImage(data: data) != nil else { return nil }
+        return save(data: data, id: id) ? id : nil
+    }
+
+    /// 相机未提供源文件 URL 时的无损兜底。保留完整像素尺寸，不做降采样。
+    @discardableResult
+    static func saveLossless(image: UIImage, id: String = UUID().uuidString) -> String? {
+        guard let data = image.pngData() else { return nil }
+        return save(data: data, id: id) ? id : nil
     }
 
     @discardableResult
@@ -134,13 +131,6 @@ enum MediaStore {
         delete(ids: Array(orphans))
     }
 
-    enum Kind { case avatar, photo }
-
-    static func jpegData(from image: UIImage, maxSide: CGFloat) -> Data? {
-        let scaled = scale(image, maxSide: maxSide)
-        return scaled.jpegData(compressionQuality: jpegQuality)
-    }
-
     private static func fileURL(for id: String) -> URL? {
         guard isValidID(id) else { return nil }
         return directory.appendingPathComponent(id).appendingPathExtension("jpg")
@@ -149,24 +139,6 @@ enum MediaStore {
     private static func fileExists(id: String) -> Bool {
         guard let target = fileURL(for: id) else { return false }
         return FileManager.default.fileExists(atPath: target.path)
-    }
-
-    private static func scale(_ image: UIImage, maxSide: CGFloat) -> UIImage {
-        let pixelSize = CGSize(
-            width: image.size.width * image.scale,
-            height: image.size.height * image.scale
-        )
-        let longest = max(pixelSize.width, pixelSize.height)
-        guard longest > maxSide, longest > 0 else { return image }
-        let ratio = maxSide / longest
-        let newSize = CGSize(width: pixelSize.width * ratio, height: pixelSize.height * ratio)
-        let format = UIGraphicsImageRendererFormat()
-        // 目标尺寸已经是像素；固定 scale=1，避免 Retina 屏再乘 2x/3x 写出超大 JPEG。
-        format.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
     }
 
     private static func markBackupEligible(_ url: URL) {

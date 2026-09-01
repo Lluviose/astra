@@ -35,7 +35,20 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertNotEqual(values.isExcludedFromBackup, true)
     }
 
-    func testMediaEncodingUsesPixelLimitOnRetinaImages() throws {
+    func testOriginalMediaImportPreservesSourceBytesExactly() throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 20)).image { context in
+            UIColor.systemPink.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 40, height: 20))
+        }
+        let sourceData = try XCTUnwrap(image.pngData())
+        let mediaID = "original-\(UUID().uuidString)"
+        defer { MediaStore.delete(id: mediaID) }
+
+        XCTAssertEqual(MediaStore.saveOriginal(data: sourceData, id: mediaID), mediaID)
+        XCTAssertEqual(MediaStore.data(id: mediaID), sourceData)
+    }
+
+    func testLosslessCameraFallbackKeepsFullRetinaPixelDimensions() throws {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 2
         let image = UIGraphicsImageRenderer(
@@ -46,10 +59,17 @@ final class BackupServiceTests: XCTestCase {
             context.fill(CGRect(x: 0, y: 0, width: 1_000, height: 500))
         }
 
-        let data = try XCTUnwrap(MediaStore.jpegData(from: image, maxSide: 400))
+        let mediaID = "full-resolution-\(UUID().uuidString)"
+        defer { MediaStore.delete(id: mediaID) }
+        XCTAssertEqual(MediaStore.saveLossless(image: image, id: mediaID), mediaID)
+        let data = try XCTUnwrap(MediaStore.data(id: mediaID))
         let decoded = try XCTUnwrap(UIImage(data: data)?.cgImage)
+        let source = try XCTUnwrap(image.cgImage)
 
-        XCTAssertLessThanOrEqual(max(decoded.width, decoded.height), 400)
+        XCTAssertEqual(decoded.width, source.width)
+        XCTAssertEqual(decoded.height, source.height)
+        XCTAssertEqual(decoded.width, 2_000)
+        XCTAssertEqual(decoded.height, 1_000)
     }
 
     func testEncodeDecodeRoundTrip() throws {
