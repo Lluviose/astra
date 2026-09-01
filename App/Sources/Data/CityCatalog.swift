@@ -56,7 +56,7 @@ struct CityCatalog: Sendable {
     /// 支持「杭州」「hangzhou」「hz」「浙江」四种输入。
     func search(_ rawQuery: String, limit: Int = 80) -> [City] {
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return [] }
+        guard !query.isEmpty, limit > 0 else { return [] }
 
         let scored: [(City, Int)] = cities.compactMap { city in
             guard let rank = Self.rank(city: city, query: query) else { return nil }

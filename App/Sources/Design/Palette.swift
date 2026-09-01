@@ -68,7 +68,10 @@ enum Palette {
     ]
 
     static func avatarGradient(_ index: Int) -> LinearGradient {
-        let colors = avatarGradients[abs(index) % avatarGradients.count]
+        // `abs(Int.min)` 会溢出并触发运行时崩溃；导入数据即使异常也应稳定回退到调色板。
+        let remainder = index % avatarGradients.count
+        let safeIndex = remainder >= 0 ? remainder : remainder + avatarGradients.count
+        let colors = avatarGradients[safeIndex]
         return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 

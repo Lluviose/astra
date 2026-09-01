@@ -1,3 +1,4 @@
+import ImageIO
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -9,6 +10,7 @@ struct LibraryPhotoPicker: View {
     var onPicked: ([UIImage]) -> Void
 
     @State private var items: [PhotosPickerItem] = []
+    @State private var loadGeneration = UUID()
 
     var body: some View {
         PhotosPicker(
@@ -20,22 +22,41 @@ struct LibraryPhotoPicker: View {
             Label(title, systemImage: "photo.on.rectangle")
         }
         .onChange(of: items) { _, newItems in
-            Task { await load(newItems) }
+            let generation = UUID()
+            loadGeneration = generation
+            Task { await load(newItems, generation: generation) }
         }
+        .onDisappear { loadGeneration = UUID() }
     }
 
     @MainActor
-    private func load(_ newItems: [PhotosPickerItem]) async {
+    private func load(_ newItems: [PhotosPickerItem], generation: UUID) async {
         guard !newItems.isEmpty else { return }
         var images: [UIImage] = []
         for item in newItems {
+            guard loadGeneration == generation else { return }
             if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
+               let image = downsample(data, maxPixelSize: 1600) {
                 images.append(image)
             }
         }
+        guard loadGeneration == generation else { return }
         items = []
         if !images.isEmpty { onPicked(images) }
+    }
+
+    private func downsample(_ data: Data, maxPixelSize: CGFloat) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: image)
     }
 }
 
@@ -138,7 +159,7 @@ struct PhotoStrip: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Array(ids.enumerated()), id: \.element) { index, id in
+                ForEach(Array(ids.enumerated()), id: \.offset) { index, id in
                     PhotoThumb(
                         id: id,
                         onTap: { onOpen?(index) },
@@ -156,10 +177,12 @@ struct PhotoViewer: View {
     @State private var index: Int
     @Environment(\.dismiss) private var dismiss
     @State private var image: UIImage?
+    @State private var didFinishLoading = false
 
     init(ids: [String], index: Int) {
         self.ids = ids
-        _index = State(initialValue: index)
+        let safeIndex = ids.isEmpty ? 0 : min(max(index, 0), ids.count - 1)
+        _index = State(initialValue: safeIndex)
     }
 
     var body: some View {
@@ -171,8 +194,16 @@ struct PhotoViewer: View {
                         .resizable()
                         .scaledToFit()
                         .ignoresSafeArea()
-                } else {
+                } else if !didFinishLoading {
                     ProgressView().tint(.white)
+                } else {
+                    VStack(spacing: 10) {
+                        Image(systemName: "photo.badge.exclamationmark")
+                            .font(.system(size: 34, weight: .light))
+                        Text("照片无法读取")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white.opacity(0.78))
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -182,7 +213,7 @@ struct PhotoViewer: View {
                         .foregroundStyle(.white)
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("\(index + 1) / \(ids.count)")
+                    Text(ids.isEmpty ? "0 / 0" : "\(index + 1) / \(ids.count)")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                 }
@@ -205,8 +236,14 @@ struct PhotoViewer: View {
     }
 
     private func reload() {
-        guard ids.indices.contains(index) else { return }
+        image = nil
+        didFinishLoading = false
+        guard ids.indices.contains(index) else {
+            didFinishLoading = true
+            return
+        }
         image = MediaStore.image(id: ids[index])
+        didFinishLoading = true
     }
 }
 
@@ -218,7 +255,11 @@ struct PhotoAddBar: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            LibraryPhotoPicker(title: "相册", selectionLimit: max(1, remaining), onPicked: onPicked)
+            LibraryPhotoPicker(
+                title: "相册",
+                selectionLimit: min(max(1, remaining), 8),
+                onPicked: onPicked
+            )
                 .buttonStyle(.bordered)
 
             if UIImagePickerController.isSourceTypeAvailable(.camera) {

@@ -165,6 +165,22 @@ final class AchievementTests: XCTestCase {
         XCTAssertFalse(unlocked(items, "first_girl"))
     }
 
+    func testDuplicateCompanionIDsDoNotCrashAchievementEvaluation() {
+        let id = UUID()
+        let older = Companion(id: id, name: "旧", updatedAt: Date(timeIntervalSince1970: 1))
+        let newer = Companion(id: id, name: "新", updatedAt: Date(timeIntervalSince1970: 2))
+        let encounter = Encounter(companionID: id, kind: .intimacy, cityID: "110000")
+
+        let items = AchievementCatalog.evaluate(
+            companions: [older, newer],
+            encounters: [encounter],
+            cityCount: 1
+        )
+
+        XCTAssertEqual(items.count, 50)
+        XCTAssertTrue(unlocked(items, "first_hookup"))
+    }
+
     func testChaptersStayInBookOrder() {
         let items = AchievementCatalog.evaluate(companions: [], encounters: [], cityCount: 0)
         XCTAssertEqual(items.first?.category, .hunt)

@@ -5,6 +5,9 @@ import UIKit
 enum MediaStore {
 
     private static let folderName = "AstraMedia"
+    private static let allowedIDCharacters = CharacterSet(
+        charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+    )
     private static let jpegQuality: CGFloat = 0.72
     private static let photoMaxSide: CGFloat = 1600
     private static let avatarMaxSide: CGFloat = 720
@@ -40,16 +43,19 @@ enum MediaStore {
         }
     }
 
-    static func url(for id: String) -> URL {
-        directory.appendingPathComponent("\(id).jpg")
+    /// 媒体 ID 既来自本机 UUID，也可能来自用户导入的备份；必须先限制为纯文件名，
+    /// 避免 `../`、路径分隔符或异常长 key 越出 AstraMedia 目录。
+    static func isValidID(_ id: String) -> Bool {
+        guard (1...128).contains(id.utf8.count) else { return false }
+        return id.unicodeScalars.allSatisfy { allowedIDCharacters.contains($0) }
     }
 
     @discardableResult
     static func save(image: UIImage, kind: Kind = .photo, id: String = UUID().uuidString) -> String? {
+        guard let target = fileURL(for: id) else { return nil }
         let maxSide = kind == .avatar ? avatarMaxSide : photoMaxSide
         guard let data = jpegData(from: image, maxSide: maxSide) else { return nil }
         do {
-            let target = url(for: id)
             try data.write(to: target, options: .atomic)
             markBackupEligible(target)
             return id
@@ -60,8 +66,8 @@ enum MediaStore {
 
     @discardableResult
     static func save(data: Data, id: String) -> Bool {
+        guard let target = fileURL(for: id) else { return false }
         do {
-            let target = url(for: id)
             try data.write(to: target, options: .atomic)
             markBackupEligible(target)
             return true
@@ -71,7 +77,8 @@ enum MediaStore {
     }
 
     static func data(id: String) -> Data? {
-        try? Data(contentsOf: url(for: id))
+        guard let target = fileURL(for: id) else { return nil }
+        return try? Data(contentsOf: target)
     }
 
     static func image(id: String) -> UIImage? {
@@ -80,7 +87,8 @@ enum MediaStore {
     }
 
     static func delete(id: String) {
-        try? FileManager.default.removeItem(at: url(for: id))
+        guard let target = fileURL(for: id) else { return }
+        try? FileManager.default.removeItem(at: target)
     }
 
     static func delete(ids: [String]) {
@@ -96,7 +104,8 @@ enum MediaStore {
         let files = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return Set(files.compactMap { name in
             guard name.hasSuffix(".jpg") else { return nil }
-            return String(name.dropLast(4))
+            let id = String(name.dropLast(4))
+            return isValidID(id) ? id : nil
         })
     }
 
@@ -108,10 +117,16 @@ enum MediaStore {
         return payload
     }
 
-    static func restore(_ payload: [String: Data]) {
+    /// 返回没能写入的媒体 ID。合并导入默认不覆盖已经存在的本机文件，避免旧备份
+    /// 用碰巧相同的 ID 改写较新的照片。
+    @discardableResult
+    static func restore(_ payload: [String: Data], overwriteExisting: Bool = true) -> Set<String> {
+        var failed = Set<String>()
         for (id, data) in payload {
-            _ = save(data: data, id: id)
+            if !overwriteExisting, fileExists(id: id) { continue }
+            if !save(data: data, id: id) { failed.insert(id) }
         }
+        return failed
     }
 
     static func gc(referenced: Set<String>) {
@@ -126,13 +141,29 @@ enum MediaStore {
         return scaled.jpegData(compressionQuality: jpegQuality)
     }
 
+    private static func fileURL(for id: String) -> URL? {
+        guard isValidID(id) else { return nil }
+        return directory.appendingPathComponent(id).appendingPathExtension("jpg")
+    }
+
+    private static func fileExists(id: String) -> Bool {
+        guard let target = fileURL(for: id) else { return false }
+        return FileManager.default.fileExists(atPath: target.path)
+    }
+
     private static func scale(_ image: UIImage, maxSide: CGFloat) -> UIImage {
-        let size = image.size
-        let longest = max(size.width, size.height)
+        let pixelSize = CGSize(
+            width: image.size.width * image.scale,
+            height: image.size.height * image.scale
+        )
+        let longest = max(pixelSize.width, pixelSize.height)
         guard longest > maxSide, longest > 0 else { return image }
         let ratio = maxSide / longest
-        let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let newSize = CGSize(width: pixelSize.width * ratio, height: pixelSize.height * ratio)
+        let format = UIGraphicsImageRendererFormat()
+        // 目标尺寸已经是像素；固定 scale=1，避免 Retina 屏再乘 2x/3x 写出超大 JPEG。
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }

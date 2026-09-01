@@ -54,6 +54,11 @@ final class CityCatalogTests: XCTestCase {
         XCTAssertNil(catalog.city(id: "000000"))
     }
 
+    func testSearchWithNonPositiveLimitReturnsEmptyInsteadOfTrapping() {
+        XCTAssertTrue(catalog.search("杭州", limit: 0).isEmpty)
+        XCTAssertTrue(catalog.search("杭州", limit: -1).isEmpty)
+    }
+
     func testCoordinatesStayInsideChina() {
         for city in catalog.cities {
             XCTAssertTrue(

@@ -30,6 +30,11 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertEqual(companion.scorecard.desire, 8)
     }
 
+    func testExtremeImportedPaletteIndexDoesNotOverflow() {
+        _ = Palette.avatarGradient(Int.min)
+        _ = Palette.avatarGradient(Int.max)
+    }
+
     func testExplicitBustSizeCombinesBandAndCup() throws {
         let companion = Companion(name: "她", bustBandCM: 75, bustSize: .d)
         XCTAssertEqual(companion.bustSizeText, "75D")
@@ -115,6 +120,28 @@ final class IntimacyModelTests: XCTestCase {
 
         let complete = Encounter(companionID: UUID(), physicalRating: 3, emotionalRating: 5)
         XCTAssertEqual(complete.experienceRating, 4)
+    }
+
+    func testExperienceRatingsAreClampedFromInitializersAndBackups() throws {
+        let initialized = Encounter(
+            companionID: UUID(),
+            physicalRating: 99,
+            emotionalRating: -4
+        )
+        XCTAssertEqual(initialized.physicalRating, 5)
+        XCTAssertEqual(initialized.emotionalRating, 0)
+
+        let companionID = UUID()
+        let json = """
+        {
+          "companionID": "\(companionID.uuidString)",
+          "physicalRating": 99,
+          "emotionalRating": -4
+        }
+        """
+        let decoded = try JSONDecoder().decode(Encounter.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.physicalRating, 5)
+        XCTAssertEqual(decoded.emotionalRating, 0)
     }
 
     func testFollowUpIsPendingOnlyWhenExplicitlySelectedAndIncomplete() {

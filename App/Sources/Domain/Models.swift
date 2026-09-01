@@ -1137,8 +1137,8 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.cityID = cityID
         self.place = place
         self.cost = cost
-        self.physicalRating = physicalRating
-        self.emotionalRating = emotionalRating
+        self.physicalRating = min(max(physicalRating, 0), 5)
+        self.emotionalRating = min(max(emotionalRating, 0), 5)
         self.chatProgress = chatProgress
         self.explicitContentComfort = explicitContentComfort
         self.acceptedExplicitMedia = acceptedExplicitMedia
@@ -1170,8 +1170,8 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         cityID = try c.decodeIfPresent(String.self, forKey: .cityID)
         place = try c.decodeIfPresent(String.self, forKey: .place) ?? ""
         cost = try c.decodeIfPresent(Double.self, forKey: .cost)
-        physicalRating = try c.decodeIfPresent(Int.self, forKey: .physicalRating) ?? 0
-        emotionalRating = try c.decodeIfPresent(Int.self, forKey: .emotionalRating) ?? 0
+        physicalRating = min(max(try c.decodeIfPresent(Int.self, forKey: .physicalRating) ?? 0, 0), 5)
+        emotionalRating = min(max(try c.decodeIfPresent(Int.self, forKey: .emotionalRating) ?? 0, 0), 5)
         chatProgress = try c.decodeIfPresent(ChatProgress.self, forKey: .chatProgress) ?? .notRecorded
         explicitContentComfort = try c.decodeIfPresent(ExplicitContentComfort.self, forKey: .explicitContentComfort) ?? .notRecorded
         acceptedExplicitMedia = try c.decodeIfPresent(Set<ExplicitMedium>.self, forKey: .acceptedExplicitMedia) ?? []

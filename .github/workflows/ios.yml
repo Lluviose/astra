@@ -26,6 +26,7 @@ env:
   SCHEME: Astra
   DERIVED_DATA: ${{ github.workspace }}/DerivedData
   ARCHIVE_PATH: ${{ github.workspace }}/build/Astra.xcarchive
+  SIGNED_ARCHIVE_PATH: ${{ github.workspace }}/build/Astra-signed.xcarchive
 
 jobs:
   build:
@@ -173,7 +174,7 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath "$ARCHIVE_PATH" \
+            -archivePath "$SIGNED_ARCHIVE_PATH" \
             -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="${{ secrets.DEVELOPMENT_TEAM }}" \
@@ -185,12 +186,13 @@ jobs:
       - name: 打包 IPA（签名）
         if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
         run: |
-          APP="$ARCHIVE_PATH/Products/Applications/Astra.app"
-          mkdir -p build/Payload
-          cp -R "$APP" build/Payload/
-          cd build
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload Astra-signed.ipa
-          ls -lh Astra-signed.ipa
+          APP="$SIGNED_ARCHIVE_PATH/Products/Applications/Astra.app"
+          test -d "$APP" || { echo "找不到已签名 Astra.app"; exit 1; }
+          mkdir -p build/signed/Payload
+          cp -R "$APP" build/signed/Payload/
+          cd build/signed
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload ../Astra-signed.ipa
+          ls -lh ../Astra-signed.ipa
 
       - uses: actions/upload-artifact@v4
         if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'

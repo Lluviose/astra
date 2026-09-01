@@ -11,6 +11,8 @@ final class AppLock {
     private(set) var isLocked = false
     private(set) var isAuthenticating = false
     private(set) var lastErrorMessage: String?
+    /// 首帧先保持隐私遮罩，直到 App 设置已经被读取并应用。
+    private(set) var isConfigured = false
 
     /// 切后台时是否要盖住内容
     var isObscured = false
@@ -51,6 +53,7 @@ final class AppLock {
     /// 设置变化 / 冷启动时调用
     func configure(enabled: Bool, lockNow: Bool = false) {
         isEnabled = enabled
+        isConfigured = true
         if !enabled {
             isLocked = false
             lastErrorMessage = nil
@@ -219,5 +222,103 @@ struct PrivacyCurtain: View {
             .foregroundStyle(.secondary)
         }
         .transition(.opacity)
+    }
+}
+
+/// 单独的高层级窗口，确保隐私遮罩 / 解锁页能盖住 SwiftUI 的 sheet、照片查看器和系统式弹层。
+/// 仅把 UI 放到本 App 的 UIWindowScene 上，不创建新的数据副本。
+@MainActor
+final class PrivacyWindowController {
+
+    static let shared = PrivacyWindowController()
+
+    private enum Mode: Equatable {
+        case privacy
+        case lock
+    }
+
+    private var mode: Mode?
+    private var windows: [ObjectIdentifier: UIWindow] = [:]
+    private var previousKeyWindows: [ObjectIdentifier: UIWindow] = [:]
+
+    var isShowingLock: Bool { mode == .lock }
+
+    func showPrivacy() {
+        show(mode: .privacy, lock: nil)
+    }
+
+    func showLock(using lock: AppLock) {
+        show(mode: .lock, lock: lock)
+    }
+
+    func hide() {
+        for (id, window) in windows {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindows[id]?.makeKey()
+        }
+        windows.removeAll()
+        previousKeyWindows.removeAll()
+        mode = nil
+    }
+
+    private func show(mode newMode: Mode, lock: AppLock?) {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let liveIDs = Set(scenes.map { ObjectIdentifier($0) })
+
+        let staleIDs = windows.keys.filter { !liveIDs.contains($0) }
+        for id in staleIDs {
+            windows.removeValue(forKey: id)?.isHidden = true
+            previousKeyWindows[id] = nil
+        }
+
+        let modeChanged = mode != newMode
+        mode = newMode
+
+        for scene in scenes {
+            let id = ObjectIdentifier(scene)
+            let window: UIWindow
+            if let existing = windows[id] {
+                window = existing
+            } else {
+                window = UIWindow(windowScene: scene)
+                window.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.alert.rawValue + 1)
+                window.backgroundColor = .clear
+                windows[id] = window
+            }
+
+            if modeChanged || window.rootViewController == nil {
+                let rootView: AnyView
+                switch newMode {
+                case .privacy:
+                    rootView = AnyView(
+                        ZStack {
+                            Color(uiColor: .systemBackground).ignoresSafeArea()
+                            PrivacyCurtain()
+                        }
+                    )
+                case .lock:
+                    guard let lock else { continue }
+                    rootView = AnyView(LockScreen().environment(lock))
+                }
+
+                let host = UIHostingController(rootView: rootView)
+                host.view.backgroundColor = .clear
+                window.rootViewController = host
+            }
+
+            window.isUserInteractionEnabled = newMode == .lock
+            if newMode == .lock {
+                if previousKeyWindows[id] == nil {
+                    previousKeyWindows[id] = scene.windows.first {
+                        $0 !== window && $0.isKeyWindow
+                    }
+                }
+                window.makeKeyAndVisible()
+            } else {
+                if window.isKeyWindow { previousKeyWindows[id]?.makeKey() }
+                window.isHidden = false
+            }
+        }
     }
 }

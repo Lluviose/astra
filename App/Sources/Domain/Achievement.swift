@@ -144,7 +144,11 @@ enum AchievementCatalog {
 
     static func evaluate(companions: [Companion], encounters: [Encounter], cityCount: Int) -> [Achievement] {
         let active = companions.filter { !$0.isArchived }
-        let byID = Dictionary(uniqueKeysWithValues: companions.map { ($0.id, $0) })
+        // 本地数据万一被旧版本或外部工具写出重复 ID，也不能在成就页触发运行时崩溃。
+        let byID = companions.reduce(into: [UUID: Companion]()) { result, companion in
+            if let current = result[companion.id], current.updatedAt > companion.updatedAt { return }
+            result[companion.id] = companion
+        }
         let hookups = encounters.filter(\.kind.isIntimate)
         let overnight = encounters.filter { $0.kind == .overnight }
         let photos = companions.flatMap(\.albumPhotoIDs)
@@ -284,7 +288,7 @@ enum AchievementCatalog {
         for encounter in hookups {
             let day = calendar.startOfDay(for: encounter.date)
             counts[day, default: 0] += 1
-            best = max(best, counts[day]!)
+            best = max(best, counts[day, default: 0])
         }
         return best
     }

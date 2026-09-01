@@ -115,6 +115,7 @@ struct EncounterEditor: View {
                 titleVisibility: .visible
             ) {
                 Button("删除", role: .destructive) {
+                    discardSessionPhotos()
                     app.delete(encounterID: initial.id)
                     dismiss()
                 }

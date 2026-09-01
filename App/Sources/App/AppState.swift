@@ -66,11 +66,17 @@ final class AppState {
 
     // MARK: - 初始化
 
-    init(store: LocalStore = .shared, catalog: CityCatalog = .shared) {
+    init(
+        store: LocalStore = .shared,
+        catalog: CityCatalog = .shared,
+        performsMediaMaintenance: Bool = true
+    ) {
+        let storedCompanions = store.loadIfPresent([Companion].self, for: .companions)
+        let storedEncounters = store.loadIfPresent([Encounter].self, for: .encounters)
         self.store = store
         self.catalog = catalog
-        self.companions = store.load([Companion].self, for: .companions, default: [])
-        self.encounters = store.load([Encounter].self, for: .encounters, default: [])
+        self.companions = storedCompanions ?? []
+        self.encounters = storedEncounters ?? []
         self.settings = store.load(AppSettings.self, for: .settings, default: .default)
         self.filter = store.load(RosterFilter.self, for: .filter, default: .default)
         self.seenAchievementIDs = store.load(Set<String>.self, for: .seenAchievements, default: [])
@@ -78,7 +84,11 @@ final class AppState {
 
         Haptics.shared.configure(with: settings)
         MediaStore.enableSystemBackup()
-        MediaStore.gc(referenced: Self.referencedIDs(companions: self.companions, encounters: self.encounters))
+        // 只有两份引用元数据都成功解码时才做回收；任一文件损坏都宁可保留照片，
+        // 不能把临时回退到空数组当成“用户确实删除了全部档案”。
+        if performsMediaMaintenance, storedCompanions != nil, storedEncounters != nil {
+            MediaStore.gc(referenced: Self.referencedIDs(companions: self.companions, encounters: self.encounters))
+        }
         recompute()
         seedSeenAchievementsIfNeeded()
         isBooting = false
@@ -272,24 +282,27 @@ final class AppState {
     }
 
     func removeAlbumPhoto(_ id: String, from companionID: UUID) {
-        var changed = false
+        var companionChanged = false
+        var encountersChanged = false
         if let index = companions.firstIndex(where: { $0.id == companionID }) {
             if companions[index].albumPhotoIDs.contains(id) {
                 companions[index].albumPhotoIDs.removeAll { $0 == id }
-                changed = true
+                companionChanged = true
             }
-            if changed {
+            if companionChanged {
                 companions[index].updatedAt = Date()
-                persistCompanions()
             }
         }
-        if let eIndex = encounters.firstIndex(where: { $0.companionID == companionID && $0.photoIDs.contains(id) }) {
-            encounters[eIndex].photoIDs.removeAll { $0 == id }
-            persistEncounters()
-            changed = true
+        for index in encounters.indices
+            where encounters[index].companionID == companionID && encounters[index].photoIDs.contains(id) {
+            encounters[index].photoIDs.removeAll { $0 == id }
+            encountersChanged = true
         }
-        MediaStore.delete(id: id)
-        if changed { Haptics.shared.play(.toggleOff) }
+        guard companionChanged || encountersChanged else { return }
+        if companionChanged { persistCompanions() }
+        if encountersChanged { persistEncounters() }
+        deleteUnreferencedMedia(Set([id]))
+        Haptics.shared.play(.toggleOff)
     }
 
     func removeProfilePhoto(_ id: String, from companionID: UUID) {
@@ -306,7 +319,7 @@ final class AppState {
         guard changed else { return }
         companions[index].updatedAt = Date()
         persistCompanions()
-        MediaStore.delete(id: id)
+        deleteUnreferencedMedia(Set([id]))
         Haptics.shared.play(.toggleOff)
     }
 
@@ -439,7 +452,7 @@ final class AppState {
     func timeline(companionID: UUID? = nil, limit: Int? = nil) -> [Encounter] {
         var list = encounters
         if let companionID { list = list.filter { $0.companionID == companionID } }
-        if let limit { return Array(list.prefix(limit)) }
+        if let limit { return Array(list.prefix(max(0, limit))) }
         return list
     }
 
@@ -477,17 +490,18 @@ final class AppState {
 
     func upsert(_ companion: Companion) {
         var updated = companion
+        var mediaCandidates = Set<String>()
         updated.rating = updated.scorecard.legacyStarRating
         updated.updatedAt = Date()
 
         if let index = companions.firstIndex(where: { $0.id == companion.id }) {
             if companions[index].photoID != updated.photoID, let old = companions[index].photoID {
-                MediaStore.delete(id: old)
+                mediaCandidates.insert(old)
             }
             let removedProfile = Set(companions[index].profilePhotoIDs).subtracting(updated.profilePhotoIDs)
             let removedAlbum = Set(companions[index].albumPhotoIDs).subtracting(updated.albumPhotoIDs)
-            MediaStore.delete(ids: Array(removedProfile))
-            MediaStore.delete(ids: Array(removedAlbum))
+            mediaCandidates.formUnion(removedProfile)
+            mediaCandidates.formUnion(removedAlbum)
             companions[index] = updated
             Haptics.shared.play(.success)
         } else {
@@ -495,22 +509,25 @@ final class AppState {
             Haptics.shared.play(.pinDrop)
         }
         persistCompanions()
+        deleteUnreferencedMedia(mediaCandidates)
     }
 
     func delete(companionID: UUID) {
+        var mediaCandidates = Set<String>()
         if let companion = companion(id: companionID) {
             if let photoID = companion.photoID {
-                MediaStore.delete(id: photoID)
+                mediaCandidates.insert(photoID)
             }
-            MediaStore.delete(ids: companion.profilePhotoIDs)
-            MediaStore.delete(ids: companion.albumPhotoIDs)
+            mediaCandidates.formUnion(companion.profilePhotoIDs)
+            mediaCandidates.formUnion(companion.albumPhotoIDs)
         }
         let photos = encounters.filter { $0.companionID == companionID }.flatMap(\.photoIDs)
-        MediaStore.delete(ids: photos)
+        mediaCandidates.formUnion(photos)
         companions.removeAll { $0.id == companionID }
         encounters.removeAll { $0.companionID == companionID }
         persistCompanions()
         persistEncounters()
+        deleteUnreferencedMedia(mediaCandidates)
         Haptics.shared.play(.warning)
     }
 
@@ -555,23 +572,27 @@ final class AppState {
     // MARK: - 修改：记录
 
     func upsert(_ encounter: Encounter) {
+        var mediaCandidates = Set<String>()
         if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
             let removed = Set(encounters[index].photoIDs).subtracting(encounter.photoIDs)
-            MediaStore.delete(ids: Array(removed))
+            mediaCandidates.formUnion(removed)
             encounters[index] = encounter
         } else {
             encounters.append(encounter)
         }
         persistEncounters()
+        deleteUnreferencedMedia(mediaCandidates)
         Haptics.shared.play(.waveSent)
     }
 
     func delete(encounterID: UUID) {
+        var mediaCandidates = Set<String>()
         if let encounter = encounters.first(where: { $0.id == encounterID }) {
-            MediaStore.delete(ids: encounter.photoIDs)
+            mediaCandidates.formUnion(encounter.photoIDs)
         }
         encounters.removeAll { $0.id == encounterID }
         persistEncounters()
+        deleteUnreferencedMedia(mediaCandidates)
         Haptics.shared.play(.toggleOff)
     }
 
@@ -649,12 +670,21 @@ final class AppState {
         let payload = try BackupService.decode(data)
 
         if replaceExisting {
-            MediaStore.deleteAll()
-            MediaStore.restore(payload.media)
+            let referenced = Self.referencedIDs(
+                companions: payload.companions,
+                encounters: payload.encounters
+            )
+            let media = payload.media.filter { referenced.contains($0.key) }
+            guard MediaStore.restore(media).isEmpty else {
+                throw BackupError.cannotRestoreMedia
+            }
+
+            // 新照片全部写入成功后再切换元数据，最后才清理旧文件；导入失败时原档案仍可用。
             companions = payload.companions
             encounters = payload.encounters
             persistCompanions()
             persistEncounters()
+            MediaStore.gc(referenced: referenced)
             Haptics.shared.play(.success)
             return ImportSummary(
                 companionsAdded: payload.companions.count,
@@ -663,29 +693,39 @@ final class AppState {
             )
         }
 
-        MediaStore.restore(payload.media)
-
         var added = 0
         var updated = 0
+        var mergedCompanions = companions
         for incoming in payload.companions {
-            if let index = companions.firstIndex(where: { $0.id == incoming.id }) {
+            if let index = mergedCompanions.firstIndex(where: { $0.id == incoming.id }) {
                 // 以更新时间较新的一份为准
-                if incoming.updatedAt > companions[index].updatedAt {
-                    companions[index] = incoming
+                if incoming.updatedAt > mergedCompanions[index].updatedAt {
+                    mergedCompanions[index] = incoming
                     updated += 1
                 }
             } else {
-                companions.append(incoming)
+                mergedCompanions.append(incoming)
                 added += 1
             }
         }
 
         let existingEncounterIDs = Set(encounters.map(\.id))
         let newEncounters = payload.encounters.filter { !existingEncounterIDs.contains($0.id) }
-        encounters.append(contentsOf: newEncounters)
+        let mergedEncounters = encounters + newEncounters
+        let referenced = Self.referencedIDs(
+            companions: mergedCompanions,
+            encounters: mergedEncounters
+        )
+        let media = payload.media.filter { referenced.contains($0.key) }
+        guard MediaStore.restore(media, overwriteExisting: false).isEmpty else {
+            throw BackupError.cannotRestoreMedia
+        }
 
+        companions = mergedCompanions
+        encounters = mergedEncounters
         persistCompanions()
         persistEncounters()
+        MediaStore.gc(referenced: referenced)
         Haptics.shared.play(.success)
 
         return ImportSummary(
@@ -705,6 +745,7 @@ final class AppState {
         seenAchievementIDs = []
         pendingUnlocks = []
         searchText = ""
+        namesRevealed = !settings.maskNamesByDefault
         Haptics.shared.configure(with: settings)
         recompute()
         Haptics.shared.play(.warning)
@@ -834,5 +875,23 @@ final class AppState {
             ids.formUnion(encounter.photoIDs)
         }
         return ids
+    }
+
+    static func unreferencedMediaIDs(
+        among candidates: Set<String>,
+        companions: [Companion],
+        encounters: [Encounter]
+    ) -> Set<String> {
+        candidates.subtracting(referencedIDs(companions: companions, encounters: encounters))
+    }
+
+    private func deleteUnreferencedMedia(_ candidates: Set<String>) {
+        guard !candidates.isEmpty else { return }
+        let safeToDelete = Self.unreferencedMediaIDs(
+            among: candidates,
+            companions: companions,
+            encounters: encounters
+        )
+        MediaStore.delete(ids: Array(safeToDelete))
     }
 }

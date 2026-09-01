@@ -1,12 +1,55 @@
 import XCTest
+import UIKit
 @testable import Astra
 
 final class BackupServiceTests: XCTestCase {
+
+    func testMediaStoreRejectsUnsafeImportedIDs() {
+        XCTAssertTrue(MediaStore.isValidID(UUID().uuidString))
+        XCTAssertTrue(MediaStore.isValidID("avatar-1_profile"))
+
+        XCTAssertFalse(MediaStore.isValidID(""))
+        XCTAssertFalse(MediaStore.isValidID("../outside"))
+        XCTAssertFalse(MediaStore.isValidID("folder/photo"))
+        XCTAssertFalse(MediaStore.isValidID("folder\\photo"))
+        XCTAssertFalse(MediaStore.isValidID(String(repeating: "a", count: 129)))
+        XCTAssertFalse(MediaStore.save(data: Data([0x01]), id: "../outside"))
+        XCTAssertNil(MediaStore.data(id: "../outside"))
+    }
+
+    func testMergeStyleRestoreDoesNotOverwriteExistingMedia() {
+        let mediaID = "restore-\(UUID().uuidString)"
+        defer { MediaStore.delete(id: mediaID) }
+
+        XCTAssertTrue(MediaStore.save(data: Data([0x01]), id: mediaID))
+        XCTAssertTrue(MediaStore.restore([mediaID: Data([0x02])], overwriteExisting: false).isEmpty)
+        XCTAssertEqual(MediaStore.data(id: mediaID), Data([0x01]))
+
+        XCTAssertTrue(MediaStore.restore([mediaID: Data([0x03])]).isEmpty)
+        XCTAssertEqual(MediaStore.data(id: mediaID), Data([0x03]))
+    }
 
     func testMediaDirectoryIsEligibleForSystemICloudBackup() throws {
         MediaStore.enableSystemBackup()
         let values = try MediaStore.directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
         XCTAssertNotEqual(values.isExcludedFromBackup, true)
+    }
+
+    func testMediaEncodingUsesPixelLimitOnRetinaImages() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: 1_000, height: 500),
+            format: format
+        ).image { context in
+            UIColor.magenta.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1_000, height: 500))
+        }
+
+        let data = try XCTUnwrap(MediaStore.jpegData(from: image, maxSide: 400))
+        let decoded = try XCTUnwrap(UIImage(data: data)?.cgImage)
+
+        XCTAssertLessThanOrEqual(max(decoded.width, decoded.height), 400)
     }
 
     func testEncodeDecodeRoundTrip() throws {
@@ -197,5 +240,44 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(payload.version, 1)
         XCTAssertTrue(payload.media.isEmpty)
         XCTAssertTrue(payload.companions.isEmpty)
+    }
+
+    func testRejectsDuplicateRecordIDsBeforeImport() throws {
+        let companionID = UUID()
+        let first = Companion(id: companionID, name: "甲")
+        let second = Companion(id: companionID, name: "乙")
+        let duplicateCompanions = try BackupService.encode(
+            companions: [first, second],
+            encounters: []
+        )
+        XCTAssertThrowsError(try BackupService.decode(duplicateCompanions)) { error in
+            guard case BackupError.invalidContents = error else {
+                return XCTFail("预期 invalidContents，实际 \(error)")
+            }
+        }
+
+        let encounterID = UUID()
+        let one = Encounter(id: encounterID, companionID: companionID)
+        let two = Encounter(id: encounterID, companionID: companionID)
+        let duplicateEncounters = try BackupService.encode(
+            companions: [first],
+            encounters: [one, two]
+        )
+        XCTAssertThrowsError(try BackupService.decode(duplicateEncounters))
+    }
+
+    func testRejectsOrphanRecordsAndUnsafeMediaReferences() throws {
+        let companion = Companion(name: "她")
+        let orphan = Encounter(companionID: UUID())
+        let orphanData = try BackupService.encode(companions: [companion], encounters: [orphan])
+        XCTAssertThrowsError(try BackupService.decode(orphanData))
+
+        let unsafe = Companion(name: "她", photoID: "../outside")
+        let unsafeData = try BackupService.encode(
+            companions: [unsafe],
+            encounters: [],
+            media: ["../outside": Data([0x01])]
+        )
+        XCTAssertThrowsError(try BackupService.decode(unsafeData))
     }
 }

@@ -127,8 +127,14 @@ struct LocalStore {
     }
 
     func load<T: Decodable>(_ type: T.Type, for key: Key, default fallback: T) -> T {
-        guard let data = defaults.data(forKey: key.rawValue) else { return fallback }
-        return (try? decoder.decode(T.self, from: data)) ?? fallback
+        loadIfPresent(type, for: key) ?? fallback
+    }
+
+    /// 区分“没有保存过”与“保存内容损坏”。启动阶段据此避免把解码失败误判为空数据，
+    /// 进而错误回收仍然属于用户的媒体文件。
+    func loadIfPresent<T: Decodable>(_ type: T.Type, for key: Key) -> T? {
+        guard let data = defaults.data(forKey: key.rawValue) else { return nil }
+        return try? decoder.decode(T.self, from: data)
     }
 
     func save<T: Encodable>(_ value: T, for key: Key) {

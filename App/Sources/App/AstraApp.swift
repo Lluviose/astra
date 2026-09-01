@@ -17,9 +17,17 @@ struct AstraApp: App {
                 .onAppear {
                     lock.configure(enabled: appState.settings.appLockEnabled, lockNow: true)
                     Haptics.shared.prepare()
+                    synchronizePrivacyWindow()
                 }
                 .onChange(of: appState.settings.appLockEnabled) { _, enabled in
                     lock.configure(enabled: enabled)
+                    synchronizePrivacyWindow()
+                }
+                .onChange(of: appState.settings.privacyScreenEnabled) { _, _ in
+                    synchronizePrivacyWindow()
+                }
+                .onChange(of: lock.isLocked) { _, _ in
+                    synchronizePrivacyWindow()
                 }
                 .onChange(of: scenePhase) { _, phase in
                     lock.handleScenePhase(
@@ -31,7 +39,32 @@ struct AstraApp: App {
                     case .background: Haptics.shared.teardown()
                     default: break
                     }
+                    synchronizePrivacyWindow()
                 }
+        }
+    }
+
+    /// UIWindow 级遮罩能覆盖所有 SwiftUI sheet。系统认证会短暂让场景进入 inactive，
+    /// 此时保留已有解锁窗口，避免销毁正在等待的 LocalAuthentication 任务。
+    @MainActor
+    private func synchronizePrivacyWindow() {
+        let controller = PrivacyWindowController.shared
+
+        if scenePhase == .active {
+            if lock.isConfigured, lock.isLocked {
+                controller.showLock(using: lock)
+            } else {
+                controller.hide()
+            }
+            return
+        }
+
+        if controller.isShowingLock, lock.isAuthenticating { return }
+
+        if appState.settings.privacyScreenEnabled || (lock.isConfigured && lock.isLocked) {
+            controller.showPrivacy()
+        } else {
+            controller.hide()
         }
     }
 }
@@ -80,7 +113,10 @@ struct RootView: View {
             }
             .minimizableTabBar()
 
-            if lock.isObscured, !lock.isLocked {
+            if !lock.isConfigured {
+                PrivacyCurtain()
+                    .zIndex(2)
+            } else if lock.isObscured, !lock.isLocked {
                 PrivacyCurtain()
                     .zIndex(1)
             }
@@ -97,7 +133,7 @@ struct RootView: View {
                 .zIndex(1.5)
             }
 
-            if lock.isLocked {
+            if lock.isConfigured, lock.isLocked {
                 LockScreen()
                     .transition(.opacity)
                     .zIndex(2)
