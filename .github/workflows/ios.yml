@@ -33,7 +33,7 @@ jobs:
     name: 构建 + 测试 + 打包
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 选择 Xcode 26
         run: |
@@ -131,7 +131,7 @@ jobs:
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent Astra-unsigned.app Astra-unsigned.app.zip
           ls -lh Astra-unsigned.ipa
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Astra-ipa
           path: |
@@ -194,7 +194,7 @@ jobs:
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload ../Astra-signed.ipa
           ls -lh ../Astra-signed.ipa
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
         with:
           name: Astra-signed-ipa
