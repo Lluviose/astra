@@ -158,6 +158,74 @@ final class AppStateDataSafetyTests: XCTestCase {
         XCTAssertEqual(app.stats.missedCount, 1)
     }
 
+    @MainActor
+    func testHaremCollectionAndConquestRouteOnlyUseHookups() throws {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let first = Companion(
+            name: "甲",
+            cityID: "310000",
+            profilePhotoIDs: ["first-profile"],
+            albumPhotoIDs: ["first-private"]
+        )
+        let second = Companion(
+            name: "乙",
+            cityID: "110000",
+            albumPhotoIDs: ["second-private"]
+        )
+        let missedOnly = Companion(name: "丙", cityID: "440100")
+        let encounters = [
+            Encounter(
+                companionID: first.id,
+                date: Date(timeIntervalSince1970: 100),
+                kind: .intimacy,
+                cityID: "310000",
+                photoIDs: ["first-encounter"]
+            ),
+            Encounter(
+                companionID: second.id,
+                date: Date(timeIntervalSince1970: 200),
+                kind: .intimacy,
+                cityID: "110000"
+            ),
+            Encounter(
+                companionID: first.id,
+                date: Date(timeIntervalSince1970: 300),
+                kind: .intimacy,
+                cityID: "110000"
+            ),
+            Encounter(
+                companionID: second.id,
+                date: Date(timeIntervalSince1970: 400),
+                kind: .intimacy,
+                cityID: "110000"
+            ),
+            Encounter(
+                companionID: missedOnly.id,
+                date: Date(timeIntervalSince1970: 500),
+                kind: .missed,
+                cityID: "440100"
+            ),
+        ]
+        let store = LocalStore(defaults: defaults)
+        store.save([first, second, missedOnly], for: .companions)
+        store.save(encounters, for: .encounters)
+
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+
+        XCTAssertEqual(app.conqueredCompanions.map(\.id), [second.id, first.id])
+        XCTAssertEqual(app.privateCollectionCount, 3)
+        XCTAssertEqual(app.conquestCityCount, 2)
+        XCTAssertEqual(app.conquestCityPath().map(\.id), ["310000", "110000"])
+        XCTAssertEqual(app.topConquestBucket?.id, "110000")
+        XCTAssertEqual(app.topConquestBucket?.hookupCount, 3)
+        XCTAssertEqual(app.topConquestBucket?.hookupCompanionCount, 2)
+        XCTAssertEqual(app.topConquestBucket?.hookupRate, 1)
+        XCTAssertEqual(app.lastHookup(for: second.id)?.date, Date(timeIntervalSince1970: 400))
+        XCTAssertFalse(app.conqueredCompanions.contains { $0.id == missedOnly.id })
+    }
+
     private func makeDefaults() -> (UserDefaults, String) {
         let suiteName = "AstraTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

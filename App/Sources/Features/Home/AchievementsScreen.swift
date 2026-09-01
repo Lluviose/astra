@@ -14,6 +14,28 @@ struct AchievementsScreen: View {
         return items.filter { $0.category == category }
     }
 
+    private let royalRanks = [
+        "猎场开张",
+        "初露锋芒",
+        "后宫领主",
+        "猎艳王者",
+        "传奇藏家",
+        "全册封神",
+    ]
+
+    private var royalRankIndex: Int {
+        guard !items.isEmpty else { return 0 }
+        return min(unlocked.count / 10, royalRanks.count - 1)
+    }
+
+    private var royalRankTitle: String { royalRanks[royalRankIndex] }
+
+    private var nextRankText: String {
+        guard unlocked.count < items.count else { return "整本成就册已经全部点亮" }
+        let nextThreshold = min(((unlocked.count / 10) + 1) * 10, items.count)
+        return "再点亮 \(nextThreshold - unlocked.count) 枚，升到 \(royalRanks[min(royalRankIndex + 1, royalRanks.count - 1)])"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -64,17 +86,29 @@ struct AchievementsScreen: View {
                     .background(.white.opacity(0.14), in: Capsule())
             }
 
-            Text("成就册")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-            Text("猎获、上床、复盘、足迹、私藏、玩法，一页一页点亮。离你最近的目标会先浮上来，不算排行榜。")
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.76))
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Lv.\(royalRankIndex + 1) · \(royalRankTitle)")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                Text(nextRankText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.80))
+                Text("猎获、上床、复盘、足迹、私藏、玩法，一页一页点亮，最后把整本册子封神。")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ProgressView(value: Double(unlocked.count), total: Double(max(items.count, 1)))
+                .tint(Color(red: 1.0, green: 0.78, blue: 0.28))
 
             HStack(spacing: 10) {
                 coverMetric("\(unlocked.count)", "已点亮")
-                coverMetric("\(items.count - unlocked.count)", "还没点")
-                coverMetric("\(items.count)", "全册")
+                coverMetric("\(unlocked.filter { $0.tier == .gold }.count)", "金徽章")
+                coverMetric(
+                    (Double(unlocked.count) / Double(max(items.count, 1)))
+                        .formatted(.percent.precision(.fractionLength(0))),
+                    "完成度"
+                )
             }
         }
         .foregroundStyle(.white)

@@ -128,6 +128,16 @@ struct RosterScreen: View {
 
             Section {
                 NavigationLink {
+                    HaremGalleryScreen()
+                } label: {
+                    haremEntryCard
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+            }
+
+            Section {
+                NavigationLink {
                     RankingScreen()
                 } label: {
                     RankingPreviewCard()
@@ -222,6 +232,40 @@ struct RosterScreen: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var haremEntryCard: some View {
+        HStack(spacing: 13) {
+            ZStack {
+                Circle()
+                    .fill(Palette.coral.opacity(0.15))
+                    .frame(width: 48, height: 48)
+                Image(systemName: "crown.fill")
+                    .foregroundStyle(Palette.coral)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("后宫图鉴")
+                    .font(.headline)
+                Text(
+                    app.conqueredCompanions.isEmpty
+                        ? "上过的女人才会进入这里"
+                        : "\(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount) 次 · 私藏 \(app.privateCollectionCount) 张"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            }
+
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+        }
+        .padding(15)
+        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 10)
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 

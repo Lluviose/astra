@@ -17,6 +17,24 @@ struct CityDetailSheet: View {
             .compactMap { stage in counts[stage].map { (stage, $0) } }
     }
 
+    private var hookupCompanionIDs: Set<UUID> {
+        Set(bucket.encounters.filter { $0.kind.isIntimate }.map(\.companionID))
+    }
+
+    private var hookupCompanions: [Companion] {
+        bucket.companions
+            .filter { hookupCompanionIDs.contains($0.id) }
+            .sorted { app.hookupCount(for: $0.id) > app.hookupCount(for: $1.id) }
+    }
+
+    private var otherCompanions: [Companion] {
+        bucket.companions.filter { !hookupCompanionIDs.contains($0.id) }
+    }
+
+    private var conquestRank: Int? {
+        app.conquestBuckets.firstIndex { $0.id == bucket.id }.map { $0 + 1 }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -27,8 +45,18 @@ struct CityDetailSheet: View {
                         .listRowSeparator(.hidden)
                 }
 
+                if !hookupCompanions.isEmpty {
+                    Section("这座城拿下的") {
+                        ForEach(hookupCompanions) { companion in
+                            NavigationLink(value: companion.id) {
+                                CompanionRow(companion: companion, showCity: false)
+                            }
+                        }
+                    }
+                }
+
                 if !bucket.encounters.isEmpty {
-                    Section("这座城市的时间线") {
+                    Section("这座城市的战绩时间线") {
                         ForEach(Array(bucket.encounters.prefix(12))) { encounter in
                             if app.companion(id: encounter.companionID) != nil {
                                 NavigationLink(value: encounter.companionID) {
@@ -39,9 +67,9 @@ struct CityDetailSheet: View {
                     }
                 }
 
-                if !bucket.companions.isEmpty {
-                    Section("这座城市的对象") {
-                        ForEach(bucket.companions) { companion in
+                if !otherCompanions.isEmpty {
+                    Section("还在名册里") {
+                        ForEach(otherCompanions) { companion in
                             NavigationLink(value: companion.id) {
                                 CompanionRow(companion: companion, showCity: false)
                             }
@@ -87,11 +115,28 @@ struct CityDetailSheet: View {
                     Text("\(bucket.city.shortProvince) · \(bucket.city.tier.label)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(bucket.count) 个对象 · \(bucket.recordCount) 条结果")
+                    Text(
+                        bucket.hookupCount > 0
+                            ? "\(bucket.hookupCompanionCount) 个她 · 上床 \(bucket.hookupCount) 次"
+                            : "\(bucket.count) 个对象 · 还没有战绩"
+                    )
                         .font(.title3.weight(.bold))
                 }
 
                 Spacer()
+
+                if let conquestRank {
+                    Label("#\(conquestRank)", systemImage: conquestRank == 1 ? "crown.fill" : "medal.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(
+                            conquestRank == 1
+                                ? Color(red: 0.92, green: 0.63, blue: 0.12)
+                                : Palette.coral
+                        )
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(bucket.mapTint.opacity(0.12), in: Capsule())
+                }
             }
 
             if !stageCounts.isEmpty {
@@ -111,6 +156,10 @@ struct CityDetailSheet: View {
                     .foregroundStyle(EncounterKind.intimacy.tint)
                 Label("没上 \(bucket.missedCount)", systemImage: "xmark.circle.fill")
                     .foregroundStyle(EncounterKind.missed.tint)
+                if let rate = bucket.hookupRate {
+                    Text("成功率 \(rate.formatted(.percent.precision(.fractionLength(0))))")
+                        .foregroundStyle(.secondary)
+                }
                 if let date = bucket.lastRecordDate {
                     Spacer()
                     Text(Format.relativeDay(date))

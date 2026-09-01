@@ -28,6 +28,10 @@ struct HomeScreen: View {
         app.timeline(limit: 4)
     }
 
+    private var haremPreviewCompanions: [Companion] {
+        Array(app.conqueredCompanions.prefix(5))
+    }
+
     /// 首页焦点只使用用户自己明确记录的置顶、关系阶段和互动次数，不推断对方意愿。
     private var focusCompanion: Companion? {
         app.currentCompanions.sorted { lhs, rhs in
@@ -52,7 +56,12 @@ struct HomeScreen: View {
                     LazyVStack(spacing: 18) {
                         hero
 
-                        desirePulseCard
+                        NavigationLink {
+                            HaremGalleryScreen()
+                        } label: {
+                            haremPreviewCard
+                        }
+                        .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.985))
 
                         NavigationLink {
                             AchievementsScreen()
@@ -60,6 +69,8 @@ struct HomeScreen: View {
                             AchievementPreviewRow(achievements: app.achievements)
                         }
                         .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.98))
+
+                        desirePulseCard
 
                         if !app.pendingFollowUps.isEmpty {
                             followUpCard
@@ -91,6 +102,16 @@ struct HomeScreen: View {
                 CompanionDetailView(companionID: id)
             }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.shared.play(.lightTap)
+                        beginAddingCompanion()
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                    }
+                    .accessibilityLabel("加个人")
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         app.toggleNamesRevealed()
@@ -143,7 +164,7 @@ struct HomeScreen: View {
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("猎艳时间线")
+                Text("后宫王者战绩")
                     .font(.system(size: 29, weight: .bold, design: .rounded))
                     .tracking(-0.6)
                 Text(monthLine)
@@ -153,10 +174,10 @@ struct HomeScreen: View {
             }
 
             HStack(spacing: 8) {
-                heroMetric(value: "\(app.stats.girlsThisMonth)", label: "新人")
-                heroMetric(value: "\(app.stats.intimaciesThisMonth)", label: "上床")
-                heroMetric(value: "\(app.stats.missedThisMonth)", label: "没上")
-                heroMetric(value: "\(app.stats.cityCount)", label: "城市")
+                heroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
+                heroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
+                heroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
+                heroMetric(value: "\(app.conquestCityCount)", label: "战绩城")
             }
 
             HStack(spacing: 10) {
@@ -181,10 +202,10 @@ struct HomeScreen: View {
                 }
 
                 Button {
-                    Haptics.shared.play(.mediumTap)
-                    beginAddingCompanion()
+                    Haptics.shared.play(.cityFocus)
+                    showMap = true
                 } label: {
-                    Label("加个人", systemImage: "person.badge.plus")
+                    Label("巡视版图", systemImage: "map.fill")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -198,7 +219,7 @@ struct HomeScreen: View {
             }
             .buttonStyle(.plain)
 
-            Text("累计 名册 \(app.stats.activeCount) · 上床 \(app.stats.totalIntimacyCount) · 没上床 \(app.stats.missedCount)")
+            Text("私藏 \(app.privateCollectionCount) 张 · 成就 \(app.achievements.filter(\.isUnlocked).count)/\(app.achievements.count) · 名册 \(app.stats.activeCount)")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.7))
         }
@@ -229,7 +250,102 @@ struct HomeScreen: View {
         parts.append("上床 \(app.stats.intimaciesThisMonth)")
         if app.stats.missedThisMonth > 0 { parts.append("没上 \(app.stats.missedThisMonth)") }
         if app.stats.photosThisMonth > 0 { parts.append("照片 \(app.stats.photosThisMonth)") }
-        return "本月猎获：" + parts.joined(separator: " · ")
+        return "本月战绩：" + parts.joined(separator: " · ")
+    }
+
+    // MARK: - 后宫图鉴预览
+
+    private var haremPreviewCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("后宫图鉴", systemImage: "crown.fill")
+                    .font(.headline)
+                    .foregroundStyle(Palette.coral)
+                Spacer()
+                Text(haremPreviewCompanions.isEmpty ? "等第一位" : "全部 \(app.conqueredCompanions.count) 位")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.tertiary)
+            }
+
+            if haremPreviewCompanions.isEmpty {
+                HStack(spacing: 13) {
+                    ZStack {
+                        Circle()
+                            .fill(Palette.coral.opacity(0.14))
+                            .frame(width: 46, height: 46)
+                        Image(systemName: "crown")
+                            .foregroundStyle(Palette.coral)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("第一位上过的女人，会站上这里")
+                            .font(.subheadline.weight(.semibold))
+                        Text("名册不算战绩；记录「上床了」才会进入图鉴。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(Array(haremPreviewCompanions.enumerated()), id: \.element.id) { index, companion in
+                            VStack(alignment: .leading, spacing: 7) {
+                                ZStack(alignment: .topLeading) {
+                                    HaremPortrait(
+                                        companion: companion,
+                                        photoID: haremCoverPhotoID(for: companion),
+                                        height: 126,
+                                        cornerRadius: 18
+                                    )
+                                    Text("#\(index + 1)")
+                                        .font(.caption2.weight(.black))
+                                        .foregroundStyle(index < 3 ? Color.black.opacity(0.78) : Color.white)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            index < 3
+                                                ? AnyShapeStyle(Color(red: 1.0, green: 0.80, blue: 0.28).gradient)
+                                                : AnyShapeStyle(Color.black.opacity(0.44)),
+                                            in: Capsule()
+                                        )
+                                        .padding(8)
+                                }
+
+                                MaskedName(
+                                    name: companion.displayName,
+                                    revealed: app.namesRevealed,
+                                    font: .caption.weight(.bold)
+                                )
+                                Label("上床 \(app.hookupCount(for: companion.id))", systemImage: "flame.fill")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Palette.coral)
+                            }
+                            .frame(width: 112, alignment: .leading)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "photo.stack.fill")
+                Text("进去每天回味一个她，照片、次数、城市和排名都在。")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .glassCard(cornerRadius: 24, interactive: true, shadowRadius: 12)
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private func haremCoverPhotoID(for companion: Companion) -> String? {
+        app.profilePhotoIDs(for: companion.id).first
+            ?? app.albumIDs(for: companion.id).first
     }
 
     // MARK: - 欲望与行动焦点
@@ -567,7 +683,7 @@ struct HomeScreen: View {
                     Text(
                         app.buckets.isEmpty
                             ? "还没点亮城市"
-                            : "\(app.buckets.count) 座城市 · 上床 \(app.stats.totalIntimacyCount) · 没上 \(app.stats.missedCount)"
+                            : "版图 \(app.conquestCityCount) 城 · \(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount)"
                     )
                         .font(.caption)
                         .foregroundStyle(.secondary)

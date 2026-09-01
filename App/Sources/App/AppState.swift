@@ -7,14 +7,22 @@ struct CityBucket: Identifiable, Hashable, Sendable {
     let city: City
     let companions: [Companion]
     let encounters: [Encounter]
-    /// 0...1，用于气泡大小与光晕浓度
-    let ratio: Double
 
     var id: String { city.id }
     var count: Int { companions.count }
     var recordCount: Int { encounters.count }
     var hookupCount: Int { encounters.filter { $0.kind.isIntimate }.count }
     var missedCount: Int { encounters.filter { $0.kind.isMissed }.count }
+    var hookupCompanionCount: Int {
+        Set(encounters.filter { $0.kind.isIntimate }.map(\.companionID)).count
+    }
+    var lastHookupDate: Date? {
+        encounters.first { $0.kind.isIntimate }?.date
+    }
+    var hookupRate: Double? {
+        guard recordCount > 0 else { return nil }
+        return Double(hookupCount) / Double(recordCount)
+    }
     /// 没有结果记录时仍显示这座城里的人数。
     var mapCount: Int { recordCount > 0 ? recordCount : count }
     var lastRecordDate: Date? { encounters.first?.date }
@@ -116,6 +124,51 @@ final class AppState {
         companions.filter { !$0.isArchived && $0.stage.isActive }
     }
 
+    /// 真正记录过「上床了」的人才进入后宫图鉴；结束或归档后仍保留在私人收藏里。
+    var conqueredCompanions: [Companion] {
+        let grouped = Dictionary(
+            grouping: encounters.filter { $0.kind.isIntimate },
+            by: \.companionID
+        )
+        return companions
+            .filter { grouped[$0.id]?.isEmpty == false }
+            .sorted { lhs, rhs in
+                let left = grouped[lhs.id] ?? []
+                let right = grouped[rhs.id] ?? []
+                if left.count != right.count { return left.count > right.count }
+                let leftDate = left.map(\.date).max() ?? .distantPast
+                let rightDate = right.map(\.date).max() ?? .distantPast
+                if leftDate != rightDate { return leftDate > rightDate }
+                return lhs.overallScore > rhs.overallScore
+            }
+    }
+
+    /// 只统计后宫图鉴里的艳照与单次战果照片，不把头像和普通资料照混进来。
+    var privateCollectionCount: Int {
+        var ids = Set<String>()
+        for companion in conqueredCompanions {
+            ids.formUnion(albumIDs(for: companion.id))
+        }
+        return ids.count
+    }
+
+    /// 按上床次数排列的战绩城市。
+    var conquestBuckets: [CityBucket] {
+        buckets
+            .filter { $0.hookupCount > 0 }
+            .sorted { lhs, rhs in
+                if lhs.hookupCount != rhs.hookupCount { return lhs.hookupCount > rhs.hookupCount }
+                if lhs.hookupCompanionCount != rhs.hookupCompanionCount {
+                    return lhs.hookupCompanionCount > rhs.hookupCompanionCount
+                }
+                return (lhs.lastHookupDate ?? .distantPast) > (rhs.lastHookupDate ?? .distantPast)
+            }
+    }
+
+    var conquestCityCount: Int { conquestBuckets.count }
+
+    var topConquestBucket: CityBucket? { conquestBuckets.first }
+
     func companion(id: UUID) -> Companion? { companions.first { $0.id == id } }
 
     func city(id: String) -> City? { catalog.city(id: id) }
@@ -129,7 +182,9 @@ final class AppState {
     /// 该人的全部记录，按时间倒序。
     /// 直接从可观察的 `encounters` 计算，保证 UI 随数据自动刷新。
     func encounters(for companionID: UUID) -> [Encounter] {
-        encounters.filter { $0.companionID == companionID }
+        encounters
+            .filter { $0.companionID == companionID }
+            .sorted { $0.date > $1.date }
     }
 
     /// 最后一次互动时间；没有记录就退回「认识时间 / 建档时间」
@@ -347,7 +402,29 @@ final class AppState {
     }
 
     func lastHookup(for companionID: UUID) -> Encounter? {
-        encounters.first { $0.companionID == companionID && $0.kind.isIntimate }
+        encounters
+            .filter { $0.companionID == companionID && $0.kind.isIntimate }
+            .max { $0.date < $1.date }
+    }
+
+    /// 依照真实战果时间串起城市；连续发生在同一城市时只保留一个节点。
+    func conquestCityPath() -> [City] {
+        let companionsByID = companions.reduce(into: [UUID: Companion]()) { result, companion in
+            result[companion.id] = companion
+        }
+        let orderedCities = encounters
+            .filter { $0.kind.isIntimate }
+            .sorted { $0.date < $1.date }
+            .compactMap { encounter -> City? in
+                let cityID = encounter.cityID ?? companionsByID[encounter.companionID]?.cityID
+                return cityID.flatMap { catalog.city(id: $0) }
+            }
+
+        var path: [City] = []
+        for city in orderedCities where path.last?.id != city.id {
+            path.append(city)
+        }
+        return path
     }
 
     // MARK: - 对象
@@ -820,14 +897,6 @@ final class AppState {
         }
 
         let cityIDs = Set(residentsByCity.keys).union(Set(recordsByCity.keys))
-        let maxCount = max(
-            1,
-            cityIDs.map { cityID in
-                let recordCount = recordsByCity[cityID]?.count ?? 0
-                return recordCount > 0 ? recordCount : residentsByCity[cityID]?.count ?? 0
-            }.max() ?? 1
-        )
-
         buckets = cityIDs.compactMap { cityID -> CityBucket? in
             guard let city = catalog.city(id: cityID) else { return nil }
             let cityRecords = (recordsByCity[cityID] ?? []).sorted { $0.date > $1.date }
@@ -844,12 +913,10 @@ final class AppState {
                 if lhs.stage.weight != rhs.stage.weight { return lhs.stage.weight > rhs.stage.weight }
                 return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
             }
-            let mapCount = cityRecords.isEmpty ? members.count : cityRecords.count
             return CityBucket(
                 city: city,
                 companions: members,
-                encounters: cityRecords,
-                ratio: Double(mapCount) / Double(maxCount)
+                encounters: cityRecords
             )
         }
         .sorted {

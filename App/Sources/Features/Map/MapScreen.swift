@@ -11,7 +11,7 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: "全部"
-        case .hookedUp: "上床"
+        case .hookedUp: "战绩"
         case .missed: "没上"
         }
     }
@@ -41,6 +41,7 @@ private struct CityBubble: View {
     let scope: MapRecordScope
     let isSelected: Bool
     let showGlow: Bool
+    let maxDisplayCount: Int
     let action: () -> Void
 
     private var tint: Color { scope.tint(for: bucket) }
@@ -56,8 +57,11 @@ private struct CityBubble: View {
         }
     }
 
-    /// 0.92 ~ 1.24
-    private var scale: CGFloat { 0.92 + CGFloat(min(bucket.ratio, 1)) * 0.32 }
+    /// 0.92 ~ 1.24；每个图层按自己的最高战绩缩放，没上记录不会放大上床气泡。
+    private var scale: CGFloat {
+        let ratio = Double(displayCount) / Double(max(maxDisplayCount, 1))
+        return 0.92 + CGFloat(min(ratio, 1)) * 0.32
+    }
 
     var body: some View {
         Button(action: action) {
@@ -147,17 +151,26 @@ struct MapScreen: View {
     @State private var pendingEditorTarget: Companion?
     @State private var isPickingCity = false
     @State private var isJumpingToCity = false
-    @State private var scope: MapRecordScope = .all
+    /// 地图默认就是巡视已经拿下的版图，而不是把待推进对象和战绩混在一起。
+    @State private var scope: MapRecordScope = .hookedUp
 
     private var filteredBuckets: [CityBucket] {
         switch scope {
         case .all:
             app.buckets
         case .hookedUp:
-            app.buckets.filter { $0.hookupCount > 0 }
+            app.conquestBuckets
         case .missed:
             app.buckets.filter { $0.missedCount > 0 }
         }
+    }
+
+    private var conquestRoute: [CLLocationCoordinate2D] {
+        app.conquestCityPath().map(\.displayCoordinate)
+    }
+
+    private var maxDisplayCount: Int {
+        max(1, filteredBuckets.map { scope.count(in: $0) }.max() ?? 1)
     }
 
     var body: some View {
@@ -184,6 +197,15 @@ struct MapScreen: View {
             controlColumn
                 .padding(.trailing, 16)
                 .padding(.bottom, 8)
+        }
+        .overlay(alignment: .bottomLeading) {
+            if scope != .missed,
+               let top = app.topConquestBucket,
+               !filteredBuckets.isEmpty {
+                topCityBadge(top)
+                    .padding(.leading, 16)
+                    .padding(.bottom, 8)
+            }
         }
         .animation(.easeInOut(duration: 0.25), value: app.buckets.count)
         .animation(.easeInOut(duration: 0.25), value: scope)
@@ -218,13 +240,27 @@ struct MapScreen: View {
             bounds: ChinaRegion.cameraBounds,
             interactionModes: [.pan, .zoom]
         ) {
+            if scope != .missed, conquestRoute.count >= 2 {
+                MapPolyline(coordinates: conquestRoute)
+                    .stroke(
+                        Palette.coral.opacity(scope == .hookedUp ? 0.86 : 0.56),
+                        style: StrokeStyle(
+                            lineWidth: scope == .hookedUp ? 3.4 : 2.4,
+                            lineCap: .round,
+                            lineJoin: .round,
+                            dash: [9, 6]
+                        )
+                    )
+            }
+
             ForEach(filteredBuckets) { bucket in
                 Annotation("", coordinate: bucket.city.displayCoordinate, anchor: .bottom) {
                     CityBubble(
                         bucket: bucket,
                         scope: scope,
                         isSelected: selectedCityID == bucket.id,
-                        showGlow: app.settings.showHeatGlow
+                        showGlow: app.settings.showHeatGlow,
+                        maxDisplayCount: maxDisplayCount
                     ) {
                         select(bucket)
                     }
@@ -264,7 +300,7 @@ struct MapScreen: View {
                 .accessibilityLabel("关闭猎场地图")
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("猎场地图")
+                    Text("王者版图")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                     Text(summaryText)
                         .font(.caption2)
@@ -291,6 +327,19 @@ struct MapScreen: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            if scope != .missed, conquestRoute.count >= 2 {
+                HStack(spacing: 6) {
+                    Label("战绩路线 \(conquestRoute.count) 城", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    Spacer()
+                    if let top = app.topConquestBucket {
+                        Text("头号猎场 · \(top.city.name)")
+                    }
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+            }
         }
         .padding(10)
         .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 14)
@@ -301,8 +350,43 @@ struct MapScreen: View {
 
     private var summaryText: String {
         if app.buckets.isEmpty { return "还没有记录" }
-        let cities = app.buckets.count
-        return "\(cities) / \(app.catalog.cities.count) 城 · 上床 \(app.stats.totalIntimacyCount) · 没上 \(app.stats.missedCount)"
+        switch scope {
+        case .hookedUp:
+            return "\(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount) 次 · \(app.conquestCityCount) 城版图"
+        case .all:
+            return "\(app.buckets.count) 城有故事 · 战绩 \(app.conquestCityCount) 城 · 共 \(app.encounters.count) 条"
+        case .missed:
+            return "没上 \(app.stats.missedCount) 次 · 复盘后继续拓场"
+        }
+    }
+
+    private func topCityBadge(_ bucket: CityBucket) -> some View {
+        Button {
+            select(bucket)
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 1.0, green: 0.80, blue: 0.28).opacity(0.18))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Color(red: 0.92, green: 0.63, blue: 0.12))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("头号猎场 · \(bucket.city.name)")
+                        .font(.caption.weight(.bold))
+                    Text("\(bucket.hookupCompanionCount) 个她 · 上床 \(bucket.hookupCount) 次")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(10)
+            .glassCard(cornerRadius: 18, interactive: true, shadowRadius: 10)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.96))
     }
 
     // MARK: 右下悬浮控件
@@ -356,9 +440,9 @@ struct MapScreen: View {
             Image(systemName: "mappin.slash")
                 .font(.system(size: 30, weight: .light))
                 .foregroundStyle(Palette.accent.opacity(0.7))
-            Text("还没点亮城市")
+            Text("版图还是空的")
                 .font(.headline)
-            Text("加个人或记下一次结果并选择城市，\n这里就会亮起第一颗点。")
+            Text("真正记下一次「上床了」并选择城市，\n这里才会点亮第一块战绩版图。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -367,7 +451,7 @@ struct MapScreen: View {
                 Haptics.shared.play(.mediumTap)
                 isPickingCity = true
             } label: {
-                Label("添加第一个对象", systemImage: "plus")
+                Label("先加一个人", systemImage: "plus")
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
