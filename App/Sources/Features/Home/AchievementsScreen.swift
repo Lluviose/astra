@@ -66,7 +66,7 @@ struct AchievementsScreen: View {
 
             Text("成就册")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-            Text("猎获、约成、过夜、足迹、私藏、玩法，一页一页点亮。离你最近的目标会先浮上来，不算排行榜。")
+            Text("猎获、上床、复盘、足迹、私藏、玩法，一页一页点亮。离你最近的目标会先浮上来，不算排行榜。")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)

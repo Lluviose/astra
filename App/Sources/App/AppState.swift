@@ -6,15 +6,29 @@ import SwiftUI
 struct CityBucket: Identifiable, Hashable, Sendable {
     let city: City
     let companions: [Companion]
+    let encounters: [Encounter]
     /// 0...1，用于气泡大小与光晕浓度
     let ratio: Double
 
     var id: String { city.id }
     var count: Int { companions.count }
+    var recordCount: Int { encounters.count }
+    var hookupCount: Int { encounters.filter { $0.kind.isIntimate }.count }
+    var missedCount: Int { encounters.filter { $0.kind.isMissed }.count }
+    /// 没有结果记录时仍显示这座城里的人数。
+    var mapCount: Int { recordCount > 0 ? recordCount : count }
+    var lastRecordDate: Date? { encounters.first?.date }
 
     /// 取相处状态最靠前的一档作为气泡主色
     var dominantStage: RelationStage {
         companions.max { $0.stage.weight < $1.stage.weight }?.stage ?? .chatting
+    }
+
+    /// 有结果时优先按结果着色，没有结果时沿用关系阶段色。
+    var mapTint: Color {
+        if hookupCount > 0 { return EncounterKind.intimacy.tint }
+        if missedCount > 0 { return EncounterKind.missed.tint }
+        return dominantStage.tint
     }
 }
 
@@ -328,8 +342,8 @@ final class AppState {
         encounters.filter { $0.companionID == companionID && $0.kind.isIntimate }.count
     }
 
-    func overnightCount(for companionID: UUID) -> Int {
-        encounters.filter { $0.companionID == companionID && $0.kind == .overnight }.count
+    func missedCount(for companionID: UUID) -> Int {
+        encounters.filter { $0.companionID == companionID && $0.kind.isMissed }.count
     }
 
     func lastHookup(for companionID: UUID) -> Encounter? {
@@ -573,13 +587,15 @@ final class AppState {
     // MARK: - 修改：记录
 
     func upsert(_ encounter: Encounter) {
+        var normalized = encounter
+        normalized.normalizeForOutcome()
         var mediaCandidates = Set<String>()
-        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
-            let removed = Set(encounters[index].photoIDs).subtracting(encounter.photoIDs)
+        if let index = encounters.firstIndex(where: { $0.id == normalized.id }) {
+            let removed = Set(encounters[index].photoIDs).subtracting(normalized.photoIDs)
             mediaCandidates.formUnion(removed)
-            encounters[index] = encounter
+            encounters[index] = normalized
         } else {
-            encounters.append(encounter)
+            encounters.append(normalized)
         }
         persistEncounters()
         deleteUnreferencedMedia(mediaCandidates)
@@ -597,8 +613,8 @@ final class AppState {
         Haptics.shared.play(.toggleOff)
     }
 
-    /// 「刚联系过」快捷记一笔
-    func logQuickContact(for companion: Companion, kind: EncounterKind = .chat) {
+    /// 快捷记下这次有没有上床。
+    func logQuickOutcome(for companion: Companion, kind: EncounterKind = .missed) {
         upsert(Encounter(companionID: companion.id, date: Date(), kind: kind, cityID: companion.cityID))
     }
 
@@ -793,19 +809,51 @@ final class AppState {
     }
 
     private func rebuildBuckets() {
-        let grouped = Dictionary(grouping: currentCompanions, by: \.cityID)
-        let maxCount = max(1, grouped.values.map(\.count).max() ?? 1)
+        let residentsByCity = Dictionary(grouping: currentCompanions, by: \.cityID)
+        let companionsByID = companions.reduce(into: [UUID: Companion]()) { result, companion in
+            result[companion.id] = companion
+        }
+        var recordsByCity: [String: [Encounter]] = [:]
+        for encounter in encounters {
+            guard let cityID = encounter.cityID ?? companionsByID[encounter.companionID]?.cityID else { continue }
+            recordsByCity[cityID, default: []].append(encounter)
+        }
 
-        buckets = grouped.compactMap { cityID, members -> CityBucket? in
+        let cityIDs = Set(residentsByCity.keys).union(Set(recordsByCity.keys))
+        let maxCount = max(
+            1,
+            cityIDs.map { cityID in
+                let recordCount = recordsByCity[cityID]?.count ?? 0
+                return recordCount > 0 ? recordCount : residentsByCity[cityID]?.count ?? 0
+            }.max() ?? 1
+        )
+
+        buckets = cityIDs.compactMap { cityID -> CityBucket? in
             guard let city = catalog.city(id: cityID) else { return nil }
+            let cityRecords = (recordsByCity[cityID] ?? []).sorted { $0.date > $1.date }
+            var membersByID: [UUID: Companion] = [:]
+            for companion in residentsByCity[cityID] ?? [] {
+                membersByID[companion.id] = companion
+            }
+            for record in cityRecords {
+                if let companion = companionsByID[record.companionID] {
+                    membersByID[companion.id] = companion
+                }
+            }
+            let members = membersByID.values.sorted { lhs, rhs in
+                if lhs.stage.weight != rhs.stage.weight { return lhs.stage.weight > rhs.stage.weight }
+                return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
+            }
+            let mapCount = cityRecords.isEmpty ? members.count : cityRecords.count
             return CityBucket(
                 city: city,
-                companions: members.sorted { $0.stage.weight > $1.stage.weight },
-                ratio: Double(members.count) / Double(maxCount)
+                companions: members,
+                encounters: cityRecords,
+                ratio: Double(mapCount) / Double(maxCount)
             )
         }
         .sorted {
-            if $0.count != $1.count { return $0.count > $1.count }
+            if $0.mapCount != $1.mapCount { return $0.mapCount > $1.mapCount }
             return $0.city.pinyin < $1.city.pinyin
         }
     }
@@ -817,7 +865,6 @@ final class AppState {
         result.activeCount = current.count
         result.cityCount = buckets.count
         result.photoCount = referencedMediaIDs.count
-        result.overnightCount = encounters.filter { $0.kind == .overnight }.count
 
         let calendar = Calendar.current
         let monthStart = calendar.dateInterval(of: .month, for: Date())?.start ?? Date.distantPast
@@ -840,6 +887,11 @@ final class AppState {
                         result.unprotectedThisMonth += 1
                     }
                 }
+            } else if encounter.kind.isMissed {
+                result.missedCount += 1
+                if encounter.date >= monthStart {
+                    result.missedThisMonth += 1
+                }
             }
         }
         result.pendingFollowUpCount = pendingFollowUps.count
@@ -848,7 +900,6 @@ final class AppState {
             : nil
 
         result.girlsThisMonth = current.filter { $0.createdAt >= monthStart }.count
-        result.overnightThisMonth = encounters.filter { $0.kind == .overnight && $0.date >= monthStart }.count
         result.photosThisMonth = encounters
             .filter { $0.date >= monthStart }
             .reduce(0) { $0 + $1.photoIDs.count }

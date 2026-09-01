@@ -22,21 +22,22 @@ final class AchievementTests: XCTestCase {
 
         XCTAssertTrue(unlocked(items, "first_girl"))
         XCTAssertTrue(unlocked(items, "first_hookup"))
-        XCTAssertFalse(unlocked(items, "first_overnight"))
+        XCTAssertFalse(unlocked(items, "first_miss"))
         XCTAssertFalse(unlocked(items, "hookups_3"))
         XCTAssertFalse(unlocked(items, "girls_3"))
     }
 
-    func testOvernightAndPhotos() {
+    func testMissedOutcomeAndPhotos() {
         let girl = Companion(name: "她", photoID: "avatar")
-        let overnight = Encounter(companionID: girl.id, kind: .overnight, photoIDs: ["a", "b"])
+        let missed = Encounter(companionID: girl.id, kind: .missed, photoIDs: ["a", "b"])
         let items = AchievementCatalog.evaluate(
             companions: [girl],
-            encounters: [overnight],
+            encounters: [missed],
             cityCount: 1
         )
 
-        XCTAssertTrue(unlocked(items, "first_overnight"))
+        XCTAssertTrue(unlocked(items, "first_miss"))
+        XCTAssertFalse(unlocked(items, "first_hookup"))
         XCTAssertTrue(unlocked(items, "first_photo"))
         XCTAssertFalse(unlocked(items, "album_10"))
         XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 2)
@@ -46,7 +47,7 @@ final class AchievementTests: XCTestCase {
         let girl = Companion(name: "固定", stage: .regular)
         let day = stableMidday()
         let one = Encounter(companionID: girl.id, date: day, kind: .intimacy)
-        let two = Encounter(companionID: girl.id, date: day.addingTimeInterval(3600), kind: .overnight)
+        let two = Encounter(companionID: girl.id, date: day.addingTimeInterval(3600), kind: .intimacy)
         let items = AchievementCatalog.evaluate(
             companions: [girl],
             encounters: [one, two],
@@ -108,7 +109,7 @@ final class AchievementTests: XCTestCase {
         )
         XCTAssertTrue(unlocked(items, "want_again"))
         XCTAssertTrue(unlocked(items, "sex_logged"))
-        XCTAssertFalse(unlocked(items, "first_flirt"))
+        XCTAssertFalse(unlocked(items, "comeback"))
         XCTAssertFalse(unlocked(items, "bareback"))
         XCTAssertFalse(unlocked(items, "creampie"))
     }
@@ -117,7 +118,7 @@ final class AchievementTests: XCTestCase {
         let girl = Companion(name: "她", stage: .prospect)
         let encounter = Encounter(
             companionID: girl.id,
-            kind: .overnight,
+            kind: .intimacy,
             activities: [.cowgirl, .car, .multipleRounds],
             climaxDetails: [.creampie, .sheCame, .swallow],
             protectionStatus: .noProtection
@@ -135,10 +136,29 @@ final class AchievementTests: XCTestCase {
         XCTAssertTrue(unlocked(items, "cowgirl"))
         XCTAssertTrue(unlocked(items, "car_sex"))
         XCTAssertTrue(unlocked(items, "multi_round"))
-        XCTAssertTrue(unlocked(items, "overnight_bareback"))
+        XCTAssertFalse(unlocked(items, "hookup_cities_3"))
         XCTAssertFalse(unlocked(items, "facial"))
         XCTAssertFalse(unlocked(items, "bareback_5"))
         XCTAssertFalse(unlocked(items, "fwb"))
+    }
+
+    func testMissThenHookupUnlocksComeback() {
+        let girl = Companion(name: "她")
+        let day = stableMidday()
+        let missed = Encounter(companionID: girl.id, date: day, kind: .missed)
+        let hookup = Encounter(
+            companionID: girl.id,
+            date: day.addingTimeInterval(3600),
+            kind: .intimacy
+        )
+        let items = AchievementCatalog.evaluate(
+            companions: [girl],
+            encounters: [missed, hookup],
+            cityCount: 1
+        )
+
+        XCTAssertTrue(unlocked(items, "first_miss"))
+        XCTAssertTrue(unlocked(items, "comeback"))
     }
 
     func testAlbumPhotosOnDossierCountTowardPrivateCollection() {

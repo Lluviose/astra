@@ -150,7 +150,7 @@ struct CompanionDetailView: View {
                 }
 
                 let hookups = app.hookupCount(for: companion.id)
-                let overnight = app.overnightCount(for: companion.id)
+                let missed = app.missedCount(for: companion.id)
                 let photos = app.albumIDs(for: companion.id).count
                 if hookups >= 3 {
                     Text("回头客")
@@ -162,8 +162,8 @@ struct CompanionDetailView: View {
                 }
 
                 HStack(spacing: 8) {
-                    huntStat("约成", "\(hookups)", Palette.coral)
-                    huntStat("过夜", "\(overnight)", Color(red: 0.58, green: 0.34, blue: 0.92))
+                    huntStat("上床", "\(hookups)", Palette.coral)
+                    huntStat("没上床", "\(missed)", EncounterKind.missed.tint)
                     huntStat("照片", "\(photos)", Palette.accent)
                     huntStat(
                         "最近",
@@ -185,31 +185,18 @@ struct CompanionDetailView: View {
     private func quickActionsSection(_ companion: Companion) -> some View {
         Section {
             HStack(spacing: 10) {
-                quickAction("flame.fill", "约成") {
+                quickAction("flame.fill", "上床了") {
                     editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
                 }
-                quickAction("moon.fill", "过夜") {
-                    editingEncounter = Encounter(companionID: companion.id, kind: .overnight, cityID: companion.cityID)
-                }
-                quickAction("person.2.fill", "见面") { app.logQuickContact(for: companion, kind: .meet) }
-                quickAction("message.fill", "聊天") {
-                    editingEncounter = Encounter(companionID: companion.id, kind: .chat, cityID: companion.cityID)
+                quickAction("xmark.circle.fill", "没上床") {
+                    editingEncounter = Encounter(companionID: companion.id, kind: .missed, cityID: companion.cityID)
                 }
             }
             .padding(.vertical, 4)
-
-            Button {
-                Haptics.shared.play(.lightTap)
-                editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
-            } label: {
-                Label("记细节 / 留照片", systemImage: "camera.fill")
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .buttonStyle(.borderless)
-            .font(.subheadline.weight(.semibold))
-            .tint(Palette.accent)
         } header: {
-            Text("刚发生了什么？")
+            Text("这次结果")
+        } footer: {
+            Text("只选有没有上床；时间、城市和细节可以在下一页补。")
         }
     }
 
@@ -455,7 +442,7 @@ struct CompanionDetailView: View {
         Section {
             let encounters = app.encounters(for: companion.id)
             if encounters.isEmpty {
-                Text("还没记过。上面四个按钮，点一下就行。")
+                Text("还没记过。上面两个结果按钮，点一下就行。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -478,7 +465,7 @@ struct CompanionDetailView: View {
                 }
             }
         } header: {
-            Text("全部记录")
+            Text("时间线")
         }
     }
 
@@ -493,6 +480,7 @@ struct CompanionDetailView: View {
 struct EncounterRow: View {
     let encounter: Encounter
     var showName: Bool = true
+    var showTime: Bool = false
 
     @Environment(AppState.self) private var app
 
@@ -533,7 +521,7 @@ struct EncounterRow: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(Format.relativeDay(encounter.date))
+                    Text(showTime ? Format.clockTime(encounter.date) : Format.relativeDay(encounter.date))
                     if let cityName {
                         Label(cityName, systemImage: "mappin")
                     }
@@ -583,31 +571,10 @@ struct EncounterRow: View {
                     .foregroundStyle(.secondary)
                 }
 
-                if encounter.kind.isConversation,
-                   !encounter.conversationSummary.isEmpty
-                    || !encounter.digitalBoundaries.isEmpty
-                    || !encounter.conversationSafetyFlags.isEmpty
-                    || encounter.hasPendingFollowUp {
-                    HStack(spacing: 6) {
-                        if !encounter.conversationSummary.isEmpty {
-                            Text(encounter.conversationSummary)
-                                .lineLimit(1)
-                        }
-                        if !encounter.digitalBoundaries.isEmpty {
-                            Label("隐私已聊", systemImage: "hand.raised.fill")
-                                .foregroundStyle(Palette.accent)
-                        }
-                        if !encounter.conversationSafetyFlags.isEmpty {
-                            Label("账号安全待留意", systemImage: "lock.shield.fill")
-                                .foregroundStyle(Palette.warning)
-                        }
-                        if encounter.hasPendingFollowUp {
-                            Label("待跟进", systemImage: "checklist")
-                                .foregroundStyle(Palette.warning)
-                        }
-                    }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if encounter.kind.isMissed, encounter.hasPendingFollowUp {
+                    Label("待跟进", systemImage: "checklist")
+                        .font(.caption2)
+                        .foregroundStyle(Palette.warning)
                 }
             }
         }

@@ -56,8 +56,8 @@ enum BackupError: LocalizedError {
 enum BackupService {
 
     static let formatIdentifier = "astra.backup"
-    /// v3 adds six-dimensional scores, explicit bust size and separate profile-photo references.
-    static let currentVersion = 3
+    /// v4 replaces the old event taxonomy with the two result outcomes: intimacy / missed.
+    static let currentVersion = 4
 
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()

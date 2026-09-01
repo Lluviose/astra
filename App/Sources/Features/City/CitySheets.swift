@@ -27,10 +27,24 @@ struct CityDetailSheet: View {
                         .listRowSeparator(.hidden)
                 }
 
-                Section("这座城市的对象") {
-                    ForEach(bucket.companions) { companion in
-                        NavigationLink(value: companion.id) {
-                            CompanionRow(companion: companion, showCity: false)
+                if !bucket.encounters.isEmpty {
+                    Section("这座城市的时间线") {
+                        ForEach(Array(bucket.encounters.prefix(12))) { encounter in
+                            if app.companion(id: encounter.companionID) != nil {
+                                NavigationLink(value: encounter.companionID) {
+                                    EncounterRow(encounter: encounter)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !bucket.companions.isEmpty {
+                    Section("这座城市的对象") {
+                        ForEach(bucket.companions) { companion in
+                            NavigationLink(value: companion.id) {
+                                CompanionRow(companion: companion, showCity: false)
+                            }
                         }
                     }
                 }
@@ -67,13 +81,13 @@ struct CityDetailSheet: View {
             HStack(spacing: 10) {
                 Image(systemName: "mappin.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(bucket.dominantStage.tint)
+                    .foregroundStyle(bucket.mapTint)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(bucket.city.shortProvince) · \(bucket.city.tier.label)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(bucket.count) 个对象")
+                    Text("\(bucket.count) 个对象 · \(bucket.recordCount) 条结果")
                         .font(.title3.weight(.bold))
                 }
 
@@ -91,6 +105,19 @@ struct CityDetailSheet: View {
                     }
                 }
             }
+
+            HStack(spacing: 8) {
+                Label("上床 \(bucket.hookupCount)", systemImage: "flame.fill")
+                    .foregroundStyle(EncounterKind.intimacy.tint)
+                Label("没上 \(bucket.missedCount)", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(EncounterKind.missed.tint)
+                if let date = bucket.lastRecordDate {
+                    Spacer()
+                    Text(Format.relativeDay(date))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.caption.weight(.semibold))
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -202,14 +229,14 @@ struct CityPickerSheet: View {
                 }
                 Spacer()
                 if let bucket = app.buckets.first(where: { $0.id == city.id }) {
-                    Text("\(bucket.count)")
+                    Text("\(bucket.mapCount)")
                         .font(.caption.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(bucket.dominantStage.tint)
+                        .foregroundStyle(bucket.mapTint)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
                         .background {
-                            Capsule().fill(bucket.dominantStage.tint.opacity(0.15))
+                            Capsule().fill(bucket.mapTint.opacity(0.15))
                         }
                 }
             }

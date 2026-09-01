@@ -15,7 +15,7 @@ enum CompanionRankingMetric: String, CaseIterable, Identifiable {
         case .desire: "欲望"
         case .chemistry: "床上"
         case .afterglow: "回味"
-        case .hookups: "约成"
+        case .hookups: "上床"
         }
     }
 
@@ -152,7 +152,7 @@ struct RankingScreen: View {
 
     private var emptyMessage: String {
         metric == .hookups
-            ? "先记下一次约成，这里会按次数排出你的私密榜单。"
+            ? "先记下一次上床，这里会按次数排出你的私密榜单。"
             : "先在档案里留下对应评分，这里会自动排出你的私密榜单。"
     }
 

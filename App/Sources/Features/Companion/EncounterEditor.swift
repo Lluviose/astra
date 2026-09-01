@@ -11,13 +11,12 @@ struct EncounterEditor: View {
     @State private var draft: Encounter
     @State private var costText: String
     @State private var hasFollowUpDate: Bool
-    @State private var showDigitalBoundaries: Bool
-    @State private var showConversationSafety: Bool
     @State private var showBoundaryDetails: Bool
     @State private var showSafetyDetails: Bool
     @State private var showFollowUpDetails: Bool
     @State private var showDeleteConfirm = false
     @State private var showUnsavedAlert = false
+    @State private var isPickingCity = false
     @FocusState private var isCostFocused: Bool
     @State private var sessionPhotoIDs: Set<String> = []
     @State private var viewingPhotoIndex: Int?
@@ -30,8 +29,7 @@ struct EncounterEditor: View {
 
     private var availableFollowUps: [FollowUpKind] {
         if draft.kind.isIntimate { return FollowUpKind.allCases }
-        if draft.kind.isConversation { return [.message, .planMeet, .accountSafety, .other] }
-        return [.message, .other]
+        return [.message, .planMeet, .accountSafety, .other]
     }
 
     init(encounter: Encounter) {
@@ -39,8 +37,6 @@ struct EncounterEditor: View {
         _draft = State(initialValue: encounter)
         _costText = State(initialValue: encounter.cost.map { String(Int($0)) } ?? "")
         _hasFollowUpDate = State(initialValue: encounter.followUpDate != nil)
-        _showDigitalBoundaries = State(initialValue: !encounter.digitalBoundaries.isEmpty)
-        _showConversationSafety = State(initialValue: !encounter.conversationSafetyFlags.isEmpty)
         _showBoundaryDetails = State(
             initialValue: encounter.boundaryFeeling != .notRecorded || !encounter.personalStates.isEmpty
         )
@@ -55,10 +51,6 @@ struct EncounterEditor: View {
             Form {
                 subjectSection
                 basicsSection
-
-                if draft.kind.isConversation {
-                    conversationSection
-                }
 
                 if draft.kind.isIntimate {
                     activitySection
@@ -83,7 +75,7 @@ struct EncounterEditor: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记一笔" : "改记录")
+            .navigationTitle(isNew ? "记录结果" : "改记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -123,11 +115,6 @@ struct EncounterEditor: View {
             .onChange(of: draft.kind) { _, kind in
                 normalizeForKind(kind)
             }
-            .onChange(of: draft.explicitContentComfort) { _, comfort in
-                if comfort.shouldNotEscalate {
-                    draft.acceptedExplicitMedia = []
-                }
-            }
             .onChange(of: draft.climaxDetails) { _, details in
                 if details.contains(.creampie), draft.protectionStatus == .notRecorded {
                     draft.protectionStatus = .noProtection
@@ -150,6 +137,11 @@ struct EncounterEditor: View {
                 set: { if !$0 { viewingPhotoIndex = nil } }
             )) {
                 PhotoViewer(ids: draft.photoIDs, index: viewingPhotoIndex ?? 0)
+            }
+            .sheet(isPresented: $isPickingCity) {
+                CityPickerSheet(title: "这次在哪座城市") { city in
+                    draft.cityID = city.id
+                }
             }
         }
     }
@@ -175,12 +167,6 @@ struct EncounterEditor: View {
 
     private var basicsSection: some View {
         Section {
-            DatePicker("时间", selection: $draft.date, in: ...Date())
-            TextField(
-                draft.kind.isConversation ? "平台或聊天场景（可留空）" : "地点（可留空）",
-                text: $draft.place
-            )
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(kindChoices) { kind in
@@ -190,132 +176,33 @@ struct EncounterEditor: View {
                 .padding(.vertical, 4)
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-        } header: {
-            Text("这次")
-        } footer: {
-            Text("对象、时间和类型填了就能存。照片、细节以后再补也行。")
-        }
-    }
 
-    // MARK: - 准炮友 / 暧昧聊天
+            DatePicker("时间", selection: $draft.date, in: ...Date())
 
-    private var conversationSection: some View {
-        Section {
-            Picker("我的进展判断", selection: $draft.chatProgress) {
-                ForEach(ChatProgress.allCases) { progress in
-                    Text(progress.label).tag(progress)
-                }
-            }
-
-            Picker("她对露骨内容的回应", selection: $draft.explicitContentComfort) {
-                ForEach(ExplicitContentComfort.allCases) { comfort in
-                    Text(comfort.label).tag(comfort)
-                }
-            }
-
-            if draft.explicitContentComfort == .explicitlyOkay
-                || draft.explicitContentComfort == .limited {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("她明确接受的形式")
-                        .font(.subheadline)
-
-                    FlowLayout(spacing: 7, lineSpacing: 8) {
-                        ForEach(ExplicitMedium.allCases) { medium in
-                            GlassChip(
-                                title: medium.label,
-                                isOn: draft.acceptedExplicitMedia.contains(medium),
-                                tint: Palette.safe,
-                                compact: true
-                            ) {
-                                draft.acceptedExplicitMedia = toggled(medium, in: draft.acceptedExplicitMedia)
-                            }
-                        }
-                    }
-
-                    if draft.acceptedExplicitMedia.isEmpty {
-                    Label("还没记她到底接不接受哪种，先别发。", systemImage: "questionmark.bubble.fill")
-                            .font(.caption)
-                            .foregroundStyle(Palette.warning)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("这次明确聊过")
-                    .font(.subheadline)
-
-                FlowLayout(spacing: 7, lineSpacing: 8) {
-                    ForEach(ConversationTopic.allCases) { topic in
-                        GlassChip(
-                            title: topic.label,
-                            isOn: draft.conversationTopics.contains(topic),
-                            tint: Palette.coral,
-                            compact: true
-                        ) {
-                            draft.conversationTopics = toggled(topic, in: draft.conversationTopics)
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-
-            DisclosureGroup(isExpanded: $showDigitalBoundaries) {
-                FlowLayout(spacing: 7, lineSpacing: 8) {
-                    ForEach(DigitalBoundary.allCases) { boundary in
-                        GlassChip(
-                            title: boundary.label,
-                            isOn: draft.digitalBoundaries.contains(boundary),
-                            tint: Palette.accent,
-                            compact: true
-                        ) {
-                            draft.digitalBoundaries = toggled(boundary, in: draft.digitalBoundaries)
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
+            Button {
+                Haptics.shared.play(.lightTap)
+                isPickingCity = true
             } label: {
-                Label("线上隐私约定", systemImage: "hand.raised.fill")
-            }
-
-            DisclosureGroup(isExpanded: $showConversationSafety) {
-                FlowLayout(spacing: 7, lineSpacing: 8) {
-                    ForEach(ConversationSafetyFlag.allCases) { flag in
-                        GlassChip(
-                            title: flag.label,
-                            isOn: draft.conversationSafetyFlags.contains(flag),
-                            tint: Palette.warning,
-                            compact: true
-                        ) {
-                            draft.conversationSafetyFlags = toggled(flag, in: draft.conversationSafetyFlags)
-                        }
+                LabeledContent("城市") {
+                    HStack(spacing: 5) {
+                        Text(selectedCityName)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                .padding(.vertical, 4)
-
-                if draft.hasConversationSafetyConcern {
-                    Label("先暂停发送私密内容或转账；需要时使用平台举报、账号安全或当地求助渠道。", systemImage: "lock.shield.fill")
-                        .font(.caption)
-                        .foregroundStyle(Palette.warning)
-                }
-            } label: {
-                Label("我需要留意的账号安全事实", systemImage: "lock.shield.fill")
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            if draft.explicitContentComfort.shouldNotEscalate {
-                Label(
-                    draft.explicitContentComfort == .notRecorded
-                        ? "她还没说可以，先别往黄的推。"
-                        : "她说慢一点或不行，就停。",
-                    systemImage: "pause.circle.fill"
-                )
-                    .font(.caption)
-                    .foregroundStyle(Palette.warning)
-            }
+            TextField(
+                draft.kind.isIntimate ? "酒店、住处等地点（可留空）" : "在哪一步没成（可留空）",
+                text: $draft.place
+            )
         } header: {
-            Text("聊到哪了")
+            Text("这次结果")
         } footer: {
-            Text("两个人都得是成年。她没说可以，就别往黄的推。答应发文字不等于答应发图。默认不截屏、不转发。")
+            Text("只区分上床了还是没上床。时间和城市会进入时间线与猎场地图，细节以后再补也行。")
         }
     }
 
@@ -482,7 +369,7 @@ struct EncounterEditor: View {
                 }
             }
         } header: {
-            Text("爽不爽，还想不想再干")
+            Text(draft.kind.isIntimate ? "爽不爽，还想不想再干" : "这次感觉与下一步")
         } footer: {
             Text("记你自己的感觉就行，不用给她打分。")
         }
@@ -553,27 +440,25 @@ struct EncounterEditor: View {
 
     private var notesSection: some View {
         Section("补充") {
-            if draft.kind.isInPerson || draft.kind == .gift {
-                HStack {
-                    Text("花费")
-                    Spacer()
-                    TextField("0", text: $costText)
-                        .keyboardType(.numberPad)
-                        .focused($isCostFocused)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 120)
-                        .onChange(of: costText) { _, newValue in
-                            draft.cost = Double(newValue.filter { $0.isNumber })
-                        }
-                    Text("元")
-                        .foregroundStyle(.secondary)
-                }
+            HStack {
+                Text("花费")
+                Spacer()
+                TextField("0", text: $costText)
+                    .keyboardType(.numberPad)
+                    .focused($isCostFocused)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 120)
+                    .onChange(of: costText) { _, newValue in
+                        draft.cost = Double(newValue.filter { $0.isNumber })
+                    }
+                Text("元")
+                    .foregroundStyle(.secondary)
             }
 
             TextField(
-                draft.kind.isConversation
-                    ? "她明确说过的尺度、下次想聊什么"
-                    : "她哪里敏感、叫得怎么样、下次想怎么玩",
+                draft.kind.isIntimate
+                    ? "她哪里敏感、叫得怎么样、下次想怎么玩"
+                    : "为什么没上床、下次要不要换时间或城市",
                 text: $draft.note,
                 axis: .vertical
             )
@@ -584,10 +469,17 @@ struct EncounterEditor: View {
     // MARK: - 组件与状态
 
     private var kindChoices: [EncounterKind] {
-        if draft.kind == .flirting {
-            return [.flirting] + EncounterKind.recordableCases
-        }
         return EncounterKind.recordableCases
+    }
+
+    private var selectedCityName: String {
+        if let cityID = draft.cityID, let city = app.city(id: cityID) {
+            return city.name
+        }
+        if let companion {
+            return app.cityName(for: companion)
+        }
+        return "选择城市"
     }
 
     private func kindChip(_ kind: EncounterKind) -> some View {
@@ -667,9 +559,7 @@ struct EncounterEditor: View {
     }
 
     private var continuationPrompt: String {
-        if draft.kind.isConversation { return "还想聊吗" }
-        if draft.kind.isInPerson { return "还想约吗" }
-        return "还想继续吗"
+        draft.kind.isIntimate ? "还想再上床吗" : "还想再约吗"
     }
 
     private var photosSection: some View {
@@ -781,52 +671,13 @@ struct EncounterEditor: View {
     }
 
     private func normalizeForKind(_ kind: EncounterKind) {
-        if !kind.isInPerson, kind != .gift {
-            draft.cost = nil
-            costText = ""
-        }
-
-        if !kind.isConversation {
-            draft.chatProgress = .notRecorded
-            draft.explicitContentComfort = .notRecorded
-            draft.acceptedExplicitMedia = []
-            draft.conversationTopics = []
-            draft.digitalBoundaries = []
-            draft.conversationSafetyFlags = []
-        }
-
-        guard !kind.isIntimate else {
-            if draft.protectionStatus == .notApplicable {
-                draft.protectionStatus = .notRecorded
-            }
-            return
-        }
-
-        draft.activities = []
-        draft.climaxDetails = []
-        draft.boundaryFeeling = .notRecorded
-        draft.personalStates = []
-        draft.protectionStatus = .notApplicable
-        draft.safetyMeasures = []
-        draft.safetyNote = ""
-        draft.physicalRating = 0
-        let allowedFollowUps: Set<FollowUpKind> = kind.isConversation
-            ? [.message, .planMeet, .accountSafety, .other]
-            : [.message, .other]
-        draft.followUpKinds = draft.followUpKinds.intersection(allowedFollowUps)
-        if draft.followUpKinds.isEmpty {
-            draft.followUpDate = nil
-            draft.followUpNote = ""
-            draft.isFollowUpDone = false
-            hasFollowUpDate = false
-        }
+        draft.kind = kind
+        draft.normalizeForOutcome()
+        hasFollowUpDate = draft.followUpDate != nil
     }
 
     private func save() {
         normalizeForKind(draft.kind)
-        if draft.explicitContentComfort.shouldNotEscalate {
-            draft.acceptedExplicitMedia = []
-        }
         draft.physicalRating = min(max(draft.physicalRating, 0), 5)
         draft.emotionalRating = min(max(draft.emotionalRating, 0), 5)
         if draft.followUpKinds.isEmpty {

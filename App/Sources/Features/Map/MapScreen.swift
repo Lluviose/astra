@@ -1,16 +1,60 @@
 import MapKit
 import SwiftUI
 
+private enum MapRecordScope: String, CaseIterable, Identifiable {
+    case all
+    case hookedUp
+    case missed
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: "全部"
+        case .hookedUp: "上床"
+        case .missed: "没上"
+        }
+    }
+
+    func count(in bucket: CityBucket) -> Int {
+        switch self {
+        case .all: bucket.mapCount
+        case .hookedUp: bucket.hookupCount
+        case .missed: bucket.missedCount
+        }
+    }
+
+    func tint(for bucket: CityBucket) -> Color {
+        switch self {
+        case .all: bucket.mapTint
+        case .hookedUp: EncounterKind.intimacy.tint
+        case .missed: EncounterKind.missed.tint
+        }
+    }
+}
+
 /// 城市气泡：玻璃胶囊 + 指向锚点的针脚。
-/// 尺寸随该城市人数变化，主色取这座城里关系最"进"的一档。
-struct CityBubble: View {
+/// 尺寸随该城市记录数变化，主色由当前结果图层决定。
+private struct CityBubble: View {
 
     let bucket: CityBucket
+    let scope: MapRecordScope
     let isSelected: Bool
     let showGlow: Bool
     let action: () -> Void
 
-    private var tint: Color { bucket.dominantStage.tint }
+    private var tint: Color { scope.tint(for: bucket) }
+    private var displayCount: Int { scope.count(in: bucket) }
+    private var symbolName: String {
+        switch scope {
+        case .hookedUp: return "flame.fill"
+        case .missed: return "xmark"
+        case .all:
+            if bucket.hookupCount > 0 { return "flame.fill" }
+            if bucket.missedCount > 0 { return "xmark" }
+            return "mappin"
+        }
+    }
 
     /// 0.92 ~ 1.24
     private var scale: CGFloat { 0.92 + CGFloat(min(bucket.ratio, 1)) * 0.32 }
@@ -27,22 +71,21 @@ struct CityBubble: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement()
-        .accessibilityLabel("\(bucket.city.name)，\(bucket.count) 个对象")
+        .accessibilityLabel("\(bucket.city.name)，\(scope.label) \(displayCount)")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
     }
 
     private var capsule: some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(tint)
-                .frame(width: 7, height: 7)
-                .overlay { Circle().strokeBorder(.white.opacity(0.6), lineWidth: 0.5) }
+            Image(systemName: symbolName)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(tint)
 
             Text(bucket.city.name)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
 
-            Text("\(bucket.count)")
+            Text("\(displayCount)")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(isSelected ? .white : tint)
@@ -104,6 +147,18 @@ struct MapScreen: View {
     @State private var pendingEditorTarget: Companion?
     @State private var isPickingCity = false
     @State private var isJumpingToCity = false
+    @State private var scope: MapRecordScope = .all
+
+    private var filteredBuckets: [CityBucket] {
+        switch scope {
+        case .all:
+            app.buckets
+        case .hookedUp:
+            app.buckets.filter { $0.hookupCount > 0 }
+        case .missed:
+            app.buckets.filter { $0.missedCount > 0 }
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -115,6 +170,11 @@ struct MapScreen: View {
                     .padding(.horizontal, 28)
                     .padding(.bottom, 120)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else if filteredBuckets.isEmpty {
+                scopeEmptyCard
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 120)
+                    .transition(.opacity)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -126,6 +186,8 @@ struct MapScreen: View {
                 .padding(.bottom, 8)
         }
         .animation(.easeInOut(duration: 0.25), value: app.buckets.count)
+        .animation(.easeInOut(duration: 0.25), value: scope)
+        .onChange(of: scope) { _, _ in selectedCityID = nil }
         .sheet(item: selectedBucketBinding, onDismiss: presentPendingEditor) { bucket in
             CityDetailSheet(bucket: bucket) { companion in
                 pendingEditorTarget = companion
@@ -156,10 +218,11 @@ struct MapScreen: View {
             bounds: ChinaRegion.cameraBounds,
             interactionModes: [.pan, .zoom]
         ) {
-            ForEach(app.buckets) { bucket in
+            ForEach(filteredBuckets) { bucket in
                 Annotation("", coordinate: bucket.city.displayCoordinate, anchor: .bottom) {
                     CityBubble(
                         bucket: bucket,
+                        scope: scope,
                         isSelected: selectedCityID == bucket.id,
                         showGlow: app.settings.showHeatGlow
                     ) {
@@ -187,43 +250,50 @@ struct MapScreen: View {
     // MARK: 顶部信息条
 
     private var header: some View {
-        HStack(spacing: 10) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .bold))
-                    .frame(width: 34, height: 34)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-            .accessibilityLabel("关闭猎场地图")
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 34, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
+                .accessibilityLabel("关闭猎场地图")
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("猎场地图")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                Text(summaryText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("猎场地图")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text(summaryText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    isJumpingToCity = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(width: 34, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
+                .accessibilityLabel("搜索城市")
             }
 
-            Spacer(minLength: 12)
-
-            Button {
-                isJumpingToCity = true
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 34, height: 34)
-                    .contentShape(Rectangle())
+            Picker("地图结果", selection: $scope) {
+                ForEach(MapRecordScope.allCases) { item in
+                    Text(item.label).tag(item)
+                }
             }
-            .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-            .accessibilityLabel("搜索城市")
+            .pickerStyle(.segmented)
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 10)
-        .padding(.vertical, 8)
-        .glassCapsule(interactive: true, shadowRadius: 14)
+        .padding(10)
+        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 14)
         .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 8)
@@ -232,8 +302,7 @@ struct MapScreen: View {
     private var summaryText: String {
         if app.buckets.isEmpty { return "还没有记录" }
         let cities = app.buckets.count
-        let people = app.buckets.reduce(0) { $0 + $1.count }
-        return "\(cities) 座城市 · \(people) 个对象"
+        return "\(cities) / \(app.catalog.cities.count) 城 · 上床 \(app.stats.totalIntimacyCount) · 没上 \(app.stats.missedCount)"
     }
 
     // MARK: 右下悬浮控件
@@ -289,7 +358,7 @@ struct MapScreen: View {
                 .foregroundStyle(Palette.accent.opacity(0.7))
             Text("还没点亮城市")
                 .font(.headline)
-            Text("加个人进名册并选城市，\n这里就会亮起第一颗点。")
+            Text("加个人或记下一次结果并选择城市，\n这里就会亮起第一颗点。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -302,6 +371,31 @@ struct MapScreen: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
+            }
+            .glassActionStyle(prominent: true)
+            .tint(Palette.accent)
+            .padding(.top, 2)
+        }
+        .padding(22)
+        .glassCard(cornerRadius: 28)
+    }
+
+    private var scopeEmptyCard: some View {
+        VStack(spacing: 10) {
+            Image(systemName: scope == .hookedUp ? "flame" : "xmark.circle")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(scope == .hookedUp ? EncounterKind.intimacy.tint : EncounterKind.missed.tint)
+            Text(scope == .hookedUp ? "还没有上床足迹" : "还没有没上床的城市")
+                .font(.headline)
+            Text(scope == .hookedUp
+                ? "切回全部查看已有猎场，或去新城市留下下一次结果。"
+                : "切回全部查看已有猎场；没成的记录也会保留在时间线上。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Button("查看全部") {
+                scope = .all
             }
             .glassActionStyle(prominent: true)
             .tint(Palette.accent)

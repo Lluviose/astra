@@ -96,7 +96,7 @@ struct RootView: View {
                 }
                 .badge(app.needsAttention.count)
 
-                Tab("记录册", systemImage: "book.closed.fill", value: AppTab.timeline) {
+                Tab("时间线", systemImage: "clock.arrow.circlepath", value: AppTab.timeline) {
                     TimelineScreen()
                 }
 

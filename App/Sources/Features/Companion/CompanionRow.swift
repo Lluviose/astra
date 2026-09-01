@@ -91,10 +91,12 @@ struct CompanionRow: View {
     }
 
     private var intimacySummary: String {
-        let overnight = intimateEncounters.filter { $0.kind == .overnight }.count
-        guard let latest = intimateEncounters.first else { return "还没约成" }
-        var parts = ["约成 \(intimateEncounters.count)"]
-        if overnight > 0 { parts.append("过夜 \(overnight)") }
+        let all = app.encounters(for: companion.id)
+        let missed = all.filter { $0.kind.isMissed }.count
+        guard let latest = all.first else { return "还没记录" }
+        var parts: [String] = []
+        if !intimateEncounters.isEmpty { parts.append("上床 \(intimateEncounters.count)") }
+        if missed > 0 { parts.append("没上 \(missed)") }
         parts.append(Format.relativeDay(latest.date))
         return parts.joined(separator: " · ")
     }

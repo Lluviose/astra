@@ -21,6 +21,14 @@ extension DateFormatter {
         formatter.setLocalizedDateFormatFromTemplate("yMMMd")
         return formatter
     }()
+
+    /// 「21:30」；遵循用户的 12 / 24 小时制设置。
+    static let timeShort: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter
+    }()
 }
 
 enum Format {
@@ -42,6 +50,21 @@ enum Format {
             return DateFormatter.dayShort.string(from: date)
         }
         return DateFormatter.dayFull.string(from: date)
+    }
+
+    /// 时间线分组标题：今天 / 昨天 / 8月12日 / 2025年8月12日。
+    static func timelineDay(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "今天" }
+        if calendar.isDateInYesterday(date) { return "昨天" }
+        if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            return DateFormatter.dayShort.string(from: date)
+        }
+        return DateFormatter.dayFull.string(from: date)
+    }
+
+    static func clockTime(_ date: Date) -> String {
+        DateFormatter.timeShort.string(from: date)
     }
 
     /// 「12 天没联系」用的短文案

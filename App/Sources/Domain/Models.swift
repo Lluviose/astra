@@ -494,241 +494,41 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
 // MARK: - 互动记录
 
 enum EncounterKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case intimacy // 亲密见面
-    case overnight // 过夜
-    case meet     // 见面
-    case meal     // 吃饭
-    case outing   // 出去玩
-    case trip     // 旅行
-    case flirting // 暧昧 / 调情聊天
-    case call     // 通话
-    case chat     // 聊天
-    case gift     // 送礼
-    case other
+    case intimacy
+    case missed
 
     var id: String { rawValue }
 
-    /// 新建记录时可选的类型。旧数据里的「聊骚」仍能解码和显示。
+    /// 新建记录只区分有没有发生关系。
     static var recordableCases: [EncounterKind] {
-        allCases.filter { $0 != .flirting }
+        [.intimacy, .missed]
     }
 
     var label: String {
         switch self {
-        case .intimacy: "约成了"
-        case .overnight: "过夜"
-        case .meet: "见面"
-        case .meal: "吃饭"
-        case .outing: "出去玩"
-        case .trip: "一起旅行"
-        case .flirting: "聊骚"
-        case .call: "通话"
-        case .chat: "聊天"
-        case .gift: "送礼"
-        case .other: "其他"
+        case .intimacy: "上床了"
+        case .missed: "没上床"
         }
     }
 
     var symbolName: String {
         switch self {
         case .intimacy: "flame.fill"
-        case .overnight: "moon.fill"
-        case .meet: "person.2.fill"
-        case .meal: "fork.knife"
-        case .outing: "figure.walk.motion"
-        case .trip: "airplane"
-        case .flirting: "heart.text.square.fill"
-        case .call: "phone.fill"
-        case .chat: "message.fill"
-        case .gift: "gift.fill"
-        case .other: "sparkles"
+        case .missed: "xmark.circle.fill"
         }
     }
 
     var tint: Color {
         switch self {
         case .intimacy: Color(red: 0.94, green: 0.28, blue: 0.52)
-        case .overnight: Color(red: 0.58, green: 0.34, blue: 0.92)
-        case .meet: Color(red: 0.98, green: 0.40, blue: 0.48)
-        case .meal: Color(red: 0.97, green: 0.63, blue: 0.24)
-        case .outing: Color(red: 0.30, green: 0.75, blue: 0.60)
-        case .trip: Color(red: 0.38, green: 0.60, blue: 0.96)
-        case .flirting: Color(red: 0.93, green: 0.39, blue: 0.60)
-        case .call: Color(red: 0.55, green: 0.48, blue: 0.92)
-        case .chat: Color(red: 0.45, green: 0.72, blue: 0.90)
-        case .gift: Color(red: 0.88, green: 0.35, blue: 0.70)
-        case .other: Color.secondary
-        }
-    }
-
-    /// 是否算「线下见面」，用于统计
-    var isInPerson: Bool {
-        switch self {
-        case .intimacy, .overnight, .meet, .meal, .outing, .trip: true
-        case .flirting, .call, .chat, .gift, .other: false
+        case .missed: Color(red: 0.35, green: 0.56, blue: 0.94)
         }
     }
 
     /// 是否属于需要展示防护记录的亲密事件。
-    var isIntimate: Bool {
-        self == .intimacy || self == .overnight
-    }
+    var isIntimate: Bool { self == .intimacy }
 
-    /// 是否需要展示聊天进展与线上边界。
-    var isConversation: Bool {
-        self == .flirting || self == .chat || self == .call
-    }
-}
-
-// MARK: - 暧昧 / 调情聊天记录
-
-enum ChatProgress: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case notRecorded
-    case gettingToKnow
-    case flirting
-    case expectationsClear
-    case discussingMeet
-    case meetScheduled
-    case slowingDown
-    case stopped
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .notRecorded: "未记录"
-        case .gettingToKnow: "还在摸底"
-        case .flirting: "已经很黄了"
-        case .expectationsClear: "想约的事聊清了"
-        case .discussingMeet: "在约见面"
-        case .meetScheduled: "约好了"
-        case .slowingDown: "先缓一缓"
-        case .stopped: "不推进了"
-        }
-    }
-}
-
-/// 对方针对露骨文字、图片或视频的明确回应；不同媒介需要分别确认。
-enum ExplicitContentComfort: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case notRecorded
-    case explicitlyOkay
-    case limited
-    case wantsSlower
-    case declined
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .notRecorded: "未记录"
-        case .explicitlyOkay: "她说可以"
-        case .limited: "有范围"
-        case .wantsSlower: "想慢一点"
-        case .declined: "她说不行"
-        }
-    }
-
-    var shouldNotEscalate: Bool {
-        self == .notRecorded || self == .wantsSlower || self == .declined
-    }
-}
-
-enum ExplicitMedium: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case text
-    case intimateImages
-    case videoCall
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .text: "黄段子 / 露骨文字"
-        case .intimateImages: "私密照片 / 视频"
-        case .videoCall: "视频开黄腔"
-        }
-    }
-}
-
-enum ConversationTopic: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case relationshipExpectation
-    case chatPace
-    case preferences
-    case boundaries
-    case imagePrivacy
-    case protectionAndTesting
-    case contraceptionPlan
-    case substanceBoundary
-    case meetingPlan
-    case other
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .relationshipExpectation: "关系期待"
-        case .chatPace: "聊天尺度 / 节奏"
-        case .preferences: "亲密偏好"
-        case .boundaries: "边界 / 禁区"
-        case .imagePrivacy: "照片与隐私"
-        case .protectionAndTesting: "防护 / 检测"
-        case .contraceptionPlan: "避孕方式 / 责任"
-        case .substanceBoundary: "饮酒 / 物质边界"
-        case .meetingPlan: "见面安排"
-        case .other: "其他"
-        }
-    }
-}
-
-enum DigitalBoundary: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case noScreenshots
-    case noForwarding
-    case noSaving
-    case textOnly
-    case noFaceOrIdentity
-    case deleteOnRequest
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .noScreenshots: "不截屏 / 录屏"
-        case .noForwarding: "不转发"
-        case .noSaving: "不保存"
-        case .textOnly: "只聊文字"
-        case .noFaceOrIdentity: "不带脸 / 身份信息"
-        case .deleteOnRequest: "提出后删除"
-        }
-    }
-}
-
-/// 仅记录聊天中可观察到的账号 / 数字安全事实，不形成对人的风险评分。
-enum ConversationSafetyFlag: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
-    case identityNotConfirmed
-    case moneyRequest
-    case suspiciousLink
-    case pressuredForIntimateContent
-    case threatenedSharing
-    case inconsistentKeyInfo
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .identityNotConfirmed: "身份尚未确认"
-        case .moneyRequest: "出现转账 / 金钱要求"
-        case .suspiciousLink: "收到可疑链接"
-        case .pressuredForIntimateContent: "被催促发私密内容"
-        case .threatenedSharing: "出现传播 / 威胁"
-        case .inconsistentKeyInfo: "关键信息前后不一"
-        }
-    }
-
-    var needsImmediatePause: Bool {
-        self == .moneyRequest
-            || self == .suspiciousLink
-            || self == .pressuredForIntimateContent
-            || self == .threatenedSharing
-    }
+    var isMissed: Bool { self == .missed }
 }
 
 // MARK: - 防护记录
@@ -1077,12 +877,6 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     /// 0 表示未记录，1...5 表示本人身体 / 情绪感受；不作为“表现评分”。
     var physicalRating: Int
     var emotionalRating: Int
-    var chatProgress: ChatProgress
-    var explicitContentComfort: ExplicitContentComfort
-    var acceptedExplicitMedia: Set<ExplicitMedium>
-    var conversationTopics: Set<ConversationTopic>
-    var digitalBoundaries: Set<DigitalBoundary>
-    var conversationSafetyFlags: Set<ConversationSafetyFlag>
     var activities: Set<IntimacyActivity>
     var climaxDetails: Set<ClimaxDetail>
     var boundaryFeeling: BoundaryFeeling
@@ -1109,12 +903,6 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         cost: Double? = nil,
         physicalRating: Int = 0,
         emotionalRating: Int = 0,
-        chatProgress: ChatProgress = .notRecorded,
-        explicitContentComfort: ExplicitContentComfort = .notRecorded,
-        acceptedExplicitMedia: Set<ExplicitMedium> = [],
-        conversationTopics: Set<ConversationTopic> = [],
-        digitalBoundaries: Set<DigitalBoundary> = [],
-        conversationSafetyFlags: Set<ConversationSafetyFlag> = [],
         activities: Set<IntimacyActivity> = [],
         climaxDetails: Set<ClimaxDetail> = [],
         boundaryFeeling: BoundaryFeeling = .notRecorded,
@@ -1139,12 +927,6 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.cost = cost
         self.physicalRating = min(max(physicalRating, 0), 5)
         self.emotionalRating = min(max(emotionalRating, 0), 5)
-        self.chatProgress = chatProgress
-        self.explicitContentComfort = explicitContentComfort
-        self.acceptedExplicitMedia = acceptedExplicitMedia
-        self.conversationTopics = conversationTopics
-        self.digitalBoundaries = digitalBoundaries
-        self.conversationSafetyFlags = conversationSafetyFlags
         self.activities = activities
         self.climaxDetails = climaxDetails
         self.boundaryFeeling = boundaryFeeling
@@ -1159,6 +941,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.isFollowUpDone = isFollowUpDone
         self.note = note
         self.photoIDs = photoIDs
+        normalizeForOutcome()
     }
 
     init(from decoder: Decoder) throws {
@@ -1166,18 +949,12 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         companionID = try c.decode(UUID.self, forKey: .companionID)
         date = try c.decodeIfPresent(Date.self, forKey: .date) ?? Date()
-        kind = EncounterKind(rawValue: try c.decodeIfPresent(String.self, forKey: .kind) ?? "") ?? .meet
+        kind = try c.decodeIfPresent(EncounterKind.self, forKey: .kind) ?? .missed
         cityID = try c.decodeIfPresent(String.self, forKey: .cityID)
         place = try c.decodeIfPresent(String.self, forKey: .place) ?? ""
         cost = try c.decodeIfPresent(Double.self, forKey: .cost)
         physicalRating = min(max(try c.decodeIfPresent(Int.self, forKey: .physicalRating) ?? 0, 0), 5)
         emotionalRating = min(max(try c.decodeIfPresent(Int.self, forKey: .emotionalRating) ?? 0, 0), 5)
-        chatProgress = try c.decodeIfPresent(ChatProgress.self, forKey: .chatProgress) ?? .notRecorded
-        explicitContentComfort = try c.decodeIfPresent(ExplicitContentComfort.self, forKey: .explicitContentComfort) ?? .notRecorded
-        acceptedExplicitMedia = try c.decodeIfPresent(Set<ExplicitMedium>.self, forKey: .acceptedExplicitMedia) ?? []
-        conversationTopics = try c.decodeIfPresent(Set<ConversationTopic>.self, forKey: .conversationTopics) ?? []
-        digitalBoundaries = try c.decodeIfPresent(Set<DigitalBoundary>.self, forKey: .digitalBoundaries) ?? []
-        conversationSafetyFlags = try c.decodeIfPresent(Set<ConversationSafetyFlag>.self, forKey: .conversationSafetyFlags) ?? []
         activities = try c.decodeIfPresent(Set<IntimacyActivity>.self, forKey: .activities) ?? []
         climaxDetails = try c.decodeIfPresent(Set<ClimaxDetail>.self, forKey: .climaxDetails) ?? []
         boundaryFeeling = try c.decodeIfPresent(BoundaryFeeling.self, forKey: .boundaryFeeling) ?? .notRecorded
@@ -1192,6 +969,31 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         isFollowUpDone = try c.decodeIfPresent(Bool.self, forKey: .isFollowUpDone) ?? false
         note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
         photoIDs = try c.decodeIfPresent([String].self, forKey: .photoIDs) ?? []
+        normalizeForOutcome()
+    }
+
+    /// 结果是模型的硬边界：没上床的记录不能携带性行为、防护或身体感受字段。
+    mutating func normalizeForOutcome() {
+        guard kind.isMissed else {
+            if protectionStatus == .notApplicable { protectionStatus = .notRecorded }
+            return
+        }
+
+        activities = []
+        climaxDetails = []
+        boundaryFeeling = .notRecorded
+        personalStates = []
+        protectionStatus = .notApplicable
+        safetyMeasures = []
+        safetyNote = ""
+        physicalRating = 0
+        let allowedFollowUps: Set<FollowUpKind> = [.message, .planMeet, .accountSafety, .other]
+        followUpKinds.formIntersection(allowedFollowUps)
+        if followUpKinds.isEmpty {
+            followUpDate = nil
+            followUpNote = ""
+            isFollowUpDone = false
+        }
     }
 
     /// 仅对已填写的维度求平均，避免把“未记录”误作中性分。
@@ -1226,24 +1028,6 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
             .joined(separator: "、")
     }
 
-    var conversationSummary: String {
-        var parts: [String] = []
-        if chatProgress != .notRecorded { parts.append(chatProgress.label) }
-        if explicitContentComfort != .notRecorded { parts.append("露骨内容：\(explicitContentComfort.label)") }
-        if !acceptedExplicitMedia.isEmpty { parts.append(acceptedExplicitMediaSummary) }
-        return parts.joined(separator: " · ")
-    }
-
-    var acceptedExplicitMediaSummary: String {
-        ExplicitMedium.allCases
-            .filter { acceptedExplicitMedia.contains($0) }
-            .map(\.label)
-            .joined(separator: "、")
-    }
-
-    var hasConversationSafetyConcern: Bool {
-        conversationSafetyFlags.contains { $0.needsImmediatePause }
-    }
 }
 
 // MARK: - 标签建议

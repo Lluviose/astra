@@ -150,36 +150,28 @@ final class BackupServiceTests: XCTestCase {
         }
     }
 
-    func testConversationDetailsRoundTrip() throws {
-        let companion = Companion(name: "她", cityID: "310000", stage: .flirting)
+    func testMissedOutcomeRoundTrip() throws {
+        let companion = Companion(name: "她", cityID: "310000", stage: .prospect)
         let encounter = Encounter(
             companionID: companion.id,
-            kind: .flirting,
+            kind: .missed,
+            cityID: "110000",
             emotionalRating: 4,
-            chatProgress: .discussingMeet,
-            explicitContentComfort: .limited,
-            acceptedExplicitMedia: [.text],
-            conversationTopics: [.chatPace, .boundaries, .meetingPlan],
-            digitalBoundaries: [.noScreenshots, .noForwarding],
-            conversationSafetyFlags: [.identityNotConfirmed, .suspiciousLink],
             meetAgainIntent: .yes,
             followUpKinds: [.planMeet],
-            followUpNote: "等她确认周末时间"
+            followUpNote: "换个城市再约",
+            note: "时间没对上"
         )
 
         let data = try BackupService.encode(companions: [companion], encounters: [encounter])
         let decoded = try BackupService.decode(data)
         let record = try XCTUnwrap(decoded.encounters.first)
 
-        XCTAssertEqual(record.kind, .flirting)
-        XCTAssertEqual(record.chatProgress, .discussingMeet)
-        XCTAssertEqual(record.explicitContentComfort, .limited)
-        XCTAssertEqual(record.acceptedExplicitMedia, [.text])
-        XCTAssertEqual(record.conversationTopics, [.chatPace, .boundaries, .meetingPlan])
-        XCTAssertEqual(record.digitalBoundaries, [.noScreenshots, .noForwarding])
-        XCTAssertEqual(record.conversationSafetyFlags, [.identityNotConfirmed, .suspiciousLink])
-        XCTAssertTrue(record.hasConversationSafetyConcern)
+        XCTAssertEqual(record.kind, .missed)
+        XCTAssertEqual(record.cityID, "110000")
+        XCTAssertEqual(record.emotionalRating, 4)
         XCTAssertEqual(record.followUpKinds, [.planMeet])
+        XCTAssertEqual(record.note, "时间没对上")
     }
 
     func testCompanionDecodesWithMissingOptionalFields() throws {
@@ -234,7 +226,7 @@ final class BackupServiceTests: XCTestCase {
         let data = try BackupService.encode(companions: [companion], encounters: [encounter], media: media)
         let decoded = try BackupService.decode(data)
 
-        XCTAssertEqual(decoded.version, 3)
+        XCTAssertEqual(decoded.version, 4)
         XCTAssertEqual(decoded.companions.first?.photoID, "avatar-1")
         XCTAssertEqual(decoded.companions.first?.profilePhotoIDs, ["profile-1"])
         XCTAssertEqual(decoded.companions.first?.albumPhotoIDs, ["album-1"])

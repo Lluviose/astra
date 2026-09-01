@@ -315,7 +315,7 @@ struct AboutView: View {
 
                     Text("星图")
                         .font(.title2.weight(.bold))
-                    Text("猎艳记录册 · 成就册")
+                    Text("猎艳时间线 · 成就册")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("版本 \(Bundle.main.appVersion)")

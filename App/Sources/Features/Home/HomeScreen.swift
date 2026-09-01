@@ -143,7 +143,7 @@ struct HomeScreen: View {
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("猎艳记录册")
+                Text("猎艳时间线")
                     .font(.system(size: 29, weight: .bold, design: .rounded))
                     .tracking(-0.6)
                 Text(monthLine)
@@ -154,9 +154,9 @@ struct HomeScreen: View {
 
             HStack(spacing: 8) {
                 heroMetric(value: "\(app.stats.girlsThisMonth)", label: "新人")
-                heroMetric(value: "\(app.stats.intimaciesThisMonth)", label: "约成")
-                heroMetric(value: "\(app.stats.overnightThisMonth)", label: "过夜")
-                heroMetric(value: "\(app.stats.photosThisMonth)", label: "照片")
+                heroMetric(value: "\(app.stats.intimaciesThisMonth)", label: "上床")
+                heroMetric(value: "\(app.stats.missedThisMonth)", label: "没上")
+                heroMetric(value: "\(app.stats.cityCount)", label: "城市")
             }
 
             HStack(spacing: 10) {
@@ -164,22 +164,12 @@ struct HomeScreen: View {
                     Button {
                         beginRecording(kind: .intimacy)
                     } label: {
-                        Label("约成了", systemImage: EncounterKind.intimacy.symbolName)
+                        Label("上床了", systemImage: EncounterKind.intimacy.symbolName)
                     }
                     Button {
-                        beginRecording(kind: .overnight)
+                        beginRecording(kind: .missed)
                     } label: {
-                        Label("过夜", systemImage: EncounterKind.overnight.symbolName)
-                    }
-                    Button {
-                        beginRecording(kind: .meet)
-                    } label: {
-                        Label("见面", systemImage: EncounterKind.meet.symbolName)
-                    }
-                    Button {
-                        beginRecording(kind: .chat)
-                    } label: {
-                        Label("聊天", systemImage: EncounterKind.chat.symbolName)
+                        Label("没上床", systemImage: EncounterKind.missed.symbolName)
                     }
                 } label: {
                     Label("记一笔", systemImage: "plus.circle.fill")
@@ -208,7 +198,7 @@ struct HomeScreen: View {
             }
             .buttonStyle(.plain)
 
-            Text("累计 名册 \(app.stats.activeCount) · 约成 \(app.stats.totalIntimacyCount) · 过夜 \(app.stats.overnightCount)")
+            Text("累计 名册 \(app.stats.activeCount) · 上床 \(app.stats.totalIntimacyCount) · 没上床 \(app.stats.missedCount)")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.7))
         }
@@ -229,13 +219,15 @@ struct HomeScreen: View {
     }
 
     private var monthLine: String {
-        if app.stats.intimaciesThisMonth == 0, app.stats.girlsThisMonth == 0 {
-            return "这个月还没动笔。约成、过夜、留照片，都写在这本册子里。"
+        if app.stats.intimaciesThisMonth == 0,
+           app.stats.missedThisMonth == 0,
+           app.stats.girlsThisMonth == 0 {
+            return "这个月还没动笔。上床或没上床，都记进时间线。"
         }
         var parts: [String] = []
         if app.stats.girlsThisMonth > 0 { parts.append("新人 \(app.stats.girlsThisMonth)") }
-        parts.append("约成 \(app.stats.intimaciesThisMonth)")
-        if app.stats.overnightThisMonth > 0 { parts.append("过夜 \(app.stats.overnightThisMonth)") }
+        parts.append("上床 \(app.stats.intimaciesThisMonth)")
+        if app.stats.missedThisMonth > 0 { parts.append("没上 \(app.stats.missedThisMonth)") }
         if app.stats.photosThisMonth > 0 { parts.append("照片 \(app.stats.photosThisMonth)") }
         return "本月猎获：" + parts.joined(separator: " · ")
     }
@@ -279,7 +271,7 @@ struct HomeScreen: View {
                     if companion.overallScore > 0 {
                         focusPill("综合 \(companion.overallScore)", symbol: "crown.fill")
                     }
-                    focusPill("约成 \(app.hookupCount(for: companion.id))", symbol: "flame.fill")
+                    focusPill("上床 \(app.hookupCount(for: companion.id))", symbol: "flame.fill")
                     let photoCount = app.albumIDs(for: companion.id).count
                     if photoCount > 0 {
                         focusPill("私藏 \(photoCount)", symbol: "photo.fill")
@@ -314,11 +306,11 @@ struct HomeScreen: View {
                     .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
 
                     Button {
-                        beginRecording(focusActionKind(for: companion), with: companion)
+                        beginRecording(.intimacy, with: companion)
                     } label: {
                         Label(
-                            focusActionTitle(for: companion),
-                            systemImage: focusActionKind(for: companion).symbolName
+                            "记录结果",
+                            systemImage: "plus.circle.fill"
                         )
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
@@ -403,22 +395,9 @@ struct HomeScreen: View {
 
     private func focusRecency(for companion: Companion) -> String {
         if let last = app.lastHookup(for: companion.id) {
-            return "上次约成 \(Format.relativeDay(last.date))"
+            return "上次上床 \(Format.relativeDay(last.date))"
         }
         return "最近互动 \(Format.relativeDay(app.lastContact(for: companion)))"
-    }
-
-    private func focusActionKind(for companion: Companion) -> EncounterKind {
-        switch companion.stage {
-        case .prospect, .casual, .regular:
-            return .intimacy
-        case .new, .chatting, .flirting, .paused, .ended:
-            return .chat
-        }
-    }
-
-    private func focusActionTitle(for companion: Companion) -> String {
-        focusActionKind(for: companion).isIntimate ? "记下战果" : "记下进展"
     }
 
     private func focusPill(_ title: String, symbol: String) -> some View {
@@ -497,14 +476,14 @@ struct HomeScreen: View {
     private var safetyCard: some View {
         homeCard(title: "安全小结", symbol: "checkmark.shield.fill", tint: Palette.safe) {
             if app.stats.intimaciesThisMonth == 0 {
-                Label("约成的时候，可以顺手记有没有戴套。", systemImage: "shield.lefthalf.filled")
+                Label("上床的时候，可以顺手记有没有戴套。", systemImage: "shield.lefthalf.filled")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("本月约成 \(app.stats.intimaciesThisMonth) 次，套记了 \(app.stats.safetyRecordedThisMonth) 次")
+                        Text("本月上床 \(app.stats.intimaciesThisMonth) 次，套记了 \(app.stats.safetyRecordedThisMonth) 次")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text("不做评判，只帮你记住")
@@ -585,7 +564,11 @@ struct HomeScreen: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("猎场地图")
                         .font(.headline)
-                    Text(app.buckets.isEmpty ? "还没点亮城市" : "\(app.buckets.count) 座城市 · \(app.currentCompanions.count) 个人")
+                    Text(
+                        app.buckets.isEmpty
+                            ? "还没点亮城市"
+                            : "\(app.buckets.count) 座城市 · 上床 \(app.stats.totalIntimacyCount) · 没上 \(app.stats.missedCount)"
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

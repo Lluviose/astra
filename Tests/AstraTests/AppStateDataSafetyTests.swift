@@ -132,6 +132,32 @@ final class AppStateDataSafetyTests: XCTestCase {
         XCTAssertTrue(app.timeline(limit: -1).isEmpty)
     }
 
+    @MainActor
+    func testMapBucketsUseActualRecordCityAndBothOutcomes() throws {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let companion = Companion(name: "她", cityID: "310000")
+        let hookup = Encounter(companionID: companion.id, kind: .intimacy, cityID: "110000")
+        let missed = Encounter(companionID: companion.id, kind: .missed, cityID: "310000")
+        let store = LocalStore(defaults: defaults)
+        store.save([companion], for: .companions)
+        store.save([hookup, missed], for: .encounters)
+
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+        let beijing = try XCTUnwrap(app.buckets.first { $0.id == "110000" })
+        let shanghai = try XCTUnwrap(app.buckets.first { $0.id == "310000" })
+
+        XCTAssertEqual(beijing.hookupCount, 1)
+        XCTAssertEqual(beijing.missedCount, 0)
+        XCTAssertEqual(beijing.companions.map(\.id), [companion.id])
+        XCTAssertEqual(shanghai.hookupCount, 0)
+        XCTAssertEqual(shanghai.missedCount, 1)
+        XCTAssertEqual(app.stats.cityCount, 2)
+        XCTAssertEqual(app.stats.totalIntimacyCount, 1)
+        XCTAssertEqual(app.stats.missedCount, 1)
+    }
+
     private func makeDefaults() -> (UserDefaults, String) {
         let suiteName = "AstraTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

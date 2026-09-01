@@ -68,18 +68,33 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertFalse(RelationStage.ended.isActive)
     }
 
-    func testOnlyIntimateKindsAskForProtectionDetails() {
+    func testRecordableKindsOnlyExposeTheTwoOutcomes() {
         XCTAssertTrue(EncounterKind.intimacy.isIntimate)
-        XCTAssertTrue(EncounterKind.overnight.isIntimate)
-        XCTAssertFalse(EncounterKind.meet.isIntimate)
-        XCTAssertFalse(EncounterKind.flirting.isIntimate)
-        XCTAssertFalse(EncounterKind.chat.isIntimate)
-        XCTAssertTrue(EncounterKind.flirting.isConversation)
-        XCTAssertTrue(EncounterKind.chat.isConversation)
-        XCTAssertFalse(EncounterKind.intimacy.isConversation)
-        XCTAssertFalse(EncounterKind.recordableCases.contains(.flirting))
-        XCTAssertTrue(EncounterKind.recordableCases.contains(.chat))
-        XCTAssertTrue(EncounterKind.recordableCases.contains(.intimacy))
+        XCTAssertFalse(EncounterKind.intimacy.isMissed)
+        XCTAssertTrue(EncounterKind.missed.isMissed)
+        XCTAssertFalse(EncounterKind.missed.isIntimate)
+        XCTAssertEqual(EncounterKind.allCases, [.intimacy, .missed])
+        XCTAssertEqual(EncounterKind.recordableCases, [.intimacy, .missed])
+    }
+
+    func testMissedOutcomeCannotCarryIntimateOnlyFields() {
+        let encounter = Encounter(
+            companionID: UUID(),
+            kind: .missed,
+            physicalRating: 5,
+            activities: [.vaginalPenetration],
+            protectionStatus: .noProtection,
+            safetyMeasures: [.externalCondom],
+            safetyNote: "不应保留",
+            followUpKinds: [.testing, .planMeet]
+        )
+
+        XCTAssertEqual(encounter.physicalRating, 0)
+        XCTAssertTrue(encounter.activities.isEmpty)
+        XCTAssertEqual(encounter.protectionStatus, .notApplicable)
+        XCTAssertTrue(encounter.safetyMeasures.isEmpty)
+        XCTAssertTrue(encounter.safetyNote.isEmpty)
+        XCTAssertEqual(encounter.followUpKinds, [.planMeet])
     }
 
     func testProspectSitsBetweenFlirtingAndHookup() {
@@ -135,6 +150,7 @@ final class IntimacyModelTests: XCTestCase {
         let json = """
         {
           "companionID": "\(companionID.uuidString)",
+          "kind": "intimacy",
           "physicalRating": 99,
           "emotionalRating": -4
         }
@@ -180,45 +196,4 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertTrue(BoundaryFeeling.concern.needsFollowUp)
     }
 
-    func testChatSummaryOnlyContainsExplicitlyRecordedFacts() {
-        var encounter = Encounter(companionID: UUID(), kind: .flirting)
-        XCTAssertTrue(encounter.conversationSummary.isEmpty)
-
-        encounter.chatProgress = .discussingMeet
-        encounter.explicitContentComfort = .limited
-        XCTAssertEqual(encounter.conversationSummary, "在约见面 · 露骨内容：有范围")
-    }
-
-    func testSlowDownAndDeclineShouldNotBeEscalated() {
-        XCTAssertTrue(ExplicitContentComfort.notRecorded.shouldNotEscalate)
-        XCTAssertFalse(ExplicitContentComfort.explicitlyOkay.shouldNotEscalate)
-        XCTAssertTrue(ExplicitContentComfort.wantsSlower.shouldNotEscalate)
-        XCTAssertTrue(ExplicitContentComfort.declined.shouldNotEscalate)
-    }
-
-    func testExplicitMediaSummaryKeepsConsentSpecific() {
-        let encounter = Encounter(
-            companionID: UUID(),
-            kind: .flirting,
-            explicitContentComfort: .limited,
-            acceptedExplicitMedia: [.videoCall, .text]
-        )
-        XCTAssertEqual(encounter.acceptedExplicitMediaSummary, "黄段子 / 露骨文字、视频开黄腔")
-    }
-
-    func testConversationSafetyUsesObservableFlagsWithoutAScore() {
-        let uncertainIdentity = Encounter(
-            companionID: UUID(),
-            kind: .flirting,
-            conversationSafetyFlags: [.identityNotConfirmed]
-        )
-        XCTAssertFalse(uncertainIdentity.hasConversationSafetyConcern)
-
-        let pressured = Encounter(
-            companionID: UUID(),
-            kind: .flirting,
-            conversationSafetyFlags: [.pressuredForIntimateContent]
-        )
-        XCTAssertTrue(pressured.hasConversationSafetyConcern)
-    }
 }

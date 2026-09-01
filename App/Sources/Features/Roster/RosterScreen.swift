@@ -118,7 +118,7 @@ struct RosterScreen: View {
             Section {
                 HStack(spacing: 12) {
                     digestChip("\(app.stats.activeCount)", "名册")
-                    digestChip("\(app.stats.totalIntimacyCount)", "约成")
+                    digestChip("\(app.stats.totalIntimacyCount)", "上床")
                     digestChip("\(app.stats.repeatGirlCount)", "回头客")
                     digestChip("\(app.stats.cityCount)", "城市")
                 }

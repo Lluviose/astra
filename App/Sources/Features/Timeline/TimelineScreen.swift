@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 记录页：暧昧聊天、亲密频率、待跟进与完整时间线。
+/// 按天呈现「上床了 / 没上床」结果、城市与后续事项。
 struct TimelineScreen: View {
 
     @Environment(AppState.self) private var app
@@ -19,10 +19,10 @@ struct TimelineScreen: View {
         switch scope {
         case .all:
             app.timeline()
-        case .chat:
-            app.timeline().filter { $0.kind.isConversation }
-        case .intimate:
+        case .hookedUp:
             app.timeline().filter { $0.kind.isIntimate }
+        case .missed:
+            app.timeline().filter { $0.kind.isMissed }
         case .followUp:
             app.pendingFollowUps
         }
@@ -66,13 +66,13 @@ struct TimelineScreen: View {
                     }
                 }
 
-                if scope == .all || scope == .intimate {
+                if scope == .all || scope == .hookedUp {
                     Section {
                         barChart
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     } header: {
-                        Text("近 6 个月约成")
+                        Text("近 6 个月结果")
                     }
                 }
 
@@ -88,7 +88,7 @@ struct TimelineScreen: View {
                         )
                     }
                 } else {
-                    ForEach(sections, id: \.title) { section in
+                    ForEach(sections) { section in
                         Section(section.title) {
                             ForEach(section.encounters) { encounter in
                                 if app.companion(id: encounter.companionID) != nil {
@@ -96,7 +96,7 @@ struct TimelineScreen: View {
                                         Haptics.shared.play(.selection)
                                         encounterTarget = encounter
                                     } label: {
-                                        EncounterRow(encounter: encounter)
+                                        EncounterRow(encounter: encounter, showTime: true)
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
@@ -114,7 +114,7 @@ struct TimelineScreen: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("记录册")
+            .navigationTitle("时间线")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -146,7 +146,7 @@ struct TimelineScreen: View {
     }
 
     private func beginRecording() {
-        recordingKind = scope == .chat ? .chat : .intimacy
+        recordingKind = scope == .missed ? .missed : .intimacy
         pendingCompanionSelection = nil
 
         if app.currentCompanions.isEmpty {
@@ -197,79 +197,51 @@ struct TimelineScreen: View {
     @ViewBuilder
     private var statsGrid: some View {
         switch scope {
-        case .chat:
-            conversationStatsGrid
         case .followUp:
             followUpStatsGrid
-        case .all, .intimate:
-            intimacyStatsGrid
+        case .all, .hookedUp, .missed:
+            outcomeStatsGrid
         }
     }
 
-    private var intimacyStatsGrid: some View {
+    private var outcomeStatsGrid: some View {
         Grid(horizontalSpacing: 10, verticalSpacing: 10) {
             GridRow {
                 StatTile(
                     value: "\(app.stats.totalIntimacyCount)",
-                    caption: "约成",
+                    caption: "上床",
                     systemImage: "flame.fill",
                     tint: Palette.accent
                 )
                 StatTile(
-                    value: "\(app.stats.intimaciesThisMonth)",
-                    caption: "本月约成",
-                    systemImage: "flame.fill",
-                    tint: Palette.coral
+                    value: "\(app.stats.missedCount)",
+                    caption: "没上床",
+                    systemImage: "xmark.circle.fill",
+                    tint: EncounterKind.missed.tint
                 )
             }
             GridRow {
                 StatTile(
-                    value: "\(app.stats.pendingFollowUpCount)",
-                    caption: "待跟进",
-                    systemImage: "checklist",
-                    tint: app.stats.pendingFollowUpCount > 0 ? Palette.warning : Palette.safe
+                    value: "\(app.stats.cityCount)",
+                    caption: "涉及城市",
+                    systemImage: "map.fill",
+                    tint: Color(red: 0.30, green: 0.70, blue: 0.56)
                 )
                 StatTile(
-                    value: app.stats.averageExperience.map { String(format: "%.1f", $0) } ?? "—",
-                    caption: "平均感受",
-                    systemImage: "face.smiling",
+                    value: hookupRateText,
+                    caption: "上床率",
+                    systemImage: "chart.line.uptrend.xyaxis",
                     tint: Color(red: 0.95, green: 0.62, blue: 0.28)
                 )
             }
         }
     }
 
-    private var conversationStatsGrid: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow {
-                StatTile(
-                    value: "\(conversationRecords.count)",
-                    caption: "聊天记录",
-                    systemImage: "heart.text.square.fill",
-                    tint: Palette.coral
-                )
-                StatTile(
-                    value: "\(conversationRecordsThisMonth)",
-                    caption: "本月记录",
-                    systemImage: "calendar",
-                    tint: Palette.accent
-                )
-            }
-            GridRow {
-                StatTile(
-                    value: "\(explicitResponseRecordedCount)",
-                    caption: "明确回应已记",
-                    systemImage: "checkmark.bubble.fill",
-                    tint: Palette.safe
-                )
-                StatTile(
-                    value: "\(pendingConversationFollowUps)",
-                    caption: "暧昧待跟进",
-                    systemImage: "checklist",
-                    tint: pendingConversationFollowUps > 0 ? Palette.warning : Palette.safe
-                )
-            }
-        }
+    private var hookupRateText: String {
+        let total = app.stats.totalIntimacyCount + app.stats.missedCount
+        guard total > 0 else { return "—" }
+        let rate = Double(app.stats.totalIntimacyCount) / Double(total)
+        return rate.formatted(.percent.precision(.fractionLength(0)))
     }
 
     private var followUpStatsGrid: some View {
@@ -305,23 +277,6 @@ struct TimelineScreen: View {
         }
     }
 
-    private var conversationRecords: [Encounter] {
-        app.encounters.filter { $0.kind.isConversation }
-    }
-
-    private var conversationRecordsThisMonth: Int {
-        let start = Calendar.current.dateInterval(of: .month, for: Date())?.start ?? .distantPast
-        return conversationRecords.filter { $0.date >= start }.count
-    }
-
-    private var explicitResponseRecordedCount: Int {
-        conversationRecords.filter { $0.explicitContentComfort != .notRecorded }.count
-    }
-
-    private var pendingConversationFollowUps: Int {
-        app.pendingFollowUps.filter { $0.kind.isConversation }.count
-    }
-
     private var overdueFollowUpCount: Int {
         let today = Calendar.current.startOfDay(for: Date())
         return app.pendingFollowUps.filter {
@@ -344,34 +299,54 @@ struct TimelineScreen: View {
     // MARK: 近 6 个月柱状图（纯 SwiftUI，无第三方库）
 
     private var barChart: some View {
-        let data = monthlyIntimacyCounts
+        let data = monthlyOutcomeCounts
+        let hookupTotal = data.reduce(0) { $0 + $1.hookedUp }
+        let missedTotal = data.reduce(0) { $0 + $1.missed }
+        let peak = max(1, data.flatMap { [$0.hookedUp, $0.missed] }.max() ?? 1)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("共 \(data.reduce(0) { $0 + $1.count }) 次约成")
-                    .font(.subheadline.weight(.semibold))
+                Label("上床 \(hookupTotal)", systemImage: "flame.fill")
+                    .foregroundStyle(EncounterKind.intimacy.tint)
                 Spacer()
-                if app.stats.intimaciesThisMonth > 0 {
-                    Text("本月套记了 \(app.stats.safetyRecordedThisMonth) / \(app.stats.intimaciesThisMonth)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Label("没上床 \(missedTotal)", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(EncounterKind.missed.tint)
             }
+            .font(.caption.weight(.semibold))
 
             HStack(alignment: .bottom, spacing: 8) {
                 ForEach(Array(data.enumerated()), id: \.offset) { _, item in
                     VStack(spacing: 4) {
-                        Text("\(item.count)")
+                        Text("\(item.hookedUp)/\(item.missed)")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(item.count > 0 ? Palette.accent : .secondary.opacity(0.5))
+                            .foregroundStyle(
+                                item.hookedUp + item.missed > 0
+                                    ? Color.secondary
+                                    : Color.secondary.opacity(0.45)
+                            )
                             .contentTransition(.numericText())
 
-                        Capsule(style: .continuous)
-                            .fill(
-                                item.count > 0
-                                    ? AnyShapeStyle(Palette.accent.gradient)
-                                    : AnyShapeStyle(Color.secondary.opacity(0.12))
-                            )
-                            .frame(height: max(4, CGFloat(item.count) * 12))
+                        HStack(alignment: .bottom, spacing: 3) {
+                            Capsule(style: .continuous)
+                                .fill(EncounterKind.intimacy.tint.gradient)
+                                .frame(
+                                    width: 8,
+                                    height: item.hookedUp > 0
+                                        ? max(10, CGFloat(item.hookedUp) / CGFloat(peak) * 70)
+                                        : 4
+                                )
+                                .opacity(item.hookedUp > 0 ? 1 : 0.16)
+
+                            Capsule(style: .continuous)
+                                .fill(EncounterKind.missed.tint.gradient)
+                                .frame(
+                                    width: 8,
+                                    height: item.missed > 0
+                                        ? max(10, CGFloat(item.missed) / CGFloat(peak) * 70)
+                                        : 4
+                                )
+                                .opacity(item.missed > 0 ? 1 : 0.16)
+                        }
+                        .frame(height: 74, alignment: .bottom)
 
                         Text(item.label)
                             .font(.caption2)
@@ -382,13 +357,16 @@ struct TimelineScreen: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .frame(height: 120, alignment: .bottom)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: data.map(\.count))
+            .frame(height: 112, alignment: .bottom)
+            .animation(
+                .spring(response: 0.5, dampingFraction: 0.8),
+                value: data.map { $0.hookedUp + $0.missed }
+            )
         }
         .padding(.vertical, 6)
     }
 
-    private var monthlyIntimacyCounts: [(label: String, count: Int)] {
+    private var monthlyOutcomeCounts: [(label: String, hookedUp: Int, missed: Int)] {
         let calendar = Calendar.current
         var months: [Date] = []
         guard let now = calendar.dateInterval(of: .month, for: Date())?.start else { return [] }
@@ -403,43 +381,58 @@ struct TimelineScreen: View {
 
         return months.map { month in
             guard let interval = calendar.dateInterval(of: .month, for: month) else {
-                return (labelFormatter.string(from: month), 0)
+                return (labelFormatter.string(from: month), 0, 0)
             }
-            let count = app.encounters.filter {
+            let records = app.encounters.filter {
+                $0.date >= interval.start && $0.date < interval.end
+            }.count
+            let hookedUp = app.encounters.filter {
                 $0.kind.isIntimate && $0.date >= interval.start && $0.date < interval.end
             }.count
-            return (labelFormatter.string(from: month), count)
+            return (labelFormatter.string(from: month), hookedUp, records - hookedUp)
         }
     }
 
-    private var displayedSections: [(title: String, encounters: [Encounter])] {
+    private var displayedSections: [RecordTimelineSection] {
         if scope == .followUp {
-            return displayedEncounters.isEmpty ? [] : [("待跟进", displayedEncounters)]
+            return displayedEncounters.isEmpty
+                ? []
+                : [RecordTimelineSection(id: "follow-up", title: "待跟进", encounters: displayedEncounters)]
         }
 
         let calendar = Calendar.current
-        let formatter = DateFormatter.monthTitle
-        var order: [String] = []
-        var grouped: [String: [Encounter]] = [:]
+        var order: [Date] = []
+        var grouped: [Date: [Encounter]] = [:]
 
         for encounter in displayedEncounters {
-            let start = calendar.dateInterval(of: .month, for: encounter.date)?.start ?? encounter.date
-            let key = formatter.string(from: start)
-            if grouped[key] == nil {
-                grouped[key] = []
-                order.append(key)
+            let day = calendar.startOfDay(for: encounter.date)
+            if grouped[day] == nil {
+                grouped[day] = []
+                order.append(day)
             }
-            grouped[key]?.append(encounter)
+            grouped[day]?.append(encounter)
         }
 
-        return order.map { ($0, grouped[$0] ?? []) }
+        return order.map { day in
+            RecordTimelineSection(
+                id: String(day.timeIntervalSinceReferenceDate),
+                title: Format.timelineDay(day),
+                encounters: grouped[day] ?? []
+            )
+        }
     }
+}
+
+private struct RecordTimelineSection: Identifiable {
+    let id: String
+    let title: String
+    let encounters: [Encounter]
 }
 
 private enum RecordScope: String, CaseIterable, Identifiable {
     case all
-    case chat
-    case intimate
+    case hookedUp
+    case missed
     case followUp
 
     var id: String { rawValue }
@@ -447,8 +440,8 @@ private enum RecordScope: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: "全部"
-        case .chat: "聊天"
-        case .intimate: "约成"
+        case .hookedUp: "上床"
+        case .missed: "没上"
         case .followUp: "跟进"
         }
     }
@@ -456,26 +449,26 @@ private enum RecordScope: String, CaseIterable, Identifiable {
     var emptySymbol: String {
         switch self {
         case .all: "clock.arrow.circlepath"
-        case .chat: "message.fill"
-        case .intimate: "flame"
+        case .hookedUp: "flame"
+        case .missed: "xmark.circle"
         case .followUp: "checkmark.circle"
         }
     }
 
     var emptyTitle: String {
         switch self {
-        case .all: "记录册还是空的"
-        case .chat: "还没记下聊天"
-        case .intimate: "还没约成过"
+        case .all: "时间线还是空的"
+        case .hookedUp: "还没上床过"
+        case .missed: "还没有没上床的记录"
         case .followUp: "没有待办"
         }
     }
 
     var emptyMessage: String {
         switch self {
-        case .all: "约成、过夜、留照片，一页页写在这本记录册里。"
-        case .chat: "记下她说可以的尺度，别靠回复速度瞎猜。"
-        case .intimate: "做了什么、有没有戴套、爽不爽，以后都能翻到。"
+        case .all: "每次上床或没上床，都按日期和城市排在这里。"
+        case .hookedUp: "做了什么、有没有戴套、爽不爽，以后都能翻到。"
+        case .missed: "没成也记下时间和城市，方便回看自己的猎场轨迹。"
         case .followUp: "只有你自己勾过、还没做完的才会出现。"
         }
     }
