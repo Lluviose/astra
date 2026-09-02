@@ -231,7 +231,7 @@ struct SettingsScreen: View {
             }
 
             Toggle(isOn: app.settingsBinding(\.showHeatGlow)) {
-                Label("城市光晕", systemImage: "sparkles")
+                Label("地点光晕", systemImage: "sparkles")
             }
         }
     }
@@ -330,7 +330,7 @@ struct AboutView: View {
             Section("技术") {
                 LabeledContent("最低系统", value: "iOS 18")
                 LabeledContent("界面", value: "SwiftUI · 液态玻璃")
-                LabeledContent("猎场地图", value: "MapKit · 城市级")
+                LabeledContent("猎场地图", value: "MapKit · 中国城市 / 境外国家")
                 LabeledContent("触感", value: "Core Haptics")
                 LabeledContent("存储", value: "本机沙盒 · 含照片")
             }
@@ -350,7 +350,7 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "wifi.slash").foregroundStyle(Palette.accent)
                 }
-                Text("星图没有账号、统计 SDK 或应用内云同步。MapKit 只负责显示城市底图；档案不会发送到开发者服务器，但可随设备 iCloud Backup 备份。")
+                Text("星图没有账号、统计 SDK 或应用内云同步。MapKit 只负责显示地点底图；档案不会发送到开发者服务器，但可随设备 iCloud Backup 备份。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -405,12 +405,12 @@ struct PrivacyView: View {
 
             Section {
                 Label {
-                    Text("只到城市粒度")
+                    Text("只到城市 / 国家粒度")
                         .font(.headline)
                 } icon: {
                     Image(systemName: "map").foregroundStyle(Palette.accent)
                 }
-                Text("地图上只标记到「市」一级。档案里没有、也不收集任何人的精确位置。")
+                Text("中国只标记到「市」一级，除中国外只记录国家。档案里没有、也不收集任何人的精确位置。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

@@ -2,7 +2,8 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// 地图上的一座城市 + 落在这座城市的人
+/// 地图上的一个地点 + 落在这个地点的人。
+/// 中国地点是城市，境外地点是国家。
 struct CityBucket: Identifiable, Hashable, Sendable {
     let city: City
     let companions: [Companion]
@@ -152,7 +153,7 @@ final class AppState {
         return ids.count
     }
 
-    /// 按上床次数排列的战绩城市。
+    /// 按上床次数排列的战绩地点。
     var conquestBuckets: [CityBucket] {
         buckets
             .filter { $0.hookupCount > 0 }
@@ -165,19 +166,33 @@ final class AppState {
             }
     }
 
-    var conquestCityCount: Int { conquestBuckets.count }
+    var conquestLocationCount: Int { conquestBuckets.count }
+
+    /// 兼容旧界面与测试名称。
+    var conquestCityCount: Int { conquestLocationCount }
 
     var topConquestBucket: CityBucket? { conquestBuckets.first }
 
     func companion(id: UUID) -> Companion? { companions.first { $0.id == id } }
 
-    func city(id: String) -> City? { catalog.city(id: id) }
+    func location(id: String) -> City? { catalog.location(id: id) }
 
-    func city(for companion: Companion) -> City? { catalog.city(id: companion.cityID) }
+    /// 兼容旧调用。
+    func city(id: String) -> City? { location(id: id) }
+
+    func location(for companion: Companion) -> City? { catalog.location(id: companion.cityID) }
+
+    func city(for companion: Companion) -> City? { location(for: companion) }
+
+    func locationName(for companion: Companion) -> String {
+        catalog.location(id: companion.cityID)?.name ?? "未知地点"
+    }
 
     func cityName(for companion: Companion) -> String {
-        catalog.city(id: companion.cityID)?.name ?? "未知城市"
+        locationName(for: companion)
     }
+
+    var hasCountryLocations: Bool { buckets.contains { $0.city.isCountry } }
 
     /// 该人的全部记录，按时间倒序。
     /// 直接从可观察的 `encounters` 计算，保证 UI 随数据自动刷新。
@@ -407,8 +422,8 @@ final class AppState {
             .max { $0.date < $1.date }
     }
 
-    /// 依照真实战果时间串起城市；连续发生在同一城市时只保留一个节点。
-    func conquestCityPath() -> [City] {
+    /// 依照真实战果时间串起地点；连续发生在同一地点时只保留一个节点。
+    func conquestLocationPath() -> [City] {
         let companionsByID = companions.reduce(into: [UUID: Companion]()) { result, companion in
             result[companion.id] = companion
         }
@@ -417,7 +432,7 @@ final class AppState {
             .sorted { $0.date < $1.date }
             .compactMap { encounter -> City? in
                 let cityID = encounter.cityID ?? companionsByID[encounter.companionID]?.cityID
-                return cityID.flatMap { catalog.city(id: $0) }
+                return cityID.flatMap { catalog.location(id: $0) }
             }
 
         var path: [City] = []
@@ -426,6 +441,9 @@ final class AppState {
         }
         return path
     }
+
+    /// 兼容旧调用。
+    func conquestCityPath() -> [City] { conquestLocationPath() }
 
     // MARK: - 对象
 
@@ -453,9 +471,10 @@ final class AppState {
         if companion.safetyNotes.lowercased().contains(query) { return true }
         if companion.bustSizeText?.lowercased().contains(query) == true { return true }
         if companion.tags.contains(where: { $0.lowercased().contains(query) }) { return true }
-        if let city = catalog.city(id: companion.cityID) {
+        if let city = catalog.location(id: companion.cityID) {
             if city.name.contains(query) { return true }
-            if city.pinyin.hasPrefix(query) || city.abbr == query { return true }
+            let aliases = (city.pinyin + " " + city.abbr).split(separator: " ").map(String.init)
+            if aliases.contains(where: { $0.hasPrefix(query) }) { return true }
             if city.province.contains(query) { return true }
         }
         return false
@@ -477,8 +496,8 @@ final class AppState {
             case .name:
                 return a.displayName.localizedStandardCompare(b.displayName) == .orderedAscending
             case .city:
-                let ca = catalog.city(id: a.cityID)?.pinyin ?? "zzz"
-                let cb = catalog.city(id: b.cityID)?.pinyin ?? "zzz"
+                let ca = catalog.location(id: a.cityID)?.pinyin ?? "zzz"
+                let cb = catalog.location(id: b.cityID)?.pinyin ?? "zzz"
                 if ca != cb { return ca < cb }
                 return a.overallScore > b.overallScore
             case .added:
@@ -523,7 +542,7 @@ final class AppState {
                 .map { cityID, members -> RosterSection in
                     RosterSection(
                         id: cityID,
-                        title: catalog.city(id: cityID)?.name ?? "未知城市",
+                        title: catalog.location(id: cityID)?.name ?? "未知地点",
                         symbolName: "mappin.circle.fill",
                         stage: nil,
                         companions: members
@@ -898,7 +917,7 @@ final class AppState {
 
         let cityIDs = Set(residentsByCity.keys).union(Set(recordsByCity.keys))
         buckets = cityIDs.compactMap { cityID -> CityBucket? in
-            guard let city = catalog.city(id: cityID) else { return nil }
+            guard let city = catalog.location(id: cityID) else { return nil }
             let cityRecords = (recordsByCity[cityID] ?? []).sorted { $0.date > $1.date }
             var membersByID: [UUID: Companion] = [:]
             for companion in residentsByCity[cityID] ?? [] {

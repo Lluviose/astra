@@ -139,7 +139,7 @@ struct EncounterEditor: View {
                 PhotoViewer(ids: draft.photoIDs, index: viewingPhotoIndex ?? 0)
             }
             .sheet(isPresented: $isPickingCity) {
-                CityPickerSheet(title: "这次在哪座城市") { city in
+                CityPickerSheet(title: "这次在哪个地点") { city in
                     draft.cityID = city.id
                 }
             }
@@ -183,7 +183,7 @@ struct EncounterEditor: View {
                 Haptics.shared.play(.lightTap)
                 isPickingCity = true
             } label: {
-                LabeledContent("城市") {
+                LabeledContent("地点") {
                     HStack(spacing: 5) {
                         Text(selectedCityName)
                         Image(systemName: "chevron.right")
@@ -202,7 +202,7 @@ struct EncounterEditor: View {
         } header: {
             Text("这次结果")
         } footer: {
-            Text("只区分上床了还是没上床。时间和城市会进入时间线与猎场地图，细节以后再补也行。")
+            Text("只区分上床了还是没上床。时间和地点会进入时间线与猎场地图；中国到城市，境外到国家。")
         }
     }
 
@@ -458,7 +458,7 @@ struct EncounterEditor: View {
             TextField(
                 draft.kind.isIntimate
                     ? "她哪里敏感、叫得怎么样、下次想怎么玩"
-                    : "为什么没上床、下次要不要换时间或城市",
+                    : "为什么没上床、下次要不要换时间或地点",
                 text: $draft.note,
                 axis: .vertical
             )
@@ -479,7 +479,7 @@ struct EncounterEditor: View {
         if let companion {
             return app.cityName(for: companion)
         }
-        return "选择城市"
+        return "选择地点"
     }
 
     private func kindChip(_ kind: EncounterKind) -> some View {

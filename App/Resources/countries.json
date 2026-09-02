@@ -1,0 +1,857 @@
+{
+  "version": 1,
+  "coordinateSystem": "WGS-84",
+  "note": "境外地点只记录到国家级，不提供境外省市。id 使用 country:ISO-3166-1-alpha-2，坐标为地图展示用的国家代表点。",
+  "countries": [
+    {
+      "id": "country:JP",
+      "name": "日本",
+      "province": "亚洲",
+      "pinyin": "riben japan nihon",
+      "abbr": "jp rb",
+      "tier": 4,
+      "lat": 36.2048,
+      "lon": 138.2529
+    },
+    {
+      "id": "country:KR",
+      "name": "韩国",
+      "province": "亚洲",
+      "pinyin": "hanguo southkorea korea",
+      "abbr": "kr rok hg",
+      "tier": 4,
+      "lat": 36.5,
+      "lon": 127.8
+    },
+    {
+      "id": "country:SG",
+      "name": "新加坡",
+      "province": "亚洲",
+      "pinyin": "xinjiapo singapore",
+      "abbr": "sg xjp",
+      "tier": 4,
+      "lat": 1.3521,
+      "lon": 103.8198
+    },
+    {
+      "id": "country:TH",
+      "name": "泰国",
+      "province": "亚洲",
+      "pinyin": "taiguo thailand",
+      "abbr": "th tg",
+      "tier": 4,
+      "lat": 15.87,
+      "lon": 100.9925
+    },
+    {
+      "id": "country:MY",
+      "name": "马来西亚",
+      "province": "亚洲",
+      "pinyin": "malaixiya malaysia",
+      "abbr": "my mys mlxy",
+      "tier": 4,
+      "lat": 4.2105,
+      "lon": 101.9758
+    },
+    {
+      "id": "country:ID",
+      "name": "印度尼西亚",
+      "province": "亚洲",
+      "pinyin": "yindunixiya indonesia",
+      "abbr": "id idn ydxy",
+      "tier": 4,
+      "lat": -0.7893,
+      "lon": 113.9213
+    },
+    {
+      "id": "country:PH",
+      "name": "菲律宾",
+      "province": "亚洲",
+      "pinyin": "feilvbin philippines",
+      "abbr": "ph phl flb",
+      "tier": 4,
+      "lat": 12.8797,
+      "lon": 121.774
+    },
+    {
+      "id": "country:VN",
+      "name": "越南",
+      "province": "亚洲",
+      "pinyin": "yuenan vietnam",
+      "abbr": "vn vnm yn",
+      "tier": 4,
+      "lat": 14.0583,
+      "lon": 108.2772
+    },
+    {
+      "id": "country:KH",
+      "name": "柬埔寨",
+      "province": "亚洲",
+      "pinyin": "jianpuzhai cambodia",
+      "abbr": "kh khm jpz",
+      "tier": 4,
+      "lat": 12.5657,
+      "lon": 104.991
+    },
+    {
+      "id": "country:IN",
+      "name": "印度",
+      "province": "亚洲",
+      "pinyin": "yindu india",
+      "abbr": "in ind yd",
+      "tier": 4,
+      "lat": 20.5937,
+      "lon": 78.9629
+    },
+    {
+      "id": "country:PK",
+      "name": "巴基斯坦",
+      "province": "亚洲",
+      "pinyin": "bajisitan pakistan",
+      "abbr": "pk pak bjst",
+      "tier": 4,
+      "lat": 30.3753,
+      "lon": 69.3451
+    },
+    {
+      "id": "country:LK",
+      "name": "斯里兰卡",
+      "province": "亚洲",
+      "pinyin": "sililanka srilanka",
+      "abbr": "lk lka sllk",
+      "tier": 4,
+      "lat": 7.8731,
+      "lon": 80.7718
+    },
+    {
+      "id": "country:NP",
+      "name": "尼泊尔",
+      "province": "亚洲",
+      "pinyin": "niboer nepal",
+      "abbr": "np npl nbe",
+      "tier": 4,
+      "lat": 28.3949,
+      "lon": 84.124
+    },
+    {
+      "id": "country:MV",
+      "name": "马尔代夫",
+      "province": "亚洲",
+      "pinyin": "maerdaifu maldives",
+      "abbr": "mv mdv medf",
+      "tier": 4,
+      "lat": 3.2028,
+      "lon": 73.2207
+    },
+    {
+      "id": "country:MN",
+      "name": "蒙古国",
+      "province": "亚洲",
+      "pinyin": "mengguguo mongolia",
+      "abbr": "mn mng mgg",
+      "tier": 4,
+      "lat": 46.8625,
+      "lon": 103.8467
+    },
+    {
+      "id": "country:KZ",
+      "name": "哈萨克斯坦",
+      "province": "亚洲",
+      "pinyin": "hasakesitan kazakhstan",
+      "abbr": "kz kaz hskst",
+      "tier": 4,
+      "lat": 48.0196,
+      "lon": 66.9237
+    },
+    {
+      "id": "country:UZ",
+      "name": "乌兹别克斯坦",
+      "province": "亚洲",
+      "pinyin": "wuzibiekesitan uzbekistan",
+      "abbr": "uz uzb wzbkst",
+      "tier": 4,
+      "lat": 41.3775,
+      "lon": 64.5853
+    },
+    {
+      "id": "country:AE",
+      "name": "阿联酋",
+      "province": "亚洲",
+      "pinyin": "alianqiu unitedarabemirates emirates",
+      "abbr": "ae uae alq",
+      "tier": 4,
+      "lat": 23.4241,
+      "lon": 53.8478
+    },
+    {
+      "id": "country:SA",
+      "name": "沙特阿拉伯",
+      "province": "亚洲",
+      "pinyin": "shatealabo saudiarabia saudi",
+      "abbr": "sa sau stalb",
+      "tier": 4,
+      "lat": 23.8859,
+      "lon": 45.0792
+    },
+    {
+      "id": "country:QA",
+      "name": "卡塔尔",
+      "province": "亚洲",
+      "pinyin": "kataer qatar",
+      "abbr": "qa qat kte",
+      "tier": 4,
+      "lat": 25.3548,
+      "lon": 51.1839
+    },
+    {
+      "id": "country:IL",
+      "name": "以色列",
+      "province": "亚洲",
+      "pinyin": "yiselie israel",
+      "abbr": "il isr ysl",
+      "tier": 4,
+      "lat": 31.0461,
+      "lon": 34.8516
+    },
+    {
+      "id": "country:TR",
+      "name": "土耳其",
+      "province": "亚洲",
+      "pinyin": "tuerqi turkiye turkey",
+      "abbr": "tr tur teq",
+      "tier": 4,
+      "lat": 38.9637,
+      "lon": 35.2433
+    },
+    {
+      "id": "country:GB",
+      "name": "英国",
+      "province": "欧洲",
+      "pinyin": "yingguo unitedkingdom britain greatbritain",
+      "abbr": "gb uk gbr yg",
+      "tier": 4,
+      "lat": 55.3781,
+      "lon": -3.436
+    },
+    {
+      "id": "country:FR",
+      "name": "法国",
+      "province": "欧洲",
+      "pinyin": "faguo france",
+      "abbr": "fr fra fg",
+      "tier": 4,
+      "lat": 46.2276,
+      "lon": 2.2137
+    },
+    {
+      "id": "country:DE",
+      "name": "德国",
+      "province": "欧洲",
+      "pinyin": "deguo germany deutschland",
+      "abbr": "de deu dg",
+      "tier": 4,
+      "lat": 51.1657,
+      "lon": 10.4515
+    },
+    {
+      "id": "country:IT",
+      "name": "意大利",
+      "province": "欧洲",
+      "pinyin": "yidali italy italia",
+      "abbr": "it ita ydl",
+      "tier": 4,
+      "lat": 41.8719,
+      "lon": 12.5674
+    },
+    {
+      "id": "country:ES",
+      "name": "西班牙",
+      "province": "欧洲",
+      "pinyin": "xibanya spain espana",
+      "abbr": "es esp xby",
+      "tier": 4,
+      "lat": 40.4637,
+      "lon": -3.7492
+    },
+    {
+      "id": "country:PT",
+      "name": "葡萄牙",
+      "province": "欧洲",
+      "pinyin": "putaoya portugal",
+      "abbr": "pt prt pty",
+      "tier": 4,
+      "lat": 39.3999,
+      "lon": -8.2245
+    },
+    {
+      "id": "country:NL",
+      "name": "荷兰",
+      "province": "欧洲",
+      "pinyin": "helan netherlands holland",
+      "abbr": "nl nld hl",
+      "tier": 4,
+      "lat": 52.1326,
+      "lon": 5.2913
+    },
+    {
+      "id": "country:BE",
+      "name": "比利时",
+      "province": "欧洲",
+      "pinyin": "bilishi belgium",
+      "abbr": "be bel bls",
+      "tier": 4,
+      "lat": 50.5039,
+      "lon": 4.4699
+    },
+    {
+      "id": "country:LU",
+      "name": "卢森堡",
+      "province": "欧洲",
+      "pinyin": "lusenbao luxembourg",
+      "abbr": "lu lux lsb",
+      "tier": 4,
+      "lat": 49.8153,
+      "lon": 6.1296
+    },
+    {
+      "id": "country:CH",
+      "name": "瑞士",
+      "province": "欧洲",
+      "pinyin": "ruishi switzerland swiss",
+      "abbr": "ch che rs",
+      "tier": 4,
+      "lat": 46.8182,
+      "lon": 8.2275
+    },
+    {
+      "id": "country:AT",
+      "name": "奥地利",
+      "province": "欧洲",
+      "pinyin": "aodili austria",
+      "abbr": "at aut adl",
+      "tier": 4,
+      "lat": 47.5162,
+      "lon": 14.5501
+    },
+    {
+      "id": "country:IE",
+      "name": "爱尔兰",
+      "province": "欧洲",
+      "pinyin": "aierlan ireland",
+      "abbr": "ie irl ael",
+      "tier": 4,
+      "lat": 53.1424,
+      "lon": -7.6921
+    },
+    {
+      "id": "country:DK",
+      "name": "丹麦",
+      "province": "欧洲",
+      "pinyin": "danmai denmark",
+      "abbr": "dk dnk dm",
+      "tier": 4,
+      "lat": 56.2639,
+      "lon": 9.5018
+    },
+    {
+      "id": "country:NO",
+      "name": "挪威",
+      "province": "欧洲",
+      "pinyin": "nuowei norway",
+      "abbr": "no nor nw",
+      "tier": 4,
+      "lat": 60.472,
+      "lon": 8.4689
+    },
+    {
+      "id": "country:SE",
+      "name": "瑞典",
+      "province": "欧洲",
+      "pinyin": "ruidian sweden",
+      "abbr": "se swe rd",
+      "tier": 4,
+      "lat": 60.1282,
+      "lon": 18.6435
+    },
+    {
+      "id": "country:FI",
+      "name": "芬兰",
+      "province": "欧洲",
+      "pinyin": "fenlan finland",
+      "abbr": "fi fin fl",
+      "tier": 4,
+      "lat": 61.9241,
+      "lon": 25.7482
+    },
+    {
+      "id": "country:IS",
+      "name": "冰岛",
+      "province": "欧洲",
+      "pinyin": "bingdao iceland",
+      "abbr": "is isl bd",
+      "tier": 4,
+      "lat": 64.9631,
+      "lon": -19.0208
+    },
+    {
+      "id": "country:PL",
+      "name": "波兰",
+      "province": "欧洲",
+      "pinyin": "bolan poland",
+      "abbr": "pl pol bl",
+      "tier": 4,
+      "lat": 51.9194,
+      "lon": 19.1451
+    },
+    {
+      "id": "country:CZ",
+      "name": "捷克",
+      "province": "欧洲",
+      "pinyin": "jieke czechia czechrepublic",
+      "abbr": "cz cze jk",
+      "tier": 4,
+      "lat": 49.8175,
+      "lon": 15.473
+    },
+    {
+      "id": "country:SK",
+      "name": "斯洛伐克",
+      "province": "欧洲",
+      "pinyin": "siluofake slovakia",
+      "abbr": "sk svk slfk",
+      "tier": 4,
+      "lat": 48.669,
+      "lon": 19.699
+    },
+    {
+      "id": "country:HU",
+      "name": "匈牙利",
+      "province": "欧洲",
+      "pinyin": "xiongyali hungary",
+      "abbr": "hu hun xyl",
+      "tier": 4,
+      "lat": 47.1625,
+      "lon": 19.5033
+    },
+    {
+      "id": "country:GR",
+      "name": "希腊",
+      "province": "欧洲",
+      "pinyin": "xila greece hellas",
+      "abbr": "gr grc xl",
+      "tier": 4,
+      "lat": 39.0742,
+      "lon": 21.8243
+    },
+    {
+      "id": "country:HR",
+      "name": "克罗地亚",
+      "province": "欧洲",
+      "pinyin": "keluodiya croatia",
+      "abbr": "hr hrv kldy",
+      "tier": 4,
+      "lat": 45.1,
+      "lon": 15.2
+    },
+    {
+      "id": "country:RO",
+      "name": "罗马尼亚",
+      "province": "欧洲",
+      "pinyin": "luomaniya romania",
+      "abbr": "ro rou lmny",
+      "tier": 4,
+      "lat": 45.9432,
+      "lon": 24.9668
+    },
+    {
+      "id": "country:RS",
+      "name": "塞尔维亚",
+      "province": "欧洲",
+      "pinyin": "saierweiya serbia",
+      "abbr": "rs srb sewy",
+      "tier": 4,
+      "lat": 44.0165,
+      "lon": 21.0059
+    },
+    {
+      "id": "country:SI",
+      "name": "斯洛文尼亚",
+      "province": "欧洲",
+      "pinyin": "siluowenniya slovenia",
+      "abbr": "si svn slwny",
+      "tier": 4,
+      "lat": 46.1512,
+      "lon": 14.9955
+    },
+    {
+      "id": "country:UA",
+      "name": "乌克兰",
+      "province": "欧洲",
+      "pinyin": "wukelan ukraine",
+      "abbr": "ua ukr wkl",
+      "tier": 4,
+      "lat": 48.3794,
+      "lon": 31.1656
+    },
+    {
+      "id": "country:BY",
+      "name": "白俄罗斯",
+      "province": "欧洲",
+      "pinyin": "baieluosi belarus",
+      "abbr": "by blr bels",
+      "tier": 4,
+      "lat": 53.7098,
+      "lon": 27.9534
+    },
+    {
+      "id": "country:RU",
+      "name": "俄罗斯",
+      "province": "欧洲",
+      "pinyin": "eluosi russia russianfederation",
+      "abbr": "ru rus els",
+      "tier": 4,
+      "lat": 61.524,
+      "lon": 105.3188
+    },
+    {
+      "id": "country:US",
+      "name": "美国",
+      "province": "北美洲",
+      "pinyin": "meiguo unitedstates america unitedstatesofamerica",
+      "abbr": "us usa mg",
+      "tier": 4,
+      "lat": 37.0902,
+      "lon": -95.7129
+    },
+    {
+      "id": "country:CA",
+      "name": "加拿大",
+      "province": "北美洲",
+      "pinyin": "jianada canada",
+      "abbr": "ca can jnd",
+      "tier": 4,
+      "lat": 56.1304,
+      "lon": -106.3468
+    },
+    {
+      "id": "country:MX",
+      "name": "墨西哥",
+      "province": "北美洲",
+      "pinyin": "moxige mexico",
+      "abbr": "mx mex mxg",
+      "tier": 4,
+      "lat": 23.6345,
+      "lon": -102.5528
+    },
+    {
+      "id": "country:CU",
+      "name": "古巴",
+      "province": "北美洲",
+      "pinyin": "guba cuba",
+      "abbr": "cu cub gb",
+      "tier": 4,
+      "lat": 21.5218,
+      "lon": -77.7812
+    },
+    {
+      "id": "country:JM",
+      "name": "牙买加",
+      "province": "北美洲",
+      "pinyin": "yamaijia jamaica",
+      "abbr": "jm jam ymj",
+      "tier": 4,
+      "lat": 18.1096,
+      "lon": -77.2975
+    },
+    {
+      "id": "country:CR",
+      "name": "哥斯达黎加",
+      "province": "北美洲",
+      "pinyin": "gesidalijia costarica",
+      "abbr": "cr cri gsdl",
+      "tier": 4,
+      "lat": 9.7489,
+      "lon": -83.7534
+    },
+    {
+      "id": "country:PA",
+      "name": "巴拿马",
+      "province": "北美洲",
+      "pinyin": "banama panama",
+      "abbr": "pa pan bnm",
+      "tier": 4,
+      "lat": 8.538,
+      "lon": -80.7821
+    },
+    {
+      "id": "country:DO",
+      "name": "多米尼加",
+      "province": "北美洲",
+      "pinyin": "duominijia dominicanrepublic dominicana",
+      "abbr": "do dom dmnj",
+      "tier": 4,
+      "lat": 18.7357,
+      "lon": -70.1627
+    },
+    {
+      "id": "country:BS",
+      "name": "巴哈马",
+      "province": "北美洲",
+      "pinyin": "bahama bahamas",
+      "abbr": "bs bhs bhm",
+      "tier": 4,
+      "lat": 25.0343,
+      "lon": -77.3963
+    },
+    {
+      "id": "country:BR",
+      "name": "巴西",
+      "province": "南美洲",
+      "pinyin": "baxi brazil brasil",
+      "abbr": "br bra bx",
+      "tier": 4,
+      "lat": -14.235,
+      "lon": -51.9253
+    },
+    {
+      "id": "country:AR",
+      "name": "阿根廷",
+      "province": "南美洲",
+      "pinyin": "agenting argentina",
+      "abbr": "ar arg agt",
+      "tier": 4,
+      "lat": -38.4161,
+      "lon": -63.6167
+    },
+    {
+      "id": "country:CL",
+      "name": "智利",
+      "province": "南美洲",
+      "pinyin": "zhili chile",
+      "abbr": "cl chl zl",
+      "tier": 4,
+      "lat": -35.6751,
+      "lon": -71.543
+    },
+    {
+      "id": "country:PE",
+      "name": "秘鲁",
+      "province": "南美洲",
+      "pinyin": "bilu peru",
+      "abbr": "pe per ml",
+      "tier": 4,
+      "lat": -9.19,
+      "lon": -75.0152
+    },
+    {
+      "id": "country:CO",
+      "name": "哥伦比亚",
+      "province": "南美洲",
+      "pinyin": "gelunbiya colombia",
+      "abbr": "co col glby",
+      "tier": 4,
+      "lat": 4.5709,
+      "lon": -74.2973
+    },
+    {
+      "id": "country:VE",
+      "name": "委内瑞拉",
+      "province": "南美洲",
+      "pinyin": "weineiruila venezuela",
+      "abbr": "ve ven wnrl",
+      "tier": 4,
+      "lat": 6.4238,
+      "lon": -66.5897
+    },
+    {
+      "id": "country:EC",
+      "name": "厄瓜多尔",
+      "province": "南美洲",
+      "pinyin": "eguaduoer ecuador",
+      "abbr": "ec ecu egde",
+      "tier": 4,
+      "lat": -1.8312,
+      "lon": -78.1834
+    },
+    {
+      "id": "country:UY",
+      "name": "乌拉圭",
+      "province": "南美洲",
+      "pinyin": "wulagui uruguay",
+      "abbr": "uy ury wlg",
+      "tier": 4,
+      "lat": -32.5228,
+      "lon": -55.7658
+    },
+    {
+      "id": "country:BO",
+      "name": "玻利维亚",
+      "province": "南美洲",
+      "pinyin": "boliweiya bolivia",
+      "abbr": "bo bol blwy",
+      "tier": 4,
+      "lat": -16.2902,
+      "lon": -63.5887
+    },
+    {
+      "id": "country:AU",
+      "name": "澳大利亚",
+      "province": "大洋洲",
+      "pinyin": "aodaliya australia",
+      "abbr": "au aus adly",
+      "tier": 4,
+      "lat": -25.2744,
+      "lon": 133.7751
+    },
+    {
+      "id": "country:NZ",
+      "name": "新西兰",
+      "province": "大洋洲",
+      "pinyin": "xinxilan newzealand aotearoa",
+      "abbr": "nz nzl xxl",
+      "tier": 4,
+      "lat": -40.9006,
+      "lon": 174.886
+    },
+    {
+      "id": "country:FJ",
+      "name": "斐济",
+      "province": "大洋洲",
+      "pinyin": "feiji fiji",
+      "abbr": "fj fji",
+      "tier": 4,
+      "lat": -17.7134,
+      "lon": 178.065
+    },
+    {
+      "id": "country:PG",
+      "name": "巴布亚新几内亚",
+      "province": "大洋洲",
+      "pinyin": "babuyaxinjineiya papuanewguinea",
+      "abbr": "pg png bby",
+      "tier": 4,
+      "lat": -6.315,
+      "lon": 143.9555
+    },
+    {
+      "id": "country:EG",
+      "name": "埃及",
+      "province": "非洲",
+      "pinyin": "aiji egypt",
+      "abbr": "eg egy aj",
+      "tier": 4,
+      "lat": 26.8206,
+      "lon": 30.8025
+    },
+    {
+      "id": "country:ZA",
+      "name": "南非",
+      "province": "非洲",
+      "pinyin": "nanfei southafrica",
+      "abbr": "za zaf nf",
+      "tier": 4,
+      "lat": -30.5595,
+      "lon": 22.9375
+    },
+    {
+      "id": "country:MA",
+      "name": "摩洛哥",
+      "province": "非洲",
+      "pinyin": "moluoge morocco",
+      "abbr": "ma mar mlg",
+      "tier": 4,
+      "lat": 31.7917,
+      "lon": -7.0926
+    },
+    {
+      "id": "country:DZ",
+      "name": "阿尔及利亚",
+      "province": "非洲",
+      "pinyin": "aerjiliya algeria",
+      "abbr": "dz dza aejl",
+      "tier": 4,
+      "lat": 28.0339,
+      "lon": 1.6596
+    },
+    {
+      "id": "country:TN",
+      "name": "突尼斯",
+      "province": "非洲",
+      "pinyin": "tunisi tunisia",
+      "abbr": "tn tun tns",
+      "tier": 4,
+      "lat": 33.8869,
+      "lon": 9.5375
+    },
+    {
+      "id": "country:KE",
+      "name": "肯尼亚",
+      "province": "非洲",
+      "pinyin": "kenniya kenya",
+      "abbr": "ke ken kny",
+      "tier": 4,
+      "lat": -0.0236,
+      "lon": 37.9062
+    },
+    {
+      "id": "country:TZ",
+      "name": "坦桑尼亚",
+      "province": "非洲",
+      "pinyin": "tansangniya tanzania",
+      "abbr": "tz tza tsny",
+      "tier": 4,
+      "lat": -6.369,
+      "lon": 34.8888
+    },
+    {
+      "id": "country:NG",
+      "name": "尼日利亚",
+      "province": "非洲",
+      "pinyin": "niriliya nigeria",
+      "abbr": "ng nga nrly",
+      "tier": 4,
+      "lat": 9.082,
+      "lon": 8.6753
+    },
+    {
+      "id": "country:GH",
+      "name": "加纳",
+      "province": "非洲",
+      "pinyin": "jiana ghana",
+      "abbr": "gh gha jn",
+      "tier": 4,
+      "lat": 7.9465,
+      "lon": -1.0232
+    },
+    {
+      "id": "country:ET",
+      "name": "埃塞俄比亚",
+      "province": "非洲",
+      "pinyin": "aisaiebiya ethiopia",
+      "abbr": "et eth aseb",
+      "tier": 4,
+      "lat": 9.145,
+      "lon": 40.4897
+    },
+    {
+      "id": "country:MU",
+      "name": "毛里求斯",
+      "province": "非洲",
+      "pinyin": "maoliqiusi mauritius",
+      "abbr": "mu mus mlqs",
+      "tier": 4,
+      "lat": -20.3484,
+      "lon": 57.5522
+    },
+    {
+      "id": "country:SC",
+      "name": "塞舌尔",
+      "province": "非洲",
+      "pinyin": "saisheer seychelles",
+      "abbr": "sc syc sse",
+      "tier": 4,
+      "lat": -4.6796,
+      "lon": 55.492
+    }
+  ]
+}

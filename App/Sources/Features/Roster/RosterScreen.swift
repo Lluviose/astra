@@ -80,14 +80,14 @@ struct RosterScreen: View {
             .searchable(text: Binding(
                 get: { app.searchText },
                 set: { app.searchText = $0 }
-            ), prompt: "代号 / 标签 / 城市 / 尺码")
+            ), prompt: "代号 / 标签 / 地点 / 尺码")
             .autocorrectionDisabled()
         }
         .sheet(isPresented: $showFilter) {
             RosterFilterSheet()
         }
         .sheet(isPresented: $isPickingCity, onDismiss: finishCitySelection) {
-            CityPickerSheet(title: "常驻或常见面的城市") { city in
+            CityPickerSheet(title: "常驻或常见面的地点") { city in
                 pendingCitySelection = city
             }
         }
@@ -120,7 +120,7 @@ struct RosterScreen: View {
                     digestChip("\(app.stats.activeCount)", "名册")
                     digestChip("\(app.stats.totalIntimacyCount)", "上床")
                     digestChip("\(app.stats.repeatGirlCount)", "回头客")
-                    digestChip("\(app.stats.cityCount)", "城市")
+                    digestChip("\(app.stats.cityCount)", "地点")
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)
@@ -322,7 +322,7 @@ struct RosterFilterSheet: View {
                 Section {
                     let cities = app.buckets.map(\.city)
                     if cities.isEmpty {
-                        Text("还没有记录城市")
+                        Text("还没有记录地点")
                             .foregroundStyle(.secondary)
                     } else {
                         FlowLayout(spacing: 8, lineSpacing: 8) {
@@ -341,7 +341,7 @@ struct RosterFilterSheet: View {
                         .padding(.vertical, 4)
                     }
                 } header: {
-                    Text("城市")
+                    Text("地点")
                 }
 
                 Section {

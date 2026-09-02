@@ -131,7 +131,7 @@ struct HomeScreen: View {
             EncounterEditor(encounter: encounter)
         }
         .sheet(isPresented: $isPickingCity, onDismiss: finishCitySelection) {
-            CityPickerSheet(title: "常驻或常见面的城市") { city in
+            CityPickerSheet(title: "常驻或常见面的地点") { city in
                 pendingCitySelection = city
             }
         }
@@ -177,7 +177,7 @@ struct HomeScreen: View {
                 heroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
                 heroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
                 heroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
-                heroMetric(value: "\(app.conquestCityCount)", label: "战绩城")
+                heroMetric(value: "\(app.conquestLocationCount)", label: "战绩地")
             }
 
             HStack(spacing: 10) {
@@ -332,7 +332,7 @@ struct HomeScreen: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "photo.stack.fill")
-                Text("进去每天回味一个她，照片、次数、城市和排名都在。")
+                Text("进去每天回味一个她，照片、次数、地点和排名都在。")
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -682,8 +682,8 @@ struct HomeScreen: View {
                         .font(.headline)
                     Text(
                         app.buckets.isEmpty
-                            ? "还没点亮城市"
-                            : "版图 \(app.conquestCityCount) 城 · \(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount)"
+                            ? "还没点亮地点"
+                            : "版图 \(app.conquestLocationCount) 处 · \(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount)"
                     )
                         .font(.caption)
                         .foregroundStyle(.secondary)

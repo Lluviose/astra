@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 按天呈现「上床了 / 没上床」结果、城市与后续事项。
+/// 按天呈现「上床了 / 没上床」结果、地点与后续事项。
 struct TimelineScreen: View {
 
     @Environment(AppState.self) private var app
@@ -223,7 +223,7 @@ struct TimelineScreen: View {
             GridRow {
                 StatTile(
                     value: "\(app.stats.cityCount)",
-                    caption: "涉及城市",
+                    caption: "涉及地点",
                     systemImage: "map.fill",
                     tint: Color(red: 0.30, green: 0.70, blue: 0.56)
                 )
@@ -466,9 +466,9 @@ private enum RecordScope: String, CaseIterable, Identifiable {
 
     var emptyMessage: String {
         switch self {
-        case .all: "每次上床或没上床，都按日期和城市排在这里。"
+        case .all: "每次上床或没上床，都按日期和地点排在这里。"
         case .hookedUp: "做了什么、有没有戴套、爽不爽，以后都能翻到。"
-        case .missed: "没成也记下时间和城市，方便回看自己的猎场轨迹。"
+        case .missed: "没成也记下时间和地点，方便回看自己的猎场轨迹。"
         case .followUp: "只有你自己勾过、还没做完的才会出现。"
         }
     }
@@ -547,10 +547,13 @@ struct CompanionPickerSheet: View {
 
     private var filtered: [Companion] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let matchingLocationIDs = Set(
+            app.catalog.search(q, limit: app.catalog.locations.count).map(\.id)
+        )
         return app.currentCompanions.filter { companion in
             q.isEmpty
                 || companion.displayName.lowercased().contains(q)
-                || app.cityName(for: companion).contains(q)
+                || matchingLocationIDs.contains(companion.cityID)
         }
     }
 
@@ -561,7 +564,7 @@ struct CompanionPickerSheet: View {
                     EmptyStateView(
                         symbol: "person.crop.circle.badge.questionmark",
                         title: "没有匹配的对象",
-                        message: "换一个代号或城市试试，或先添加当前对象。"
+                        message: "换一个代号或地点试试，或先添加当前对象。"
                     )
                 } else {
                     ForEach(filtered) { companion in
@@ -580,7 +583,7 @@ struct CompanionPickerSheet: View {
             .listStyle(.insetGrouped)
             .navigationTitle("记录谁？")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $query, prompt: "代号 / 城市")
+            .searchable(text: $query, prompt: "代号 / 地点")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { dismiss() }

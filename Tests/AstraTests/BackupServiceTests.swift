@@ -174,6 +174,22 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(record.note, "时间没对上")
     }
 
+    func testCountryLocationIDsRoundTripWithoutChangingBackupSchema() throws {
+        let companion = Companion(name: "她", cityID: "country:US")
+        let encounter = Encounter(
+            companionID: companion.id,
+            kind: .intimacy,
+            cityID: "country:JP"
+        )
+
+        let data = try BackupService.encode(companions: [companion], encounters: [encounter])
+        let decoded = try BackupService.decode(data)
+
+        XCTAssertEqual(decoded.companions.first?.cityID, "country:US")
+        XCTAssertEqual(decoded.encounters.first?.cityID, "country:JP")
+        XCTAssertEqual(decoded.version, BackupService.currentVersion)
+    }
+
     func testCompanionDecodesWithMissingOptionalFields() throws {
         // 局部字段缺失时仍能给出稳定默认值。
         let json = """

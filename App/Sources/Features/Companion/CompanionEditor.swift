@@ -1,34 +1,54 @@
 import SwiftUI
 import UIKit
 
-// MARK: - 城市选择（编辑表单里的内嵌路由）
+// MARK: - 国家 / 城市选择（编辑表单里的内嵌路由）
 
 private struct EditorCityPickerRoute: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
     @State private var query = ""
+    @State private var showsCountries = false
     @Binding var cityID: String
 
     private var selectedCity: City? { app.city(id: cityID) }
 
     var body: some View {
         List {
+            if query.isEmpty {
+                Section {
+                    Picker("地点范围", selection: $showsCountries) {
+                        Text("中国城市").tag(false)
+                        Text("境外国家").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    Text(showsCountries ? "除中国外只记录国家，不添加境外省市。" : "中国可以选到具体城市。")
+                }
+            }
             if query.isEmpty, let selectedCity {
                 Section("当前选择") {
                     cityRow(selectedCity, isSelected: true)
                 }
             }
             if query.isEmpty {
-                let known = app.buckets.map(\.city)
+                let known = app.buckets.map(\.city).filter { $0.isCountry == showsCountries }
                 if !known.isEmpty {
                     Section("已有记录") {
                         ForEach(known) { cityRow($0) }
                     }
                 }
-                ForEach(groupedCities, id: \.0) { tier, cities in
-                    Section(tier.label) {
-                        ForEach(cities) { cityRow($0) }
+                if showsCountries {
+                    ForEach(groupedCountries, id: \.0) { region, countries in
+                        Section(region) {
+                            ForEach(countries) { cityRow($0) }
+                        }
+                    }
+                } else {
+                    ForEach(groupedCities, id: \.0) { tier, cities in
+                        Section(tier.label) {
+                            ForEach(cities) { cityRow($0) }
+                        }
                     }
                 }
             } else {
@@ -38,15 +58,18 @@ private struct EditorCityPickerRoute: View {
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "城市 / 拼音 / 首字母")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "国家 / 中国城市 / 拼音 / 英文")
         .autocorrectionDisabled()
         .textInputAutocapitalization(.never)
-        .navigationTitle("选择城市")
+        .navigationTitle("选择地点")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
             if !query.isEmpty, app.catalog.search(query).isEmpty {
                 ContentUnavailableView.search(text: query)
             }
+        }
+        .onAppear {
+            showsCountries = selectedCity?.isCountry == true
         }
     }
 
@@ -55,6 +78,15 @@ private struct EditorCityPickerRoute: View {
         return CityTier.allCases.compactMap { tier in
             guard let cities = grouped[tier], !cities.isEmpty else { return nil }
             return (tier, cities.sorted { $0.pinyin < $1.pinyin })
+        }
+    }
+
+    private var groupedCountries: [(String, [City])] {
+        let order = ["亚洲", "欧洲", "北美洲", "南美洲", "大洋洲", "非洲"]
+        let grouped = Dictionary(grouping: app.catalog.countries, by: \.province)
+        return order.compactMap { region in
+            guard let countries = grouped[region], !countries.isEmpty else { return nil }
+            return (region, countries.sorted { $0.pinyin < $1.pinyin })
         }
     }
 
@@ -67,7 +99,7 @@ private struct EditorCityPickerRoute: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(city.name)
-                    Text("\(city.shortProvince) · \(city.pinyin)")
+                    Text(city.locationSubtitle)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

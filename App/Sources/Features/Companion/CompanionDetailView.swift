@@ -196,7 +196,7 @@ struct CompanionDetailView: View {
         } header: {
             Text("这次结果")
         } footer: {
-            Text("只选有没有上床；时间、城市和细节可以在下一页补。")
+            Text("只选有没有上床；时间、地点和细节可以在下一页补。")
         }
     }
 

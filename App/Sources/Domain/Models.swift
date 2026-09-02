@@ -293,7 +293,8 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     /// 可选 emoji 头像；为空时用代号首字
     var emoji: String
     var paletteIndex: Int
-    /// 所在城市（中国城市库的 id）
+    /// 常驻地点。字段名保留为 `cityID` 以兼容旧备份：
+    /// 中国存城市行政区 ID，境外存 `country:XX` 国家 ID。
     var cityID: String
     var stage: RelationStage
     /// 0...5
@@ -869,7 +870,7 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     var companionID: UUID
     var date: Date
     var kind: EncounterKind
-    /// 发生在哪座城市；nil 表示沿用对方常驻城市
+    /// 发生地点；nil 表示沿用对方常驻地。存储规则同 `Companion.cityID`。
     var cityID: String?
     var place: String
     /// 花费（元），nil 表示没记

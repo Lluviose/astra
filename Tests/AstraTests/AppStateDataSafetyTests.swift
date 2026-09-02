@@ -159,6 +159,40 @@ final class AppStateDataSafetyTests: XCTestCase {
     }
 
     @MainActor
+    func testCountryLevelLocationsFlowThroughBucketsStatsAndRoute() throws {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let companion = Companion(name: "她", cityID: "country:US")
+        let encounters = [
+            Encounter(
+                companionID: companion.id,
+                date: Date(timeIntervalSince1970: 100),
+                kind: .intimacy,
+                cityID: "country:US"
+            ),
+            Encounter(
+                companionID: companion.id,
+                date: Date(timeIntervalSince1970: 200),
+                kind: .intimacy,
+                cityID: "country:JP"
+            ),
+        ]
+        let store = LocalStore(defaults: defaults)
+        store.save([companion], for: .companions)
+        store.save(encounters, for: .encounters)
+
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+
+        XCTAssertEqual(app.locationName(for: companion), "美国")
+        XCTAssertTrue(app.hasCountryLocations)
+        XCTAssertEqual(app.stats.cityCount, 2)
+        XCTAssertEqual(app.conquestLocationCount, 2)
+        XCTAssertEqual(app.conquestLocationPath().map(\.id), ["country:US", "country:JP"])
+        XCTAssertEqual(app.buckets.first { $0.id == "country:JP" }?.city.locationLevelLabel, "国家")
+    }
+
+    @MainActor
     func testHaremCollectionAndConquestRouteOnlyUseHookups() throws {
         let (defaults, suiteName) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

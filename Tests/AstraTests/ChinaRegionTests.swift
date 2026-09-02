@@ -34,4 +34,11 @@ final class ChinaRegionTests: XCTestCase {
             XCTAssertEqual(clamped.longitude, lon, accuracy: 0.0001, name)
         }
     }
+
+    func testWorldBoundsCanFrameInternationalCountryMarkers() {
+        XCTAssertGreaterThanOrEqual(WorldRegion.overview.span.longitudeDelta, 300)
+        XCTAssertGreaterThan(WorldRegion.maximumCameraDistance, ChinaRegion.maximumCameraDistance)
+        XCTAssertGreaterThanOrEqual(WorldRegion.cameraCenterBounds.span.latitudeDelta, 160)
+        _ = WorldRegion.cameraBounds
+    }
 }

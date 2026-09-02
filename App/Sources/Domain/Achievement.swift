@@ -216,11 +216,11 @@ enum AchievementCatalog {
             make("misses_5", "五次复盘", "记下 5 次没上床", "看清哪里没成，下一次更直接。", "arrow.counterclockwise.circle.fill", .missed, .silver, 0.35, 0.56, 0.94, misses.count, 5),
             make("misses_15", "继续拓场", "记下 15 次没上床", "没困在一条路上。", "map.fill", .missed, .gold, 0.38, 0.60, 0.96, misses.count, 15),
 
-            make("cities_3", "三城足迹", "点亮 3 座城市", "猎场开始搬家。", "mappin.and.ellipse", .trail, .bronze, 0.38, 0.60, 0.96, cityCount, 3),
-            make("cities_8", "全国跑图", "点亮 8 座城市", "地图不再是空的。", "map.fill", .trail, .silver, 0.22, 0.70, 0.56, cityCount, 8),
-            make("cities_15", "巡猎中国", "点亮 15 座城市", "南北都留下过。", "globe.asia.australia.fill", .trail, .gold, 0.38, 0.60, 0.96, cityCount, 15),
+            make("cities_3", "三地足迹", "点亮 3 个地点", "猎场开始搬家。", "mappin.and.ellipse", .trail, .bronze, 0.38, 0.60, 0.96, cityCount, 3),
+            make("cities_8", "版图展开", "点亮 8 个地点", "地图不再是空的。", "map.fill", .trail, .silver, 0.22, 0.70, 0.56, cityCount, 8),
+            make("cities_15", "全球足迹", "点亮 15 个地点", "版图已经铺开了。", "globe.asia.australia.fill", .trail, .gold, 0.38, 0.60, 0.96, cityCount, 15),
             make("first_tier", "一线猎场", "北上广深留下过人", "一线也不是进不去。", "building.2.fill", .trail, .silver, 0.95, 0.62, 0.25, firstTier ? 1 : 0, 1),
-            make("cross_city", "跨城出击", "去她常驻城市以外上床", "车票没白买。", "airplane", .trail, .bronze, 0.38, 0.60, 0.96, crossCity ? 1 : 0, 1),
+            make("cross_city", "跨地出击", "去她常驻地点以外上床", "车票没白买。", "airplane", .trail, .bronze, 0.38, 0.60, 0.96, crossCity ? 1 : 0, 1),
 
             make("first_photo", "第一张私藏", "存下第一张照片", "时间线有了插图。", "camera.fill", .album, .bronze, 0.94, 0.28, 0.52, photos.count, 1),
             make("album_10", "相册丰收", "私藏照片满 10 张", "翻起来有点危险。", "photo.on.rectangle.angled", .album, .silver, 0.88, 0.35, 0.70, photos.count, 10),
@@ -244,7 +244,7 @@ enum AchievementCatalog {
             make("outdoor_sex", "外面做", "在外面做过", "随时可能被看见。", "leaf.fill", .play, .gold, 0.22, 0.70, 0.56, outdoorSex.count, 1),
             make("cowgirl", "她骑上来", "她在上面过", "让她自己动。", "heart.circle.fill", .play, .bronze, 0.93, 0.39, 0.60, cowgirl.count, 1),
             make("she_came", "把她弄高潮", "记下过她高潮", "她也爽到了。", "waveform.path.ecg", .play, .silver, 0.94, 0.28, 0.52, sheCame.count, 1),
-            make("hookup_cities_3", "三城上床", "在 3 座城市上过床", "猎场真的铺开了。", "map.fill", .play, .gold, 0.38, 0.60, 0.96, hookupCityCount, 3),
+            make("hookup_cities_3", "三地上床", "在 3 个地点上过床", "猎场真的铺开了。", "map.fill", .play, .gold, 0.38, 0.60, 0.96, hookupCityCount, 3),
         ]
     }
 

@@ -17,7 +17,10 @@ enum CityTier: Int, Codable, CaseIterable, Sendable {
     }
 }
 
-/// 中国城市。坐标以 WGS-84 存储，渲染前转 GCJ-02。
+/// 可记录的地点。中国精确到城市，境外只提供国家级地点。
+///
+/// `country:XX` 是境外国家的稳定 ID；原有的六位行政区 ID 仍表示中国城市，
+/// 因此旧备份不需要做数据迁移。坐标均以 WGS-84 存储。
 struct City: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let name: String
@@ -28,15 +31,37 @@ struct City: Identifiable, Codable, Hashable, Sendable {
     let lat: Double
     let lon: Double
 
+    /// 境外国家使用 `country:US` 这类 ID，不允许继续细分省市。
+    var isCountry: Bool { id.hasPrefix("country:") }
+
+    /// ISO 3166-1 alpha-2 代码；中国城市统一返回 `CN`。
+    var countryCode: String {
+        guard isCountry else { return "CN" }
+        return String(id.dropFirst("country:".count)).uppercased()
+    }
+
+    var locationLevelLabel: String { isCountry ? "国家" : "城市" }
+
+    /// 用于选择器和详情页的辅助说明。境外不暴露一个虚构的“城市等级”。
+    var locationSubtitle: String {
+        return isCountry
+            ? "\(province) · \(countryCode) · 仅记录到国家"
+            : "\(shortProvince) · \(pinyin)"
+    }
+
     /// 原始 WGS-84 坐标（距离计算用）
     var wgs84: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
 
-    /// 交给 MapKit 渲染的 GCJ-02 坐标
+    /// 交给 MapKit 渲染的坐标。境外国家代表点明确透传 WGS-84。
     var displayCoordinate: CLLocationCoordinate2D {
-        CoordinateTransform.wgs84ToGCJ02(latitude: lat, longitude: lon)
+        guard !isCountry else { return wgs84 }
+        return CoordinateTransform.wgs84ToGCJ02(latitude: lat, longitude: lon)
     }
+
+    /// 国家级地点需要更宽的聚焦范围。
+    var focusSpanDegrees: Double { isCountry ? 20 : 2.4 }
 
     /// 「广东省」→「广东」；直辖市与特别行政区保持原样
     var shortProvince: String {

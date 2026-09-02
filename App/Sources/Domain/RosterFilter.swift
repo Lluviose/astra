@@ -3,6 +3,7 @@ import Foundation
 /// 对象页的筛选条件。空集合表示「不限」。
 struct RosterFilter: Codable, Hashable, Sendable {
     var stages: Set<RelationStage> = []
+    /// 地点 ID；字段名保留为 `cityIDs` 以兼容旧设置。
     var cityIDs: Set<String> = []
     var tags: Set<String> = []
     /// 0 表示不限
@@ -67,7 +68,7 @@ enum RosterSort: String, CaseIterable, Codable, Sendable, Identifiable {
         case .rating: "综合评分"
         case .stage: "相处状态"
         case .name: "代号"
-        case .city: "城市"
+        case .city: "地点"
         case .added: "添加时间"
         case .hookups: "上床次数"
         }
@@ -97,7 +98,7 @@ enum RosterGrouping: String, CaseIterable, Codable, Sendable, Identifiable {
         switch self {
         case .none: "不分组"
         case .stage: "按状态"
-        case .city: "按城市"
+        case .city: "按地点"
         }
     }
 }
@@ -114,6 +115,7 @@ struct IntimacyStats: Hashable, Sendable {
     var unprotectedThisMonth: Int = 0
     var pendingFollowUpCount: Int = 0
     var photoCount: Int = 0
+    /// 地点数；名称保留以兼容现有调用。
     var cityCount: Int = 0
     var averageExperience: Double?
     var girlsThisMonth: Int = 0

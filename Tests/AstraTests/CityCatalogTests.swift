@@ -10,6 +10,18 @@ final class CityCatalogTests: XCTestCase {
         XCTAssertEqual(Set(catalog.cities.map(\.id)).count, catalog.cities.count, "城市 id 必须唯一")
     }
 
+    func testCatalogIncludesMainstreamCountriesAtCountryLevelOnly() {
+        XCTAssertGreaterThanOrEqual(catalog.countries.count, 80)
+        XCTAssertEqual(
+            Set(catalog.locations.map(\.id)).count,
+            catalog.locations.count,
+            "国家和城市 id 必须在整个目录内唯一"
+        )
+        XCTAssertTrue(catalog.countries.allSatisfy(\.isCountry))
+        XCTAssertTrue(catalog.countries.allSatisfy { $0.id.range(of: #"^country:[A-Z]{2}$"#, options: .regularExpression) != nil })
+        XCTAssertFalse(catalog.cities.contains(where: \.isCountry))
+    }
+
     func testLegacyCitiesStillPresent() {
         XCTAssertEqual(catalog.city(id: "110000")?.name, "北京")
         XCTAssertEqual(catalog.city(id: "330100")?.name, "杭州")
@@ -47,6 +59,30 @@ final class CityCatalogTests: XCTestCase {
         XCTAssertTrue(results.contains { $0.name == "杭州" })
         XCTAssertTrue(results.contains { $0.name == "宁波" })
         XCTAssertTrue(results.contains { $0.name == "义乌" })
+    }
+
+    func testCountrySearchSupportsChinesePinyinEnglishAndISOCode() {
+        XCTAssertEqual(catalog.search("美国").first?.id, "country:US")
+        XCTAssertEqual(catalog.search("meiguo").first?.id, "country:US")
+        XCTAssertEqual(catalog.search("unitedstates").first?.id, "country:US")
+        XCTAssertEqual(catalog.search("USA").first?.id, "country:US")
+        XCTAssertEqual(catalog.search("riben").first?.id, "country:JP")
+        XCTAssertEqual(catalog.search("japan").first?.id, "country:JP")
+    }
+
+    func testCountryLookupUsesStableNamespacedID() {
+        let country = catalog.location(id: "country:KR")
+        XCTAssertEqual(country?.name, "韩国")
+        XCTAssertEqual(country?.countryCode, "KR")
+        XCTAssertEqual(country?.locationLevelLabel, "国家")
+        XCTAssertNil(catalog.location(id: "KR"))
+    }
+
+    func testCountryCoordinatesNeverReceiveMainlandGCJOffset() throws {
+        // 韩国的代表点落在旧粗略中国包络框内，国家级地点仍必须保持 WGS-84。
+        let korea = try XCTUnwrap(catalog.location(id: "country:KR"))
+        XCTAssertEqual(korea.displayCoordinate.latitude, korea.lat, accuracy: 1e-9)
+        XCTAssertEqual(korea.displayCoordinate.longitude, korea.lon, accuracy: 1e-9)
     }
 
     func testCityLookup() {

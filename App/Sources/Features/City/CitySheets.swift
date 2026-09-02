@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 点击地图气泡后弹出的城市面板
+/// 点击地图气泡后弹出的地点面板。
 struct CityDetailSheet: View {
 
     let bucket: CityBucket
@@ -46,7 +46,7 @@ struct CityDetailSheet: View {
                 }
 
                 if !hookupCompanions.isEmpty {
-                    Section("这座城拿下的") {
+                    Section(bucket.city.isCountry ? "这个国家拿下的" : "这座城拿下的") {
                         ForEach(hookupCompanions) { companion in
                             NavigationLink(value: companion.id) {
                                 CompanionRow(companion: companion, showCity: false)
@@ -56,7 +56,7 @@ struct CityDetailSheet: View {
                 }
 
                 if !bucket.encounters.isEmpty {
-                    Section("这座城市的战绩时间线") {
+                    Section(bucket.city.isCountry ? "这个国家的战绩时间线" : "这座城市的战绩时间线") {
                         ForEach(Array(bucket.encounters.prefix(12))) { encounter in
                             if app.companion(id: encounter.companionID) != nil {
                                 NavigationLink(value: encounter.companionID) {
@@ -112,7 +112,11 @@ struct CityDetailSheet: View {
                     .foregroundStyle(bucket.mapTint)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(bucket.city.shortProvince) · \(bucket.city.tier.label)")
+                    Text(
+                        bucket.city.isCountry
+                            ? "\(bucket.city.province) · 国家级记录"
+                            : "\(bucket.city.shortProvince) · \(bucket.city.tier.label)"
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(
@@ -174,9 +178,30 @@ struct CityDetailSheet: View {
     }
 }
 
-// MARK: - 城市选择器
+// MARK: - 国家 / 城市选择器
 
-/// 中国城市选择器：支持中文、全拼、首字母缩写搜索。
+private enum LocationPickerScope: String, CaseIterable, Identifiable {
+    case china
+    case international
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .china: "中国城市"
+        case .international: "境外国家"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .china: "中国可以选到具体城市。"
+        case .international: "除中国外只记录国家，不添加境外省市。"
+        }
+    }
+}
+
+/// 中国支持城市粒度，境外只支持国家粒度；可搜中文、拼音、英文和国家代码。
 struct CityPickerSheet: View {
 
     var title: String
@@ -187,13 +212,20 @@ struct CityPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var query = ""
+    @State private var scope: LocationPickerScope = .china
 
     private var searchResults: [City] {
         app.catalog.search(query)
     }
 
-    private var knownCities: [City] {
+    private var knownLocations: [City] {
         app.buckets.map(\.city)
+    }
+
+    private var visibleKnownLocations: [City] {
+        knownLocations.filter { location in
+            scope == .international ? location.isCountry : !location.isCountry
+        }
     }
 
     private var featuredTiers: [(CityTier, [City])] {
@@ -214,6 +246,15 @@ struct CityPickerSheet: View {
             }
     }
 
+    private var countriesByRegion: [(String, [City])] {
+        let order = ["亚洲", "欧洲", "北美洲", "南美洲", "大洋洲", "非洲"]
+        let grouped = Dictionary(grouping: app.catalog.countries, by: \.province)
+        return order.compactMap { region in
+            guard let countries = grouped[region], !countries.isEmpty else { return nil }
+            return (region, countries.sorted { $0.pinyin < $1.pinyin })
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -222,19 +263,39 @@ struct CityPickerSheet: View {
                         ForEach(searchResults) { city in row(city) }
                     }
                 } else {
-                    if !knownCities.isEmpty {
+                    Section {
+                        Picker("地点范围", selection: $scope) {
+                            ForEach(LocationPickerScope.allCases) { item in
+                                Text(item.label).tag(item)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    } footer: {
+                        Text(scope.helpText)
+                    }
+
+                    if !visibleKnownLocations.isEmpty {
                         Section("已有记录") {
-                            ForEach(knownCities) { city in row(city) }
+                            ForEach(visibleKnownLocations) { city in row(city) }
                         }
                     }
-                    ForEach(featuredTiers, id: \.0) { tier, cities in
-                        Section(tier.label) {
-                            ForEach(cities) { city in row(city) }
+
+                    if scope == .china {
+                        ForEach(featuredTiers, id: \.0) { tier, cities in
+                            Section(tier.label) {
+                                ForEach(cities) { city in row(city) }
+                            }
                         }
-                    }
-                    ForEach(otherByProvince, id: \.0) { province, cities in
-                        Section(province) {
-                            ForEach(cities) { city in row(city) }
+                        ForEach(otherByProvince, id: \.0) { province, cities in
+                            Section(province) {
+                                ForEach(cities) { city in row(city) }
+                            }
+                        }
+                    } else {
+                        ForEach(countriesByRegion, id: \.0) { region, countries in
+                            Section(region) {
+                                ForEach(countries) { country in row(country) }
+                            }
                         }
                     }
                 }
@@ -250,7 +311,7 @@ struct CityPickerSheet: View {
             .searchable(
                 text: $query,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: subtitle ?? "城市 / 拼音 / 首字母，如 hz、杭州"
+                prompt: subtitle ?? "国家 / 中国城市 / 拼音 / 英文"
             )
             .autocorrectionDisabled()
             .textInputAutocapitalization(.never)
@@ -272,7 +333,7 @@ struct CityPickerSheet: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(city.name).font(.body)
-                    Text("\(city.shortProvince) · \(city.pinyin)")
+                    Text(city.locationSubtitle)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

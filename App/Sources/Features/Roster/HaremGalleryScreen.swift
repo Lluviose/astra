@@ -108,7 +108,7 @@ struct HaremGalleryScreen: View {
                 royalMetric("\(app.conqueredCompanions.count)", "女人")
                 royalMetric("\(app.stats.totalIntimacyCount)", "上床")
                 royalMetric("\(app.stats.repeatGirlCount)", "回头客")
-                royalMetric("\(app.conquestCityCount)", "战绩城")
+                royalMetric("\(app.conquestLocationCount)", "战绩地")
             }
 
             HStack(spacing: 6) {

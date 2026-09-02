@@ -33,8 +33,8 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
     }
 }
 
-/// 城市气泡：玻璃胶囊 + 指向锚点的针脚。
-/// 尺寸随该城市记录数变化，主色由当前结果图层决定。
+/// 地点气泡：玻璃胶囊 + 指向锚点的针脚。
+/// 尺寸随该地点记录数变化，主色由当前结果图层决定。
 private struct CityBubble: View {
 
     let bucket: CityBucket
@@ -151,6 +151,7 @@ struct MapScreen: View {
     @State private var pendingEditorTarget: Companion?
     @State private var isPickingCity = false
     @State private var isJumpingToCity = false
+    @State private var showsWorld = false
     /// 地图默认就是巡视已经拿下的版图，而不是把待推进对象和战绩混在一起。
     @State private var scope: MapRecordScope = .hookedUp
 
@@ -166,7 +167,11 @@ struct MapScreen: View {
     }
 
     private var conquestRoute: [CLLocationCoordinate2D] {
-        app.conquestCityPath().map(\.displayCoordinate)
+        app.conquestLocationPath().map(\.displayCoordinate)
+    }
+
+    private var mapBounds: MapCameraBounds {
+        showsWorld ? WorldRegion.cameraBounds : ChinaRegion.cameraBounds
     }
 
     private var maxDisplayCount: Int {
@@ -210,6 +215,17 @@ struct MapScreen: View {
         .animation(.easeInOut(duration: 0.25), value: app.buckets.count)
         .animation(.easeInOut(duration: 0.25), value: scope)
         .onChange(of: scope) { _, _ in selectedCityID = nil }
+        .onAppear {
+            guard app.hasCountryLocations else { return }
+            showsWorld = true
+            camera = .region(WorldRegion.overview)
+        }
+        .onChange(of: app.hasCountryLocations) { _, hasCountryLocations in
+            showsWorld = hasCountryLocations
+            withAnimation(.easeInOut(duration: 0.7)) {
+                camera = .region(hasCountryLocations ? WorldRegion.overview : ChinaRegion.overview)
+            }
+        }
         .sheet(item: selectedBucketBinding, onDismiss: presentPendingEditor) { bucket in
             CityDetailSheet(bucket: bucket) { companion in
                 pendingEditorTarget = companion
@@ -219,14 +235,14 @@ struct MapScreen: View {
             CompanionEditor(companion: companion)
         }
         .sheet(isPresented: $isPickingCity, onDismiss: presentPendingEditor) {
-            CityPickerSheet(title: "常驻或常见面的城市") { city in
+            CityPickerSheet(title: "常驻或常见面的地点") { city in
                 var draft = app.makeDraftCompanion(cityID: city.id)
                 draft.cityID = city.id
                 pendingEditorTarget = draft
             }
         }
         .sheet(isPresented: $isJumpingToCity) {
-            CityPickerSheet(title: "跳到城市", subtitle: "只显示中国境内的城市") { city in
+            CityPickerSheet(title: "跳到地点", subtitle: "国家 / 中国城市 / 拼音 / 英文") { city in
                 focus(on: city, select: app.buckets.contains { $0.id == city.id })
             }
         }
@@ -237,7 +253,7 @@ struct MapScreen: View {
     private var mapLayer: some View {
         Map(
             position: $camera,
-            bounds: ChinaRegion.cameraBounds,
+            bounds: mapBounds,
             interactionModes: [.pan, .zoom]
         ) {
             if scope != .missed, conquestRoute.count >= 2 {
@@ -318,7 +334,7 @@ struct MapScreen: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-                .accessibilityLabel("搜索城市")
+                .accessibilityLabel("搜索地点")
             }
 
             Picker("地图结果", selection: $scope) {
@@ -330,7 +346,7 @@ struct MapScreen: View {
 
             if scope != .missed, conquestRoute.count >= 2 {
                 HStack(spacing: 6) {
-                    Label("战绩路线 \(conquestRoute.count) 城", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    Label("战绩路线 \(conquestRoute.count) 个地点", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                     Spacer()
                     if let top = app.topConquestBucket {
                         Text("头号猎场 · \(top.city.name)")
@@ -352,9 +368,9 @@ struct MapScreen: View {
         if app.buckets.isEmpty { return "还没有记录" }
         switch scope {
         case .hookedUp:
-            return "\(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount) 次 · \(app.conquestCityCount) 城版图"
+            return "\(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount) 次 · \(app.conquestLocationCount) 个地点"
         case .all:
-            return "\(app.buckets.count) 城有故事 · 战绩 \(app.conquestCityCount) 城 · 共 \(app.encounters.count) 条"
+            return "\(app.buckets.count) 个地点 · 战绩地 \(app.conquestLocationCount) · 共 \(app.encounters.count) 条"
         case .missed:
             return "没上 \(app.stats.missedCount) 次 · 复盘后继续拓场"
         }
@@ -396,7 +412,7 @@ struct MapScreen: View {
             VStack(spacing: 12) {
                 GlassIconButton(
                     systemImage: "globe.asia.australia.fill",
-                    accessibilityText: "回到全国"
+                    accessibilityText: showsWorld ? "回到全球" : "回到全国"
                 ) {
                     resetCamera()
                 }
@@ -412,7 +428,7 @@ struct MapScreen: View {
                     systemImage: app.settings.showHeatGlow ? "sparkles" : "sparkle",
                     tint: Palette.accent,
                     isActive: app.settings.showHeatGlow,
-                    accessibilityText: "城市光晕"
+                    accessibilityText: "地点光晕"
                 ) {
                     var updated = app.settings
                     updated.showHeatGlow.toggle()
@@ -442,7 +458,7 @@ struct MapScreen: View {
                 .foregroundStyle(Palette.accent.opacity(0.7))
             Text("版图还是空的")
                 .font(.headline)
-            Text("真正记下一次「上床了」并选择城市，\n这里才会点亮第一块战绩版图。")
+            Text("真正记下一次「上床了」并选择地点，\n这里才会点亮第一块战绩版图。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -469,10 +485,10 @@ struct MapScreen: View {
             Image(systemName: scope == .hookedUp ? "flame" : "xmark.circle")
                 .font(.system(size: 30, weight: .light))
                 .foregroundStyle(scope == .hookedUp ? EncounterKind.intimacy.tint : EncounterKind.missed.tint)
-            Text(scope == .hookedUp ? "还没有上床足迹" : "还没有没上床的城市")
+            Text(scope == .hookedUp ? "还没有上床足迹" : "还没有没上床的地点")
                 .font(.headline)
             Text(scope == .hookedUp
-                ? "切回全部查看已有猎场，或去新城市留下下一次结果。"
+                ? "切回全部查看已有猎场，或去新地点留下下一次结果。"
                 : "切回全部查看已有猎场；没成的记录也会保留在时间线上。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -512,15 +528,16 @@ struct MapScreen: View {
 
     private func focus(on city: City, select shouldSelect: Bool) {
         if shouldSelect { selectedCityID = city.id }
+        if city.isCountry { showsWorld = true }
         withAnimation(.easeInOut(duration: 0.65)) {
-            camera = .region(ChinaRegion.focus(on: city.displayCoordinate, spanDegrees: 2.4))
+            camera = .region(ChinaRegion.focus(on: city.displayCoordinate, spanDegrees: city.focusSpanDegrees))
         }
     }
 
     private func resetCamera() {
         selectedCityID = nil
         withAnimation(.easeInOut(duration: 0.7)) {
-            camera = .region(ChinaRegion.overview)
+            camera = .region(showsWorld ? WorldRegion.overview : ChinaRegion.overview)
         }
     }
 

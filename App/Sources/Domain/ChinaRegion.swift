@@ -66,3 +66,26 @@ enum ChinaRegion {
         )
     }
 }
+
+/// 当数据中出现境外国家时使用的全球相机边界。
+/// 不取代 `ChinaRegion`：只有中国城市时，地图仍保持原有的中国范围与缩放体验。
+enum WorldRegion {
+    static let overview = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 18, longitude: 15),
+        span: MKCoordinateSpan(latitudeDelta: 145, longitudeDelta: 330)
+    )
+
+    static let cameraCenterBounds = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+        span: MKCoordinateSpan(latitudeDelta: 165, longitudeDelta: 358)
+    )
+
+    static let minimumCameraDistance: CLLocationDistance = ChinaRegion.minimumCameraDistance
+    static let maximumCameraDistance: CLLocationDistance = 60_000_000
+
+    static let cameraBounds = MapCameraBounds(
+        centerCoordinateBounds: cameraCenterBounds,
+        minimumDistance: minimumCameraDistance,
+        maximumDistance: maximumCameraDistance
+    )
+}
