@@ -105,6 +105,7 @@ struct LocalStore {
         case settings = "astra.settings"
         case filter = "astra.filter"
         case seenAchievements = "astra.seenAchievements"
+        case royalProfile = "astra.royalProfile"
     }
 
     static let shared = LocalStore()
@@ -143,7 +144,7 @@ struct LocalStore {
     }
 
     func removeAll() {
-        for key in [Key.companions, .encounters, .settings, .filter, .seenAchievements] {
+        for key in [Key.companions, .encounters, .settings, .filter, .seenAchievements, .royalProfile] {
             defaults.removeObject(forKey: key.rawValue)
         }
     }

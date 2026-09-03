@@ -172,8 +172,13 @@ final class AchievementTests: XCTestCase {
         XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 3)
     }
 
-    func testProfilePhotosDoNotCountTowardPrivateCollection() {
-        let girl = Companion(name: "她", photoID: "avatar", profilePhotoIDs: ["profile"])
+    func testProfileAndDossierPhotosDoNotCountTowardPrivateCollection() {
+        let girl = Companion(
+            name: "她",
+            photoID: "avatar",
+            profilePhotoIDs: ["profile"],
+            dossierPhotoIDs: ["dossier"]
+        )
         let items = AchievementCatalog.evaluate(companions: [girl], encounters: [], cityCount: 0)
         XCTAssertFalse(unlocked(items, "first_photo"))
         XCTAssertEqual(items.first { $0.id == "album_10" }?.current, 0)

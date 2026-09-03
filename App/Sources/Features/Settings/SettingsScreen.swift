@@ -362,7 +362,7 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Palette.accent)
                 }
-                Text("头像、人物资料照和艳照只复制进星图沙盒，不进系统相册；相册源文件不降采样、不重编码，允许随设备 iCloud Backup 恢复。从相册挑图用系统选择器，不必打开完整相册权限。")
+                Text("头像、人物照、档案照片和艳照只复制进星图沙盒，不进系统相册；相册源文件不降采样、不重编码，允许随设备 iCloud Backup 恢复。从相册挑图用系统选择器，不必打开完整相册权限。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -374,7 +374,7 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "icloud.and.arrow.up.fill").foregroundStyle(Palette.accent)
                 }
-                Text("对象、记录、设置、头像、人物资料照和艳照都允许进入系统设备备份。它用于整机或 App 恢复，不等同于多设备实时同步。")
+                Text("对象、记录、设置、头像、人物照、档案照片和艳照都允许进入系统设备备份。它用于整机或 App 恢复，不等同于多设备实时同步。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

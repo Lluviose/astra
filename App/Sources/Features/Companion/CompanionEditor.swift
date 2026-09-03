@@ -11,6 +11,7 @@ struct CompanionEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft: Companion
+    @State private var ageText: String
     @State private var showDeleteConfirm = false
     @State private var isPickingCity = false
     @State private var newTag = ""
@@ -21,6 +22,7 @@ struct CompanionEditor: View {
     @State private var pendingAvatarPreview: UIImage?
     @State private var removeExistingPhoto = false
     @State private var pendingProfilePhotoIDs: [String] = []
+    @State private var pendingDossierPhotoIDs: [String] = []
     @State private var pendingAlbumPhotoIDs: [String] = []
 
     private var isNew: Bool { !app.companions.contains { $0.id == initial.id } }
@@ -29,12 +31,14 @@ struct CompanionEditor: View {
             || pendingAvatarID != nil
             || removeExistingPhoto
             || !pendingProfilePhotoIDs.isEmpty
+            || !pendingDossierPhotoIDs.isEmpty
             || !pendingAlbumPhotoIDs.isEmpty
     }
 
     init(companion: Companion) {
         self.initial = companion
         _draft = State(initialValue: companion)
+        _ageText = State(initialValue: companion.age.map(String.init) ?? "")
         _hasMetDate = State(initialValue: companion.metDate != nil)
     }
 
@@ -46,6 +50,7 @@ struct CompanionEditor: View {
                 citySection
                 scoreSection
                 profilePhotosEditorSection
+                dossierPhotosEditorSection
                 privatePhotosEditorSection
                 intimacySection
                 tagsSection
@@ -226,10 +231,40 @@ struct CompanionEditor: View {
         }
     }
 
+    private var dossierPhotosEditorSection: some View {
+        Section {
+            Label(
+                "已存 \(draft.dossierPhotoIDs.count) · 待保存 \(pendingDossierPhotoIDs.count)",
+                systemImage: "person.text.rectangle.fill"
+            )
+            .font(.subheadline)
+
+            PhotoAddBar { importedIDs in
+                pendingDossierPhotoIDs.append(contentsOf: importedIDs)
+            }
+
+            if !pendingDossierPhotoIDs.isEmpty {
+                Button("清除本次档案照片", role: .destructive) {
+                    MediaStore.delete(ids: pendingDossierPhotoIDs)
+                    pendingDossierPhotoIDs = []
+                }
+            }
+        } header: {
+            Text("档案照片")
+        } footer: {
+            Text("个人资料页、人物信息截图等放这里；不限数量，原图保存。")
+        }
+    }
+
     private func commitPendingPhotos() {
         var profileIDs = Set(draft.profilePhotoIDs)
         draft.profilePhotoIDs.append(contentsOf: pendingProfilePhotoIDs.filter {
             profileIDs.insert($0).inserted
+        })
+
+        var dossierIDs = Set(draft.dossierPhotoIDs)
+        draft.dossierPhotoIDs.append(contentsOf: pendingDossierPhotoIDs.filter {
+            dossierIDs.insert($0).inserted
         })
 
         var albumIDs = Set(draft.albumPhotoIDs)
@@ -246,8 +281,9 @@ struct CompanionEditor: View {
 
     private func discardPendingMedia() {
         discardPendingAvatar()
-        MediaStore.delete(ids: pendingProfilePhotoIDs + pendingAlbumPhotoIDs)
+        MediaStore.delete(ids: pendingProfilePhotoIDs + pendingDossierPhotoIDs + pendingAlbumPhotoIDs)
         pendingProfilePhotoIDs = []
+        pendingDossierPhotoIDs = []
         pendingAlbumPhotoIDs = []
     }
 
@@ -256,6 +292,7 @@ struct CompanionEditor: View {
         pendingAvatarID = nil
         pendingAvatarPreview = nil
         pendingProfilePhotoIDs = []
+        pendingDossierPhotoIDs = []
         pendingAlbumPhotoIDs = []
     }
 
@@ -429,11 +466,22 @@ struct CompanionEditor: View {
 
     private var optionalInfoSection: some View {
         Section("可选背景") {
-            Picker("年龄", selection: $draft.age) {
-                Text("未设置").tag(Int?.none)
-                ForEach(18...80, id: \.self) { age in
-                    Text("\(age)").tag(Int?.some(age))
-                }
+            HStack {
+                Text("年龄")
+                Spacer()
+                TextField("未设置", text: $ageText)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 120)
+                    .onChange(of: ageText) { _, newValue in
+                        let digits = String(newValue.filter { $0.isNumber }.prefix(3))
+                        if ageText != digits {
+                            ageText = digits
+                        }
+                        draft.age = Int(digits)
+                    }
+                Text("岁")
+                    .foregroundStyle(.secondary)
             }
 
             Picker("身高", selection: $draft.heightCM) {

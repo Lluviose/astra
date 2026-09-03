@@ -36,6 +36,7 @@ struct CityDetailSheet: View {
     }
 
     private var placeWord: String { bucket.city.isCountry ? "这个国家" : "这座城" }
+    private var territoryTier: TerritoryTier { .resolve(hookupCount: bucket.hookupCount) }
 
     var body: some View {
         NavigationStack {
@@ -136,6 +137,28 @@ struct CityDetailSheet: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(bucket.mapTint.opacity(0.12), in: Capsule())
+                }
+            }
+
+            if bucket.hookupCount > 0 {
+                HStack(spacing: 8) {
+                    TagLabel(
+                        title: territoryTier.label,
+                        systemImage: territoryTier.symbolName,
+                        tint: territoryTier.tint,
+                        filled: true
+                    )
+                    if let next = territoryTier.next {
+                        ProgressView(value: Double(bucket.hookupCount), total: Double(next.threshold))
+                            .tint(territoryTier.tint)
+                        Text("再 \(max(0, next.threshold - bucket.hookupCount)) 次升\(next.label)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("王城已筑成")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Palette.goldDeep)
+                    }
                 }
             }
 

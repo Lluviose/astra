@@ -80,6 +80,7 @@ final class BackupServiceTests: XCTestCase {
             rating: 4,
             scorecard: CompanionScorecard(looks: 8, body: 9, chemistry: 10, initiative: 7, desire: 10, afterglow: 9),
             profilePhotoIDs: ["profile-1"],
+            dossierPhotoIDs: ["dossier-1"],
             bustBandCM: 75,
             bustSize: .d,
             expectations: "偶尔见面",
@@ -118,6 +119,7 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(decoded.companions.first?.stage, .casual)
         XCTAssertEqual(decoded.companions.first?.overallScore, 90)
         XCTAssertEqual(decoded.companions.first?.profilePhotoIDs, ["profile-1"])
+        XCTAssertEqual(decoded.companions.first?.dossierPhotoIDs, ["dossier-1"])
         XCTAssertEqual(decoded.companions.first?.bustSizeText, "75D")
         XCTAssertEqual(decoded.companions.first?.expectations, "偶尔见面")
         XCTAssertEqual(decoded.companions.first?.boundaries, "提前确认")
@@ -203,6 +205,7 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertNil(companion.birthdayMonth)
         XCTAssertNil(companion.photoID)
         XCTAssertTrue(companion.profilePhotoIDs.isEmpty)
+        XCTAssertTrue(companion.dossierPhotoIDs.isEmpty)
         XCTAssertTrue(companion.albumPhotoIDs.isEmpty)
         XCTAssertEqual(companion.overallScore, 60)
         XCTAssertNil(companion.bustSizeText)
@@ -224,6 +227,7 @@ final class BackupServiceTests: XCTestCase {
             name: "她",
             photoID: "avatar-1",
             profilePhotoIDs: ["profile-1"],
+            dossierPhotoIDs: ["dossier-1"],
             albumPhotoIDs: ["album-1"]
         )
         let encounter = Encounter(
@@ -235,6 +239,7 @@ final class BackupServiceTests: XCTestCase {
         let media = [
             "avatar-1": Data([0xFF, 0xD8, 0xFF, 0xD9]),
             "profile-1": Data([0x03, 0x04]),
+            "dossier-1": Data([0x05, 0x06]),
             "album-1": Data([0x01, 0x02]),
             "shot-1": Data([0x00, 0x01, 0x02]),
         ]
@@ -242,14 +247,16 @@ final class BackupServiceTests: XCTestCase {
         let data = try BackupService.encode(companions: [companion], encounters: [encounter], media: media)
         let decoded = try BackupService.decode(data)
 
-        XCTAssertEqual(decoded.version, 4)
+        XCTAssertEqual(decoded.version, 6)
         XCTAssertEqual(decoded.companions.first?.photoID, "avatar-1")
         XCTAssertEqual(decoded.companions.first?.profilePhotoIDs, ["profile-1"])
+        XCTAssertEqual(decoded.companions.first?.dossierPhotoIDs, ["dossier-1"])
         XCTAssertEqual(decoded.companions.first?.albumPhotoIDs, ["album-1"])
         XCTAssertEqual(decoded.encounters.first?.photoIDs, ["shot-1"])
         XCTAssertEqual(decoded.encounters.first?.climaxDetails, [.creampie])
         XCTAssertEqual(decoded.media["avatar-1"], media["avatar-1"])
         XCTAssertEqual(decoded.media["profile-1"], media["profile-1"])
+        XCTAssertEqual(decoded.media["dossier-1"], media["dossier-1"])
         XCTAssertEqual(decoded.media["shot-1"], media["shot-1"])
         XCTAssertEqual(decoded.media["album-1"], media["album-1"])
     }
@@ -268,6 +275,20 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(payload.version, 1)
         XCTAssertTrue(payload.media.isEmpty)
         XCTAssertTrue(payload.companions.isEmpty)
+        XCTAssertEqual(payload.royalProfile, .default)
+    }
+
+    func testRoyalProfileRoundTripsInV6() throws {
+        let profile = RoyalProfile(
+            selectedTitleIndex: 2,
+            bannerStyle: .imperial,
+            capitalLocationID: "310000"
+        )
+        let data = try BackupService.encode(companions: [], encounters: [], royalProfile: profile)
+        let decoded = try BackupService.decode(data)
+
+        XCTAssertEqual(decoded.version, 6)
+        XCTAssertEqual(decoded.royalProfile, profile)
     }
 
     func testRejectsDuplicateRecordIDsBeforeImport() throws {

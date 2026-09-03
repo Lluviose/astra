@@ -305,6 +305,8 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     var photoID: String?
     /// 人物资料照，与艳照私藏分开。
     var profilePhotoIDs: [String]
+    /// 个人资料页、人物信息截图等档案照片。
+    var dossierPhotoIDs: [String]
     /// 档案里直接留下的私藏，不挂在某一次约上
     var albumPhotoIDs: [String]
     var age: Int?
@@ -347,6 +349,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         scorecard: CompanionScorecard? = nil,
         photoID: String? = nil,
         profilePhotoIDs: [String] = [],
+        dossierPhotoIDs: [String] = [],
         albumPhotoIDs: [String] = [],
         age: Int? = nil,
         heightCM: Int? = nil,
@@ -380,6 +383,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         self.rating = resolvedScorecard.legacyStarRating
         self.photoID = photoID
         self.profilePhotoIDs = profilePhotoIDs
+        self.dossierPhotoIDs = dossierPhotoIDs
         self.albumPhotoIDs = albumPhotoIDs
         self.age = age
         self.heightCM = heightCM
@@ -418,6 +422,7 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         rating = scorecard.legacyStarRating
         photoID = try c.decodeIfPresent(String.self, forKey: .photoID)
         profilePhotoIDs = try c.decodeIfPresent([String].self, forKey: .profilePhotoIDs) ?? []
+        dossierPhotoIDs = try c.decodeIfPresent([String].self, forKey: .dossierPhotoIDs) ?? []
         albumPhotoIDs = try c.decodeIfPresent([String].self, forKey: .albumPhotoIDs) ?? []
         age = try c.decodeIfPresent(Int.self, forKey: .age)
         heightCM = try c.decodeIfPresent(Int.self, forKey: .heightCM)

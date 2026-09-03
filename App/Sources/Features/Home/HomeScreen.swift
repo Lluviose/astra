@@ -78,6 +78,9 @@ struct HomeScreen: View {
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
+            .navigationDestination(for: RoyalRoute.self) { _ in
+                RoyalHallScreen()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -122,6 +125,10 @@ struct HomeScreen: View {
             Button("取消", role: .cancel) {}
         } message: { companion in
             Text(quickLogMessage(for: companion))
+        }
+        .onChange(of: app.royalHallRequestToken) { oldValue, newValue in
+            guard newValue != oldValue else { return }
+            path.append(RoyalRoute.hall)
         }
     }
 
@@ -173,9 +180,12 @@ struct HomeScreen: View {
                     }
                     .buttonStyle(.plain)
 
-                    HeroButton(title: "巡视版图", systemImage: "map.fill", cue: .cityFocus) {
-                        showMap = true
+                    NavigationLink {
+                        RoyalHallScreen()
+                    } label: {
+                        HeroButtonLabel(title: "王者殿堂", systemImage: "crown.fill")
                     }
+                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
                 }
 
                 Text("私藏 \(app.privateCollectionCount) 张 · 成就 \(rank.unlockedCount)/\(rank.totalCount) · 名册 \(app.stats.activeCount) 人")

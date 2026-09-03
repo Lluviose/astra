@@ -7,12 +7,15 @@ struct BackupPayload: Codable, Sendable {
     var exportedAt: Date
     var companions: [Companion]
     var encounters: [Encounter]
+    /// v6 起保存用户亲自选择的封号、旗帜和王都。
+    var royalProfile: RoyalProfile
     /// JPEG 二进制，key 是 MediaStore 的 id。v1 备份没有这一项。
     var media: [String: Data]
 
     init(
         companions: [Companion],
         encounters: [Encounter],
+        royalProfile: RoyalProfile = .default,
         media: [String: Data] = [:],
         exportedAt: Date = Date()
     ) {
@@ -21,6 +24,7 @@ struct BackupPayload: Codable, Sendable {
         self.exportedAt = exportedAt
         self.companions = companions
         self.encounters = encounters
+        self.royalProfile = royalProfile
         self.media = media
     }
 
@@ -31,6 +35,7 @@ struct BackupPayload: Codable, Sendable {
         exportedAt = try c.decodeIfPresent(Date.self, forKey: .exportedAt) ?? Date()
         companions = try c.decodeIfPresent([Companion].self, forKey: .companions) ?? []
         encounters = try c.decodeIfPresent([Encounter].self, forKey: .encounters) ?? []
+        royalProfile = try c.decodeIfPresent(RoyalProfile.self, forKey: .royalProfile) ?? .default
         media = try c.decodeIfPresent([String: Data].self, forKey: .media) ?? [:]
     }
 }
@@ -56,8 +61,8 @@ enum BackupError: LocalizedError {
 enum BackupService {
 
     static let formatIdentifier = "astra.backup"
-    /// v4 replaces the old event taxonomy with the two result outcomes: intimacy / missed.
-    static let currentVersion = 4
+    /// v6 adds the locally customized royal profile.
+    static let currentVersion = 6
 
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
@@ -75,9 +80,15 @@ enum BackupService {
     static func encode(
         companions: [Companion],
         encounters: [Encounter],
+        royalProfile: RoyalProfile = .default,
         media: [String: Data] = [:]
     ) throws -> Data {
-        try encoder.encode(BackupPayload(companions: companions, encounters: encounters, media: media))
+        try encoder.encode(BackupPayload(
+            companions: companions,
+            encounters: encounters,
+            royalProfile: royalProfile,
+            media: media
+        ))
     }
 
     static func decode(_ data: Data) throws -> BackupPayload {
@@ -125,6 +136,7 @@ enum BackupService {
         var ids = Set(companions.compactMap(\.photoID))
         for companion in companions {
             ids.formUnion(companion.profilePhotoIDs)
+            ids.formUnion(companion.dossierPhotoIDs)
             ids.formUnion(companion.albumPhotoIDs)
         }
         for encounter in encounters {

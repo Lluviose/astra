@@ -18,6 +18,7 @@ struct CompanionDetailView: View {
     private enum PhotoShelf: String, CaseIterable, Identifiable {
         case album
         case profile
+        case dossier
 
         var id: String { rawValue }
     }
@@ -167,8 +168,14 @@ struct CompanionDetailView: View {
                             )
                             HStack(spacing: 6) {
                                 StageBadge(stage: companion.stage, filled: true)
-                                if hookups >= 3 {
-                                    TagLabel(title: "回头客", systemImage: "arrow.triangle.2.circlepath", tint: Palette.gold, filled: true)
+                                if hookups > 0 {
+                                    let legendTier = CompanionLegendTier.resolve(hookupCount: hookups)
+                                    TagLabel(
+                                        title: legendTier.label,
+                                        systemImage: legendTier.symbolName,
+                                        tint: legendTier.tint,
+                                        filled: true
+                                    )
                                 }
                             }
                             Label(app.locationName(for: companion), systemImage: "mappin")
@@ -260,11 +267,25 @@ struct CompanionDetailView: View {
     private func photosSection(_ companion: Companion) -> some View {
         let albumIDs = app.albumIDs(for: companion.id)
         let profileIDs = app.profilePhotoIDs(for: companion.id)
-        let ids = photoShelf == .album ? albumIDs : profileIDs
+        let dossierIDs = app.dossierPhotoIDs(for: companion.id)
+        let ids: [String]
+        let footer: String
+        switch photoShelf {
+        case .album:
+            ids = albumIDs
+            footer = "艳照和每次留下的照片放这里，不限数量，原图保存。"
+        case .profile:
+            ids = profileIDs
+            footer = "头像和普通人物照放这里，不会混进艳照。"
+        case .dossier:
+            ids = dossierIDs
+            footer = "个人资料页、人物信息截图等档案照片放这里。"
+        }
         return Section {
             Picker("照片", selection: $photoShelf) {
                 Text("艳照 \(albumIDs.count)").tag(PhotoShelf.album)
                 Text("人物照 \(profileIDs.count)").tag(PhotoShelf.profile)
+                Text("档案照 \(dossierIDs.count)").tag(PhotoShelf.dossier)
             }
             .pickerStyle(.segmented)
 
@@ -274,10 +295,13 @@ struct CompanionDetailView: View {
                         ids: ids,
                         editable: true,
                         onDelete: { id in
-                            if photoShelf == .album {
+                            switch photoShelf {
+                            case .album:
                                 app.removeAlbumPhoto(id, from: companion.id)
-                            } else {
+                            case .profile:
                                 app.removeProfilePhoto(id, from: companion.id)
+                            case .dossier:
+                                app.removeDossierPhoto(id, from: companion.id)
                             }
                         },
                         onOpen: {
@@ -293,20 +317,19 @@ struct CompanionDetailView: View {
             }
 
             PhotoAddBar { importedIDs in
-                if photoShelf == .album {
+                switch photoShelf {
+                case .album:
                     app.addAlbumPhotoIDs(importedIDs, to: companion.id)
-                } else {
+                case .profile:
                     app.addProfilePhotoIDs(importedIDs, to: companion.id)
+                case .dossier:
+                    app.addDossierPhotoIDs(importedIDs, to: companion.id)
                 }
             }
         } header: {
             Text("照片")
         } footer: {
-            Text(
-                photoShelf == .album
-                    ? "艳照和每次留下的照片放这里，不限数量，原图保存。"
-                    : "头像和普通人物照放这里，不会混进艳照。"
-            )
+            Text(footer)
         }
     }
 

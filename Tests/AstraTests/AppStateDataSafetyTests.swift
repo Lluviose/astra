@@ -53,6 +53,7 @@ final class AppStateDataSafetyTests: XCTestCase {
     func testOnlyTrulyUnreferencedCandidatesAreDeleted() {
         let avatarID = "avatar"
         let profileID = "profile"
+        let dossierID = "dossier"
         let albumID = "album"
         let encounterID = "encounter"
         let orphanID = "orphan"
@@ -60,12 +61,13 @@ final class AppStateDataSafetyTests: XCTestCase {
             name: "她",
             photoID: avatarID,
             profilePhotoIDs: [profileID],
+            dossierPhotoIDs: [dossierID],
             albumPhotoIDs: [albumID]
         )
         let encounter = Encounter(companionID: companion.id, photoIDs: [encounterID])
 
         let result = AppState.unreferencedMediaIDs(
-            among: [avatarID, profileID, albumID, encounterID, orphanID],
+            among: [avatarID, profileID, dossierID, albumID, encounterID, orphanID],
             companions: [companion],
             encounters: [encounter]
         )
@@ -74,7 +76,7 @@ final class AppStateDataSafetyTests: XCTestCase {
     }
 
     @MainActor
-    func testProfileAndAlbumPhotosHaveNoApplicationCountLimit() throws {
+    func testProfileDossierAndAlbumPhotosHaveNoApplicationCountLimit() throws {
         let (defaults, suiteName) = makeDefaults()
         let sourceData = try XCTUnwrap(
             UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
@@ -83,8 +85,9 @@ final class AppStateDataSafetyTests: XCTestCase {
             }.pngData()
         )
         let profileIDs = (0..<9).map { "unlimited-profile-\($0)-\(UUID().uuidString)" }
+        let dossierIDs = (0..<12).map { "unlimited-dossier-\($0)-\(UUID().uuidString)" }
         let albumIDs = (0..<25).map { "unlimited-album-\($0)-\(UUID().uuidString)" }
-        let allIDs = profileIDs + albumIDs
+        let allIDs = profileIDs + dossierIDs + albumIDs
         for id in allIDs {
             XCTAssertEqual(MediaStore.saveOriginal(data: sourceData, id: id), id)
         }
@@ -101,10 +104,35 @@ final class AppStateDataSafetyTests: XCTestCase {
         let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
 
         app.addProfilePhotoIDs(profileIDs, to: companion.id)
+        app.addDossierPhotoIDs(dossierIDs, to: companion.id)
         app.addAlbumPhotoIDs(albumIDs, to: companion.id)
 
         XCTAssertEqual(app.companion(id: companion.id)?.profilePhotoIDs, profileIDs)
+        XCTAssertEqual(app.companion(id: companion.id)?.dossierPhotoIDs, dossierIDs)
         XCTAssertEqual(app.companion(id: companion.id)?.albumPhotoIDs, albumIDs)
+    }
+
+    @MainActor
+    func testRemovingDossierPhotoDeletesItsUnsharedMedia() {
+        let (defaults, suiteName) = makeDefaults()
+        let mediaID = "remove-dossier-\(UUID().uuidString)"
+        XCTAssertTrue(MediaStore.save(data: Data([0xFF, 0xD8, 0xFF, 0xD9]), id: mediaID))
+
+        defer {
+            MediaStore.delete(id: mediaID)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let companion = Companion(name: "她", dossierPhotoIDs: [mediaID])
+        let store = LocalStore(defaults: defaults)
+        store.save([companion], for: .companions)
+        store.save([Encounter](), for: .encounters)
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+
+        app.removeDossierPhoto(mediaID, from: companion.id)
+
+        XCTAssertTrue(app.companion(id: companion.id)?.dossierPhotoIDs.isEmpty == true)
+        XCTAssertNil(MediaStore.data(id: mediaID))
     }
 
     @MainActor
@@ -201,6 +229,7 @@ final class AppStateDataSafetyTests: XCTestCase {
             name: "甲",
             cityID: "310000",
             profilePhotoIDs: ["first-profile"],
+            dossierPhotoIDs: ["first-dossier"],
             albumPhotoIDs: ["first-private"]
         )
         let second = Companion(

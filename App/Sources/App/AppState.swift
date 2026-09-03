@@ -69,11 +69,15 @@ final class AppState {
     private(set) var encounters: [Encounter]
     private(set) var settings: AppSettings
     private(set) var filter: RosterFilter
+    private(set) var royalProfile: RoyalProfile
     private(set) var seenAchievementIDs: Set<String>
     private(set) var pendingUnlocks: [Achievement] = []
+    private(set) var pendingRewards: [RewardEvent] = []
 
     /// 搜索词是临时状态，不落盘
     var searchText: String = ""
+    /// RootView 的结算浮层借此请求首页打开王者殿堂。
+    var royalHallRequestToken: Int = 0
 
     /// 代号是否已揭示。开启「默认隐藏代号」后每次冷启动都重新遮住，不持久化。
     var namesRevealed: Bool = true
@@ -84,6 +88,9 @@ final class AppState {
     private(set) var stats = IntimacyStats()
     /// 全部记录的战绩统计，随数据变化重算。
     private(set) var insights = EncounterInsights()
+    private(set) var royalDashboard = RoyalDashboard(
+        legends: [], territories: [], monthlyCampaigns: [], yearlyCampaigns: [], personalRecords: []
+    )
 
     private let store: LocalStore
     private var isBooting = true
@@ -103,6 +110,7 @@ final class AppState {
         self.encounters = storedEncounters ?? []
         self.settings = store.load(AppSettings.self, for: .settings, default: .default)
         self.filter = store.load(RosterFilter.self, for: .filter, default: .default)
+        self.royalProfile = store.load(RoyalProfile.self, for: .royalProfile, default: .default)
         self.seenAchievementIDs = store.load(Set<String>.self, for: .seenAchievements, default: [])
         self.namesRevealed = !self.settings.maskNamesByDefault
 
@@ -114,6 +122,7 @@ final class AppState {
             MediaStore.gc(referenced: Self.referencedIDs(companions: self.companions, encounters: self.encounters))
         }
         recompute()
+        normalizeRoyalProfile()
         seedSeenAchievementsIfNeeded()
         isBooting = false
     }
@@ -146,7 +155,7 @@ final class AppState {
             }
     }
 
-    /// 只统计后宫图鉴里的艳照与单次战果照片，不把头像和普通资料照混进来。
+    /// 只统计后宫图鉴里的艳照与单次战果照片，不把头像、人物照和档案照片混进来。
     var privateCollectionCount: Int {
         var ids = Set<String>()
         for companion in conqueredCompanions {
@@ -285,6 +294,43 @@ final class AppState {
 
     var royalRank: RoyalRank { RoyalRank.resolve(from: achievements) }
 
+    var selectedRoyalTitle: String {
+        let rank = royalRank
+        let selected = royalProfile.selectedTitleIndex.map { min(max($0, 0), rank.index) } ?? rank.index
+        return RoyalRank.titles[selected]
+    }
+
+    var capitalTerritory: ConquestTerritory? {
+        guard let id = royalProfile.capitalLocationID else { return nil }
+        return royalDashboard.territories.first { $0.locationID == id }
+    }
+
+    func updateRoyalProfile(_ newValue: RoyalProfile) {
+        royalProfile = newValue
+        normalizeRoyalProfile()
+        store.save(royalProfile, for: .royalProfile)
+        Haptics.shared.play(.toggleOn)
+    }
+
+    func royalProfileBinding<T>(_ keyPath: WritableKeyPath<RoyalProfile, T>) -> Binding<T> {
+        Binding(
+            get: { self.royalProfile[keyPath: keyPath] },
+            set: { value in
+                var copy = self.royalProfile
+                copy[keyPath: keyPath] = value
+                self.updateRoyalProfile(copy)
+            }
+        )
+    }
+
+    func dismissRewards() {
+        pendingRewards = []
+    }
+
+    func requestRoyalHall() {
+        royalHallRequestToken &+= 1
+    }
+
     /// 某个人的战绩小结。
     func companionInsights(for companionID: UUID) -> EncounterInsights {
         EncounterInsights.compute(
@@ -339,7 +385,13 @@ final class AppState {
         }
     }
 
-    /// 产品约束：人物资料照和艳照不设置应用层数量上限。
+    func dossierPhotoIDs(for companionID: UUID) -> [String] {
+        guard let companion = companion(id: companionID) else { return [] }
+        var seen = Set<String>()
+        return companion.dossierPhotoIDs.filter { seen.insert($0).inserted }
+    }
+
+    /// 产品约束：人物照、档案照片和艳照不设置应用层数量上限。
     func addProfilePhotoIDs(_ ids: [String], to companionID: UUID) {
         guard let index = companions.firstIndex(where: { $0.id == companionID }) else {
             deleteUnreferencedMedia(Set(ids))
@@ -352,6 +404,24 @@ final class AppState {
             return
         }
         companions[index].profilePhotoIDs.append(contentsOf: added)
+        companions[index].updatedAt = Date()
+        persistCompanions()
+        deleteUnreferencedMedia(Set(ids).subtracting(added))
+        Haptics.shared.play(.toggleOn)
+    }
+
+    func addDossierPhotoIDs(_ ids: [String], to companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }) else {
+            deleteUnreferencedMedia(Set(ids))
+            return
+        }
+        var seen = Set(companions[index].dossierPhotoIDs)
+        let added = ids.filter { MediaStore.isValidID($0) && seen.insert($0).inserted }
+        guard !added.isEmpty else {
+            deleteUnreferencedMedia(Set(ids))
+            return
+        }
+        companions[index].dossierPhotoIDs.append(contentsOf: added)
         companions[index].updatedAt = Date()
         persistCompanions()
         deleteUnreferencedMedia(Set(ids).subtracting(added))
@@ -412,6 +482,17 @@ final class AppState {
             changed = true
         }
         guard changed else { return }
+        companions[index].updatedAt = Date()
+        persistCompanions()
+        deleteUnreferencedMedia(Set([id]))
+        Haptics.shared.play(.toggleOff)
+    }
+
+    func removeDossierPhoto(_ id: String, from companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }),
+              companions[index].dossierPhotoIDs.contains(id)
+        else { return }
+        companions[index].dossierPhotoIDs.removeAll { $0 == id }
         companions[index].updatedAt = Date()
         persistCompanions()
         deleteUnreferencedMedia(Set([id]))
@@ -617,8 +698,10 @@ final class AppState {
                 mediaCandidates.insert(old)
             }
             let removedProfile = Set(companions[index].profilePhotoIDs).subtracting(updated.profilePhotoIDs)
+            let removedDossier = Set(companions[index].dossierPhotoIDs).subtracting(updated.dossierPhotoIDs)
             let removedAlbum = Set(companions[index].albumPhotoIDs).subtracting(updated.albumPhotoIDs)
             mediaCandidates.formUnion(removedProfile)
+            mediaCandidates.formUnion(removedDossier)
             mediaCandidates.formUnion(removedAlbum)
             companions[index] = updated
             Haptics.shared.play(.success)
@@ -637,6 +720,7 @@ final class AppState {
                 mediaCandidates.insert(photoID)
             }
             mediaCandidates.formUnion(companion.profilePhotoIDs)
+            mediaCandidates.formUnion(companion.dossierPhotoIDs)
             mediaCandidates.formUnion(companion.albumPhotoIDs)
         }
         let photos = encounters.filter { $0.companionID == companionID }.flatMap(\.photoIDs)
@@ -690,6 +774,7 @@ final class AppState {
     // MARK: - 修改：记录
 
     func upsert(_ encounter: Encounter) {
+        let previousSnapshot = RoyalConquestEngine.snapshot(royalDashboard)
         var normalized = encounter
         normalized.normalizeForOutcome()
         var mediaCandidates = Set<String>()
@@ -701,6 +786,7 @@ final class AppState {
             encounters.append(normalized)
         }
         persistEncounters()
+        captureRoyalRewards(from: previousSnapshot)
         deleteUnreferencedMedia(mediaCandidates)
         Haptics.shared.play(.waveSent)
     }
@@ -781,6 +867,7 @@ final class AppState {
         try BackupService.encode(
             companions: companions,
             encounters: encounters,
+            royalProfile: royalProfile,
             media: MediaStore.collect(ids: Array(referencedMediaIDs))
         )
     }
@@ -802,8 +889,11 @@ final class AppState {
             // 新照片全部写入成功后再切换元数据，最后才清理旧文件；导入失败时原档案仍可用。
             companions = payload.companions
             encounters = payload.encounters
+            royalProfile = payload.royalProfile
             persistCompanions()
             persistEncounters()
+            normalizeRoyalProfile()
+            store.save(royalProfile, for: .royalProfile)
             MediaStore.gc(referenced: referenced)
             Haptics.shared.play(.success)
             return ImportSummary(
@@ -843,6 +933,11 @@ final class AppState {
 
         companions = mergedCompanions
         encounters = mergedEncounters
+        if royalProfile == .default, payload.royalProfile != .default {
+            royalProfile = payload.royalProfile
+            normalizeRoyalProfile()
+            store.save(royalProfile, for: .royalProfile)
+        }
         persistCompanions()
         persistEncounters()
         MediaStore.gc(referenced: referenced)
@@ -862,8 +957,10 @@ final class AppState {
         encounters = []
         settings = .default
         filter = .default
+        royalProfile = .default
         seenAchievementIDs = []
         pendingUnlocks = []
+        pendingRewards = []
         searchText = ""
         namesRevealed = !settings.maskNamesByDefault
         Haptics.shared.configure(with: settings)
@@ -892,6 +989,12 @@ final class AppState {
         rebuildBuckets()
         rebuildStats()
         insights = EncounterInsights.compute(encounters: encounters, companions: companions)
+        royalDashboard = RoyalConquestEngine.build(
+            companions: companions,
+            encounters: encounters,
+            albumCount: { [self] in albumIDs(for: $0).count }
+        )
+        normalizeRoyalProfile()
         if !isBooting {
             captureUnlocks()
         }
@@ -902,6 +1005,60 @@ final class AppState {
         guard seenAchievementIDs.isEmpty, !unlockedIDs.isEmpty else { return }
         seenAchievementIDs = unlockedIDs
         persistSeenAchievements()
+    }
+
+    private func normalizeRoyalProfile() {
+        if let selected = royalProfile.selectedTitleIndex {
+            royalProfile.selectedTitleIndex = min(max(selected, 0), royalRank.index)
+        }
+        if let capital = royalProfile.capitalLocationID,
+           !royalDashboard.territories.contains(where: { $0.locationID == capital }) {
+            royalProfile.capitalLocationID = nil
+        }
+    }
+
+    private func captureRoyalRewards(from previous: RoyalSnapshot) {
+        let current = RoyalConquestEngine.snapshot(royalDashboard)
+        var events: [RewardEvent] = []
+
+        for legend in royalDashboard.legends {
+            let old = previous.legendTiers[legend.companionID] ?? .none
+            guard legend.tier.rawValue > old.rawValue else { continue }
+            let name = namesRevealed ? companion(id: legend.companionID)?.displayName ?? "她" : "一位她"
+            events.append(RewardEvent(
+                kind: .legendUpgrade,
+                title: "\(name) · \(legend.tier.label)",
+                detail: "传奇后宫卡已经升阶",
+                symbolName: legend.tier.symbolName,
+                tint: legend.tier == .legendary ? .gold : .coral
+            ))
+        }
+
+        for territory in royalDashboard.territories {
+            let old = previous.territoryTiers[territory.locationID] ?? .none
+            guard territory.tier.rawValue > old.rawValue else { continue }
+            events.append(RewardEvent(
+                kind: .territoryUpgrade,
+                title: "\(locationName(id: territory.locationID)) · \(territory.tier.label)",
+                detail: "领地已经升阶",
+                symbolName: territory.tier.symbolName,
+                tint: territory.tier == .royalCity ? .gold : .accent
+            ))
+        }
+
+        for record in royalDashboard.personalRecords {
+            let old = previous.records[record.metric] ?? 0
+            guard record.value > old else { continue }
+            events.append(RewardEvent(
+                kind: .personalRecord,
+                title: "刷新纪录 · \(record.metric.label)",
+                detail: "新纪录 \(record.value)",
+                symbolName: record.metric.symbolName,
+                tint: .gold
+            ))
+        }
+
+        pendingRewards = Array(events.prefix(5))
     }
 
     private func captureUnlocks() {
@@ -1002,6 +1159,7 @@ final class AppState {
         var ids = Set(companions.compactMap(\.photoID))
         for companion in companions {
             ids.formUnion(companion.profilePhotoIDs)
+            ids.formUnion(companion.dossierPhotoIDs)
             ids.formUnion(companion.albumPhotoIDs)
         }
         for encounter in encounters {

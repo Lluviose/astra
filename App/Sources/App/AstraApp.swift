@@ -133,6 +133,19 @@ struct RootView: View {
                 .zIndex(1.5)
             }
 
+            if !app.pendingRewards.isEmpty, !lock.isLocked {
+                RewardOverlay(
+                    events: app.pendingRewards,
+                    onDismiss: { app.dismissRewards() },
+                    onOpenHall: {
+                        app.dismissRewards()
+                        selection = .home
+                        app.requestRoyalHall()
+                    }
+                )
+                .zIndex(1.7)
+            }
+
             if lock.isConfigured, lock.isLocked {
                 LockScreen()
                     .transition(.opacity)
@@ -142,6 +155,7 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.22), value: lock.isLocked)
         .animation(.easeInOut(duration: 0.12), value: lock.isObscured)
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.pendingUnlocks.isEmpty)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.pendingRewards.isEmpty)
     }
 
     /// 切换 Tab 时给一记轻反馈

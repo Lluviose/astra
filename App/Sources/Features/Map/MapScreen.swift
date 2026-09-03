@@ -27,7 +27,7 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
     func tint(for bucket: CityBucket) -> Color {
         switch self {
         case .all: bucket.mapTint
-        case .hookedUp: EncounterKind.intimacy.tint
+        case .hookedUp: TerritoryTier.resolve(hookupCount: bucket.hookupCount).tint
         case .missed: EncounterKind.missed.tint
         }
     }
@@ -48,7 +48,7 @@ private struct CityBubble: View {
     private var displayCount: Int { scope.count(in: bucket) }
     private var symbolName: String {
         switch scope {
-        case .hookedUp: return "flame.fill"
+        case .hookedUp: return TerritoryTier.resolve(hookupCount: bucket.hookupCount).symbolName
         case .missed: return "xmark"
         case .all:
             if bucket.hookupCount > 0 { return "flame.fill" }

@@ -20,6 +20,10 @@ struct HaremGalleryScreen: View {
         )
         return app.conqueredCompanions.sorted { lhs, rhs in
             switch sort {
+            case .legend:
+                let left = CompanionLegendTier.resolve(hookupCount: app.hookupCount(for: lhs.id))
+                let right = CompanionLegendTier.resolve(hookupCount: app.hookupCount(for: rhs.id))
+                if left.rawValue != right.rawValue { return left.rawValue > right.rawValue }
             case .hookups:
                 let left = app.hookupCount(for: lhs.id)
                 let right = app.hookupCount(for: rhs.id)
@@ -268,6 +272,7 @@ struct HaremGalleryScreen: View {
 }
 
 private enum HaremSort: String, CaseIterable, Identifiable {
+    case legend
     case hookups
     case recent
     case score
@@ -277,6 +282,7 @@ private enum HaremSort: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .legend: "传奇等级"
         case .hookups: "上床最多"
         case .recent: "最近上过"
         case .score: "综合最高"
@@ -286,6 +292,7 @@ private enum HaremSort: String, CaseIterable, Identifiable {
 
     var symbolName: String {
         switch self {
+        case .legend: "crown.fill"
         case .hookups: "flame.fill"
         case .recent: "clock.fill"
         case .score: "crown.fill"
@@ -347,6 +354,16 @@ private struct HaremCard: View {
                             .padding(10)
                             .frame(maxWidth: .infinity, alignment: .topTrailing)
                     }
+
+                    let legendTier = CompanionLegendTier.resolve(hookupCount: app.hookupCount(for: companion.id))
+                    TagLabel(
+                        title: legendTier.label,
+                        systemImage: legendTier.symbolName,
+                        tint: legendTier.tint,
+                        filled: true
+                    )
+                    .padding(10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
