@@ -5,37 +5,57 @@ struct TimelineScreen: View {
 
     @Environment(AppState.self) private var app
 
-    @State private var isPickingCompanion = false
-    @State private var isPickingCity = false
+    @State private var flow = RecordingFlow()
+    @State private var path = NavigationPath()
     @State private var encounterTarget: Encounter?
-    @State private var companionEditorTarget: Companion?
     @State private var scope: RecordScope = .all
-    @State private var recordingKind: EncounterKind = .intimacy
-    @State private var pendingCompanionSelection: Companion?
-    @State private var pendingCitySelection: City?
-    @State private var recordingCompanionID: UUID?
+    @State private var query = ""
+
+    private var normalizedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
 
     private var displayedEncounters: [Encounter] {
+        let base: [Encounter]
         switch scope {
         case .all:
-            app.timeline()
+            base = app.timeline()
         case .hookedUp:
-            app.timeline().filter { $0.kind.isIntimate }
+            base = app.timeline().filter { $0.kind.isIntimate }
         case .missed:
-            app.timeline().filter { $0.kind.isMissed }
+            base = app.timeline().filter { $0.kind.isMissed }
         case .followUp:
-            app.pendingFollowUps
+            base = app.pendingFollowUps
         }
+        guard !normalizedQuery.isEmpty else { return base }
+        return base.filter(matchesQuery)
+    }
+
+    private func matchesQuery(_ encounter: Encounter) -> Bool {
+        let q = normalizedQuery
+        if encounter.place.lowercased().contains(q) { return true }
+        if encounter.note.lowercased().contains(q) { return true }
+        if encounter.followUpNote.lowercased().contains(q) { return true }
+        if app.locationName(for: encounter).lowercased().contains(q) { return true }
+        if let companion = app.companion(id: encounter.companionID),
+           companion.displayName.lowercased().contains(q) {
+            return true
+        }
+        if encounter.activities.contains(where: { $0.label.lowercased().contains(q) }) { return true }
+        if encounter.climaxDetails.contains(where: { $0.label.lowercased().contains(q) }) { return true }
+        return false
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
-                Section {
-                    statsGrid
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                if normalizedQuery.isEmpty {
+                    Section {
+                        statsGrid
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
                 }
 
                 Section {
@@ -47,7 +67,7 @@ struct TimelineScreen: View {
                     .pickerStyle(.segmented)
                 }
 
-                if scope == .all, !app.pendingFollowUps.isEmpty {
+                if normalizedQuery.isEmpty, scope == .all, !app.pendingFollowUps.isEmpty {
                     Section {
                         ForEach(app.pendingFollowUps.prefix(3)) { encounter in
                             Button {
@@ -62,30 +82,42 @@ struct TimelineScreen: View {
                     } header: {
                         Label("接下来", systemImage: "checklist")
                     } footer: {
-                        Text("点开记录即可修改日期或标记完成。")
+                        Text("点开记录就能改日期或勾完成。")
                     }
                 }
 
-                if scope == .all || scope == .hookedUp {
+                if normalizedQuery.isEmpty, scope == .all || scope == .hookedUp {
                     Section {
-                        barChart
+                        OutcomeMonthChart(points: EncounterInsights.monthSeries(encounters: app.encounters, monthCount: 6))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
+
+                        NavigationLink {
+                            InsightsScreen()
+                        } label: {
+                            Label("看完整战绩统计", systemImage: "chart.bar.xaxis")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Palette.accent)
+                        }
                     } header: {
-                        Text("近 6 个月结果")
+                        Text("近 6 个月")
                     }
                 }
 
                 let sections = displayedSections
                 if sections.isEmpty {
                     Section {
-                        EmptyStateView(
-                            symbol: scope.emptySymbol,
-                            title: scope.emptyTitle,
-                            message: scope.emptyMessage,
-                            actionTitle: scope == .followUp ? nil : "记一笔",
-                            action: scope == .followUp ? nil : { beginRecording() }
-                        )
+                        if normalizedQuery.isEmpty {
+                            EmptyStateView(
+                                symbol: scope.emptySymbol,
+                                title: scope.emptyTitle,
+                                message: scope.emptyMessage,
+                                actionTitle: scope == .followUp ? nil : "记一笔",
+                                action: scope == .followUp ? nil : { beginRecording() }
+                            )
+                        } else {
+                            ContentUnavailableView.search(text: query)
+                        }
                     }
                 } else {
                     ForEach(sections) { section in
@@ -107,6 +139,14 @@ struct TimelineScreen: View {
                                             Label("删除", systemImage: "trash")
                                         }
                                     }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
+                                            path.append(encounter.companionID)
+                                        } label: {
+                                            Label("档案", systemImage: "book.pages.fill")
+                                        }
+                                        .tint(Palette.accent)
+                                    }
                                 }
                             }
                         }
@@ -115,10 +155,14 @@ struct TimelineScreen: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("时间线")
+            .navigationDestination(for: UUID.self) { id in
+                CompanionDetailView(companionID: id)
+            }
+            .searchable(text: $query, prompt: "代号 / 地点 / 备注 / 玩法")
+            .autocorrectionDisabled()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Haptics.shared.play(.lightTap)
                         beginRecording()
                     } label: {
                         Image(systemName: "square.and.pencil")
@@ -127,69 +171,14 @@ struct TimelineScreen: View {
                 }
             }
         }
-        .sheet(isPresented: $isPickingCompanion, onDismiss: finishCompanionSelection) {
-            CompanionPickerSheet { companion in
-                pendingCompanionSelection = companion
-            }
-        }
+        .recordingFlowSheets(flow)
         .sheet(item: $encounterTarget) { encounter in
             EncounterEditor(encounter: encounter)
-        }
-        .sheet(isPresented: $isPickingCity, onDismiss: finishCitySelection) {
-            CityPickerSheet(title: "先添加记录对象") { city in
-                pendingCitySelection = city
-            }
-        }
-        .sheet(item: $companionEditorTarget, onDismiss: finishCompanionEditor) { companion in
-            CompanionEditor(companion: companion)
         }
     }
 
     private func beginRecording() {
-        recordingKind = scope == .missed ? .missed : .intimacy
-        pendingCompanionSelection = nil
-
-        if app.currentCompanions.isEmpty {
-            pendingCitySelection = nil
-            recordingCompanionID = nil
-            isPickingCity = true
-        } else {
-            isPickingCompanion = true
-        }
-    }
-
-    private func finishCompanionSelection() {
-        guard let companion = pendingCompanionSelection else { return }
-        pendingCompanionSelection = nil
-        encounterTarget = Encounter(
-            companionID: companion.id,
-            kind: recordingKind,
-            cityID: companion.cityID
-        )
-    }
-
-    private func finishCitySelection() {
-        guard let city = pendingCitySelection else {
-            recordingCompanionID = nil
-            return
-        }
-        pendingCitySelection = nil
-        let draft = app.makeDraftCompanion(cityID: city.id)
-        recordingCompanionID = draft.id
-        companionEditorTarget = draft
-    }
-
-    private func finishCompanionEditor() {
-        defer { recordingCompanionID = nil }
-        guard let companionID = recordingCompanionID,
-              let companion = app.companion(id: companionID)
-        else { return }
-
-        encounterTarget = Encounter(
-            companionID: companion.id,
-            kind: recordingKind,
-            cityID: companion.cityID
-        )
+        flow.begin(kind: scope == .missed ? .missed : .intimacy, app: app)
     }
 
     // MARK: 统计
@@ -225,7 +214,7 @@ struct TimelineScreen: View {
                     value: "\(app.stats.cityCount)",
                     caption: "涉及地点",
                     systemImage: "map.fill",
-                    tint: Color(red: 0.30, green: 0.70, blue: 0.56)
+                    tint: Palette.safe
                 )
                 StatTile(
                     value: hookupRateText,
@@ -238,9 +227,7 @@ struct TimelineScreen: View {
     }
 
     private var hookupRateText: String {
-        let total = app.stats.totalIntimacyCount + app.stats.missedCount
-        guard total > 0 else { return "—" }
-        let rate = Double(app.stats.totalIntimacyCount) / Double(total)
+        guard let rate = app.insights.hookupRate else { return "—" }
         return rate.formatted(.percent.precision(.fractionLength(0)))
     }
 
@@ -294,103 +281,6 @@ struct TimelineScreen: View {
 
     private var unscheduledFollowUpCount: Int {
         app.pendingFollowUps.filter { $0.followUpDate == nil }.count
-    }
-
-    // MARK: 近 6 个月柱状图（纯 SwiftUI，无第三方库）
-
-    private var barChart: some View {
-        let data = monthlyOutcomeCounts
-        let hookupTotal = data.reduce(0) { $0 + $1.hookedUp }
-        let missedTotal = data.reduce(0) { $0 + $1.missed }
-        let peak = max(1, data.flatMap { [$0.hookedUp, $0.missed] }.max() ?? 1)
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Label("上床 \(hookupTotal)", systemImage: "flame.fill")
-                    .foregroundStyle(EncounterKind.intimacy.tint)
-                Spacer()
-                Label("没上床 \(missedTotal)", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(EncounterKind.missed.tint)
-            }
-            .font(.caption.weight(.semibold))
-
-            HStack(alignment: .bottom, spacing: 8) {
-                ForEach(Array(data.enumerated()), id: \.offset) { _, item in
-                    VStack(spacing: 4) {
-                        Text("\(item.hookedUp)/\(item.missed)")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(
-                                item.hookedUp + item.missed > 0
-                                    ? Color.secondary
-                                    : Color.secondary.opacity(0.45)
-                            )
-                            .contentTransition(.numericText())
-
-                        HStack(alignment: .bottom, spacing: 3) {
-                            Capsule(style: .continuous)
-                                .fill(EncounterKind.intimacy.tint.gradient)
-                                .frame(
-                                    width: 8,
-                                    height: item.hookedUp > 0
-                                        ? max(10, CGFloat(item.hookedUp) / CGFloat(peak) * 70)
-                                        : 4
-                                )
-                                .opacity(item.hookedUp > 0 ? 1 : 0.16)
-
-                            Capsule(style: .continuous)
-                                .fill(EncounterKind.missed.tint.gradient)
-                                .frame(
-                                    width: 8,
-                                    height: item.missed > 0
-                                        ? max(10, CGFloat(item.missed) / CGFloat(peak) * 70)
-                                        : 4
-                                )
-                                .opacity(item.missed > 0 ? 1 : 0.16)
-                        }
-                        .frame(height: 74, alignment: .bottom)
-
-                        Text(item.label)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(height: 112, alignment: .bottom)
-            .animation(
-                .spring(response: 0.5, dampingFraction: 0.8),
-                value: data.map { $0.hookedUp + $0.missed }
-            )
-        }
-        .padding(.vertical, 6)
-    }
-
-    private var monthlyOutcomeCounts: [(label: String, hookedUp: Int, missed: Int)] {
-        let calendar = Calendar.current
-        var months: [Date] = []
-        guard let now = calendar.dateInterval(of: .month, for: Date())?.start else { return [] }
-        for offset in stride(from: -5, through: 0, by: 1) {
-            if let month = calendar.date(byAdding: .month, value: offset, to: now) {
-                months.append(month)
-            }
-        }
-
-        let labelFormatter = DateFormatter()
-        labelFormatter.setLocalizedDateFormatFromTemplate("MMM")
-
-        return months.map { month in
-            guard let interval = calendar.dateInterval(of: .month, for: month) else {
-                return (labelFormatter.string(from: month), 0, 0)
-            }
-            let records = app.encounters.filter {
-                $0.date >= interval.start && $0.date < interval.end
-            }.count
-            let hookedUp = app.encounters.filter {
-                $0.kind.isIntimate && $0.date >= interval.start && $0.date < interval.end
-            }.count
-            return (labelFormatter.string(from: month), hookedUp, records - hookedUp)
-        }
     }
 
     private var displayedSections: [RecordTimelineSection] {
@@ -526,9 +416,7 @@ struct FollowUpRow: View {
             }
 
             Spacer(minLength: 4)
-            Image(systemName: "chevron.right")
-                .font(.caption.bold())
-                .foregroundStyle(.tertiary)
+            ChevronHint()
         }
         .padding(.vertical, 2)
     }
@@ -550,11 +438,13 @@ struct CompanionPickerSheet: View {
         let matchingLocationIDs = Set(
             app.catalog.search(q, limit: app.catalog.locations.count).map(\.id)
         )
-        return app.currentCompanions.filter { companion in
-            q.isEmpty
-                || companion.displayName.lowercased().contains(q)
-                || matchingLocationIDs.contains(companion.cityID)
-        }
+        return app.currentCompanions
+            .sorted { app.lastContact(for: $0) > app.lastContact(for: $1) }
+            .filter { companion in
+                q.isEmpty
+                    || companion.displayName.lowercased().contains(q)
+                    || matchingLocationIDs.contains(companion.cityID)
+            }
     }
 
     var body: some View {
@@ -563,8 +453,8 @@ struct CompanionPickerSheet: View {
                 if filtered.isEmpty {
                     EmptyStateView(
                         symbol: "person.crop.circle.badge.questionmark",
-                        title: "没有匹配的对象",
-                        message: "换一个代号或地点试试，或先添加当前对象。"
+                        title: "没有匹配的人",
+                        message: "换一个代号或地点试试，或先把她加进名册。"
                     )
                 } else {
                     ForEach(filtered) { companion in
@@ -581,7 +471,7 @@ struct CompanionPickerSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("记录谁？")
+            .navigationTitle("记谁？")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "代号 / 地点")
             .toolbar {

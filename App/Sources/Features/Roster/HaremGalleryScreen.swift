@@ -15,7 +15,10 @@ struct HaremGalleryScreen: View {
     ]
 
     private var companions: [Companion] {
-        app.conqueredCompanions.sorted { lhs, rhs in
+        let photoCounts = Dictionary(
+            uniqueKeysWithValues: app.conqueredCompanions.map { ($0.id, galleryPhotoIDs(for: $0).count) }
+        )
+        return app.conqueredCompanions.sorted { lhs, rhs in
             switch sort {
             case .hookups:
                 let left = app.hookupCount(for: lhs.id)
@@ -28,8 +31,8 @@ struct HaremGalleryScreen: View {
             case .score:
                 if lhs.overallScore != rhs.overallScore { return lhs.overallScore > rhs.overallScore }
             case .photos:
-                let left = galleryPhotoIDs(for: lhs).count
-                let right = galleryPhotoIDs(for: rhs).count
+                let left = photoCounts[lhs.id] ?? 0
+                let right = photoCounts[rhs.id] ?? 0
                 if left != right { return left > right }
             }
             return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
@@ -82,82 +85,43 @@ struct HaremGalleryScreen: View {
     }
 
     private var royalHeader: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("私人收藏", systemImage: "lock.shield.fill")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.white.opacity(0.14), in: Capsule())
-                Spacer()
-                Label("王者图鉴", systemImage: "crown.fill")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.82, blue: 0.30))
-            }
+        HeroPanel(gradient: Palette.velvetGradient, glow: Palette.coral, watermark: "crown.fill") {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    HeroBadge(title: "私人收藏")
+                    Spacer()
+                    Label("Lv.\(app.royalRank.level) \(app.royalRank.title)", systemImage: "crown.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Palette.gold)
+                }
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text("上过的，都在这里")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                Text("不是待办，也不是聊天列表。这里专门用来翻照片、数战绩、回味已经发生过的故事。")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.76))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("上过的，都在这里")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                    Text("不是待办，也不是聊天列表。这里专门用来翻照片、数战绩、回味已经发生过的。")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.76))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            HStack(spacing: 9) {
-                royalMetric("\(app.conqueredCompanions.count)", "女人")
-                royalMetric("\(app.stats.totalIntimacyCount)", "上床")
-                royalMetric("\(app.stats.repeatGirlCount)", "回头客")
-                royalMetric("\(app.conquestLocationCount)", "战绩地")
-            }
+                HStack(spacing: 9) {
+                    HeroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
+                    HeroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
+                    HeroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
+                    HeroMetric(value: "\(app.conquestLocationCount)", label: "战绩地")
+                }
 
-            HStack(spacing: 6) {
-                Image(systemName: "photo.stack.fill")
-                Text("私藏 \(app.privateCollectionCount) 张")
-                Text("·")
-                Image(systemName: "medal.fill")
-                Text("成就 \(app.achievements.filter(\.isUnlocked).count)/\(app.achievements.count)")
+                HStack(spacing: 6) {
+                    Image(systemName: "photo.stack.fill")
+                    Text("私藏 \(app.privateCollectionCount) 张")
+                    Text("·")
+                    Image(systemName: "medal.fill")
+                    Text("成就 \(app.royalRank.unlockedCount)/\(app.royalRank.totalCount)")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.70))
             }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.white.opacity(0.70))
         }
-        .foregroundStyle(.white)
-        .padding(20)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.08, green: 0.035, blue: 0.16),
-                    Color(red: 0.36, green: 0.07, blue: 0.30),
-                    Color(red: 0.78, green: 0.15, blue: 0.34),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
-        )
-        .overlay(alignment: .topTrailing) {
-            Image(systemName: "crown.fill")
-                .font(.system(size: 94, weight: .black))
-                .foregroundStyle(.white.opacity(0.055))
-                .offset(x: 14, y: -12)
-                .allowsHitTesting(false)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .shadow(color: Palette.coral.opacity(0.24), radius: 22, y: 12)
-    }
-
-    private func royalMetric(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.title2.bold())
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.66))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(.black.opacity(0.15), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
     private func memoryHero(_ companion: Companion) -> some View {
@@ -185,7 +149,7 @@ struct HaremGalleryScreen: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Label("今日回味", systemImage: "sparkles")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.30))
+                            .foregroundStyle(Palette.gold)
                         MaskedName(
                             name: companion.displayName,
                             revealed: app.namesRevealed,
@@ -213,13 +177,11 @@ struct HaremGalleryScreen: View {
 
             NavigationLink(value: companion.id) {
                 HStack {
-                    Text(photos.isEmpty ? "打开档案，给她补上照片" : "点照片直接翻阅 · 打开档案看完整故事")
+                    Text(photos.isEmpty ? "打开档案，给她补上照片" : "点照片直接翻 · 打开档案看完整故事")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.bold())
-                        .foregroundStyle(.tertiary)
+                    ChevronHint()
                 }
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)
@@ -274,7 +236,7 @@ struct HaremGalleryScreen: View {
         EmptyStateView(
             symbol: "crown",
             title: "图鉴还没开张",
-            message: "名册里的人不会自动算进来。真正记下一次「上床了」，她才会出现在你的私人后宫图鉴。"
+            message: "名册里的人不会自动算进来。真正记下一次「上床了」，她才会出现在这里。"
         )
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
@@ -343,11 +305,9 @@ private struct HaremCard: View {
 
     private var lastHookup: Encounter? { app.lastHookup(for: companion.id) }
 
-    private var cityName: String {
-        if let cityID = lastHookup?.cityID, let city = app.city(id: cityID) {
-            return city.name
-        }
-        return app.cityName(for: companion)
+    private var locationName: String {
+        if let lastHookup { return app.locationName(for: lastHookup) }
+        return app.locationName(for: companion)
     }
 
     var body: some View {
@@ -371,7 +331,7 @@ private struct HaremCard: View {
                         .padding(.vertical, 5)
                         .background(
                             rank <= 3
-                                ? AnyShapeStyle(Color(red: 1.0, green: 0.80, blue: 0.28).gradient)
+                                ? AnyShapeStyle(Palette.gold.gradient)
                                 : AnyShapeStyle(Color.black.opacity(0.48)),
                             in: Capsule()
                         )
@@ -413,7 +373,7 @@ private struct HaremCard: View {
                         Label("\(app.hookupCount(for: companion.id))", systemImage: "flame.fill")
                             .foregroundStyle(Palette.coral)
                         Text("·")
-                        Text(cityName)
+                        Text(locationName)
                         if let date = lastHookup?.date {
                             Text("· \(Format.relativeDay(date))")
                         }

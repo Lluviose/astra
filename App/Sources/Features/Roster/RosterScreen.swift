@@ -1,13 +1,12 @@
 import SwiftUI
 
+/// 名册：还在推进的人。上过床的另有后宫图鉴，这里不重复陈列。
 struct RosterScreen: View {
 
     @Environment(AppState.self) private var app
 
+    @State private var flow = RecordingFlow()
     @State private var showFilter = false
-    @State private var isPickingCity = false
-    @State private var editorTarget: Companion?
-    @State private var pendingCitySelection: City?
     @State private var pendingDeletion: Companion?
 
     var body: some View {
@@ -17,9 +16,9 @@ struct RosterScreen: View {
                     EmptyStateView(
                         symbol: "person.2",
                         title: "名册还是空的",
-                        message: "记下她是谁、约过几次、留过什么照片。",
+                        message: "记下她是谁、到哪一步、约过几次、留过什么照片。",
                         actionTitle: "加个人",
-                        action: { isPickingCity = true }
+                        action: { flow.beginAddingCompanion() }
                     )
                 } else {
                     rosterList
@@ -69,8 +68,7 @@ struct RosterScreen: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Haptics.shared.play(.lightTap)
-                        isPickingCity = true
+                        flow.beginAddingCompanion()
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -83,16 +81,9 @@ struct RosterScreen: View {
             ), prompt: "代号 / 标签 / 地点 / 尺码")
             .autocorrectionDisabled()
         }
+        .recordingFlowSheets(flow)
         .sheet(isPresented: $showFilter) {
             RosterFilterSheet()
-        }
-        .sheet(isPresented: $isPickingCity, onDismiss: finishCitySelection) {
-            CityPickerSheet(title: "常驻或常见面的地点") { city in
-                pendingCitySelection = city
-            }
-        }
-        .sheet(item: $editorTarget) { companion in
-            CompanionEditor(companion: companion)
         }
         .confirmationDialog(
             "删除这条档案？",
@@ -102,7 +93,7 @@ struct RosterScreen: View {
             ),
             titleVisibility: .visible
         ) {
-            Button("删除对象及全部记录", role: .destructive) {
+            Button("删除她和全部记录", role: .destructive) {
                 guard let companion = pendingDeletion else { return }
                 pendingDeletion = nil
                 app.delete(companionID: companion.id)
@@ -117,8 +108,8 @@ struct RosterScreen: View {
         List {
             Section {
                 HStack(spacing: 12) {
-                    digestChip("\(app.stats.activeCount)", "名册")
-                    digestChip("\(app.stats.totalIntimacyCount)", "上床")
+                    digestChip("\(app.stats.activeCount)", "在册")
+                    digestChip("\(app.conqueredCompanions.count)", "上过")
                     digestChip("\(app.stats.repeatGirlCount)", "回头客")
                     digestChip("\(app.stats.cityCount)", "地点")
                 }
@@ -127,23 +118,36 @@ struct RosterScreen: View {
             }
 
             Section {
-                NavigationLink {
-                    HaremGalleryScreen()
-                } label: {
-                    haremEntryCard
-                }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-            }
+                HStack(spacing: 12) {
+                    NavigationLink {
+                        HaremGalleryScreen()
+                    } label: {
+                        EntryTile(
+                            title: "后宫图鉴",
+                            subtitle: app.conqueredCompanions.isEmpty
+                                ? "上过的才会进来"
+                                : "\(app.conqueredCompanions.count) 个她 · 私藏 \(app.privateCollectionCount) 张",
+                            systemImage: "crown.fill",
+                            tint: Palette.coral
+                        )
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
 
-            Section {
-                NavigationLink {
-                    RankingScreen()
-                } label: {
-                    RankingPreviewCard()
+                    NavigationLink {
+                        RankingScreen()
+                    } label: {
+                        EntryTile(
+                            title: "私密排行",
+                            subtitle: rankingSubtitle,
+                            systemImage: "list.number",
+                            tint: Palette.goldDeep
+                        )
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
                 }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
 
             if !app.needsAttention.isEmpty {
@@ -152,9 +156,7 @@ struct RosterScreen: View {
                         NavigationLink(value: companion.id) {
                             CompanionRow(companion: companion)
                         }
-                        .listRowBackground(
-                            Palette.accent.opacity(0.06)
-                        )
+                        .listRowBackground(Palette.accent.opacity(0.06))
                     }
                 } header: {
                     HStack(spacing: 5) {
@@ -170,8 +172,8 @@ struct RosterScreen: View {
                 Section {
                     EmptyStateView(
                         symbol: "line.3.horizontal.decrease.circle",
-                        title: "没有符合条件的对象",
-                        message: "试试放宽筛选条件，或清空搜索词。"
+                        title: "没有符合条件的人",
+                        message: "放宽筛选条件，或清空搜索词。"
                     )
                 }
             } else {
@@ -180,6 +182,14 @@ struct RosterScreen: View {
                         ForEach(section.companions) { companion in
                             NavigationLink(value: companion.id) {
                                 CompanionRow(companion: companion)
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    flow.record(.intimacy, for: companion)
+                                } label: {
+                                    Label("上床了", systemImage: "flame.fill")
+                                }
+                                .tint(Palette.coral)
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button {
@@ -207,6 +217,8 @@ struct RosterScreen: View {
                                     .foregroundStyle(section.stage?.tint ?? Color.secondary)
                             }
                             Text(section.title)
+                            Spacer()
+                            Text("\(section.companions.count)")
                         }
                     }
                 }
@@ -216,10 +228,13 @@ struct RosterScreen: View {
         .haptic(.selection, trigger: app.filter.activeConditionCount)
     }
 
-    private func finishCitySelection() {
-        guard let city = pendingCitySelection else { return }
-        pendingCitySelection = nil
-        editorTarget = app.makeDraftCompanion(cityID: city.id)
+    private var rankingSubtitle: String {
+        let top = app.companions
+            .filter { !$0.isArchived && $0.overallScore > 0 }
+            .max { $0.overallScore < $1.overallScore }
+        guard let top else { return "打分后自动排榜" }
+        let name = app.namesRevealed ? top.displayName : "第一名"
+        return "\(name) 综合 \(top.overallScore) 分领先"
     }
 
     private func digestChip(_ value: String, _ label: String) -> some View {
@@ -232,40 +247,6 @@ struct RosterScreen: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var haremEntryCard: some View {
-        HStack(spacing: 13) {
-            ZStack {
-                Circle()
-                    .fill(Palette.coral.opacity(0.15))
-                    .frame(width: 48, height: 48)
-                Image(systemName: "crown.fill")
-                    .foregroundStyle(Palette.coral)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("后宫图鉴")
-                    .font(.headline)
-                Text(
-                    app.conqueredCompanions.isEmpty
-                        ? "上过的女人才会进入这里"
-                        : "\(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount) 次 · 私藏 \(app.privateCollectionCount) 张"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            }
-
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption.bold())
-                .foregroundStyle(.tertiary)
-        }
-        .padding(15)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 10)
-        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
@@ -295,11 +276,11 @@ struct RosterFilterSheet: View {
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("相处状态")
+                    Text("到哪一步")
                 }
 
                 Section("其他条件") {
-                    Toggle("只看到了联系周期的对象", isOn: app.filterBinding(\.needsContactOnly))
+                    Toggle("只看到了联系周期的", isOn: app.filterBinding(\.needsContactOnly))
                     Toggle("包含已归档", isOn: app.filterBinding(\.includeArchived))
 
                     HStack {
@@ -320,21 +301,21 @@ struct RosterFilterSheet: View {
                 }
 
                 Section {
-                    let cities = app.buckets.map(\.city)
-                    if cities.isEmpty {
+                    let locations = app.buckets.map(\.city)
+                    if locations.isEmpty {
                         Text("还没有记录地点")
                             .foregroundStyle(.secondary)
                     } else {
                         FlowLayout(spacing: 8, lineSpacing: 8) {
-                            ForEach(cities) { city in
+                            ForEach(locations) { location in
                                 GlassChip(
-                                    title: city.name,
-                                    systemImage: "mappin",
-                                    isOn: app.filter.cityIDs.contains(city.id),
+                                    title: location.name,
+                                    systemImage: location.isCountry ? "globe" : "mappin",
+                                    isOn: app.filter.cityIDs.contains(location.id),
                                     tint: Palette.accent,
                                     compact: true
                                 ) {
-                                    app.mutateFilter { $0.toggle(cityID: city.id) }
+                                    app.mutateFilter { $0.toggle(cityID: location.id) }
                                 }
                             }
                         }

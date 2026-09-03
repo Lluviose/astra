@@ -236,13 +236,11 @@ struct MapScreen: View {
         }
         .sheet(isPresented: $isPickingCity, onDismiss: presentPendingEditor) {
             CityPickerSheet(title: "常驻或常见面的地点") { city in
-                var draft = app.makeDraftCompanion(cityID: city.id)
-                draft.cityID = city.id
-                pendingEditorTarget = draft
+                pendingEditorTarget = app.makeDraftCompanion(cityID: city.id)
             }
         }
         .sheet(isPresented: $isJumpingToCity) {
-            CityPickerSheet(title: "跳到地点", subtitle: "国家 / 中国城市 / 拼音 / 英文") { city in
+            CityPickerSheet(title: "跳到地点") { city in
                 focus(on: city, select: app.buckets.contains { $0.id == city.id })
             }
         }
@@ -316,7 +314,7 @@ struct MapScreen: View {
                 .accessibilityLabel("关闭猎场地图")
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("王者版图")
+                    Text("猎场版图")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                     Text(summaryText)
                         .font(.caption2)
@@ -383,11 +381,11 @@ struct MapScreen: View {
             HStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(Color(red: 1.0, green: 0.80, blue: 0.28).opacity(0.18))
+                        .fill(Palette.gold.opacity(0.18))
                         .frame(width: 38, height: 38)
                     Image(systemName: "crown.fill")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color(red: 0.92, green: 0.63, blue: 0.12))
+                        .foregroundStyle(Palette.goldDeep)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {

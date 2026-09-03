@@ -117,10 +117,7 @@ struct IntimacyStats: Hashable, Sendable {
     var photoCount: Int = 0
     /// 地点数；名称保留以兼容现有调用。
     var cityCount: Int = 0
-    var averageExperience: Double?
     var girlsThisMonth: Int = 0
     var photosThisMonth: Int = 0
     var repeatGirlCount: Int = 0
-    var topCompanionID: UUID?
-    var topCityName: String?
 }

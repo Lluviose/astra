@@ -209,7 +209,7 @@ struct SettingsScreen: View {
         } header: {
             Text("触感")
         } footer: {
-            Text("记下、切状态、打开猎场地图和保存档案都有对应的原生触感。")
+            Text("记一笔、切状态、打开版图和保存档案都有对应的原生触感。")
         }
     }
 
@@ -315,7 +315,7 @@ struct AboutView: View {
 
                     Text("星图")
                         .font(.title2.weight(.bold))
-                    Text("猎艳时间线 · 成就册")
+                    Text("猎场 · 名册 · 图鉴 · 版图 · 成就册")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("版本 \(Bundle.main.appVersion)")

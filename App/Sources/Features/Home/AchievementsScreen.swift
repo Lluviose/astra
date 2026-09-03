@@ -14,27 +14,7 @@ struct AchievementsScreen: View {
         return items.filter { $0.category == category }
     }
 
-    private let royalRanks = [
-        "猎场开张",
-        "初露锋芒",
-        "后宫领主",
-        "猎艳王者",
-        "传奇藏家",
-        "全册封神",
-    ]
-
-    private var royalRankIndex: Int {
-        guard !items.isEmpty else { return 0 }
-        return min(unlocked.count / 10, royalRanks.count - 1)
-    }
-
-    private var royalRankTitle: String { royalRanks[royalRankIndex] }
-
-    private var nextRankText: String {
-        guard unlocked.count < items.count else { return "整本成就册已经全部点亮" }
-        let nextThreshold = min(((unlocked.count / 10) + 1) * 10, items.count)
-        return "再点亮 \(nextThreshold - unlocked.count) 枚，升到 \(royalRanks[min(royalRankIndex + 1, royalRanks.count - 1)])"
-    }
+    private var rank: RoyalRank { RoyalRank.resolve(from: items) }
 
     var body: some View {
         ScrollView {
@@ -71,50 +51,44 @@ struct AchievementsScreen: View {
     }
 
     private var cover: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("只给你自己看", systemImage: "lock.shield.fill")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.white.opacity(0.14), in: Capsule())
-                Spacer()
-                Text("\(unlocked.filter { $0.tier == .gold }.count) 金")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.white.opacity(0.14), in: Capsule())
-            }
+        HeroPanel(cornerRadius: 28, watermark: "medal.fill") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    HeroBadge(title: "只给你自己看")
+                    Spacer()
+                    Text("\(unlocked.filter { $0.tier == .gold }.count) 金")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.14), in: Capsule())
+                }
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Lv.\(royalRankIndex + 1) · \(royalRankTitle)")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                Text(nextRankText)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.80))
-                Text("猎获、上床、复盘、足迹、私藏、玩法，一页一页点亮，最后把整本册子封神。")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.66))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Lv.\(rank.level) · \(rank.title)")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                    Text(rank.nextRankText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.80))
+                    Text("猎获、上床、复盘、足迹、私藏、玩法，一页一页点亮，最后把整本册子封神。")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.66))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            ProgressView(value: Double(unlocked.count), total: Double(max(items.count, 1)))
-                .tint(Color(red: 1.0, green: 0.78, blue: 0.28))
+                ProgressView(value: Double(unlocked.count), total: Double(max(items.count, 1)))
+                    .tint(Palette.gold)
 
-            HStack(spacing: 10) {
-                coverMetric("\(unlocked.count)", "已点亮")
-                coverMetric("\(unlocked.filter { $0.tier == .gold }.count)", "金徽章")
-                coverMetric(
-                    (Double(unlocked.count) / Double(max(items.count, 1)))
-                        .formatted(.percent.precision(.fractionLength(0))),
-                    "完成度"
-                )
+                HStack(spacing: 10) {
+                    HeroMetric(value: "\(unlocked.count)", label: "已点亮")
+                    HeroMetric(value: "\(unlocked.filter { $0.tier == .gold }.count)", label: "金徽章")
+                    HeroMetric(
+                        value: (Double(unlocked.count) / Double(max(items.count, 1)))
+                            .formatted(.percent.precision(.fractionLength(0))),
+                        label: "完成度"
+                    )
+                }
             }
         }
-        .foregroundStyle(.white)
-        .padding(20)
-        .background(Palette.heroGradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Palette.accentDeep.opacity(0.28), radius: 18, y: 10)
     }
 
     private var nextUpShelf: some View {
@@ -164,20 +138,6 @@ struct AchievementsScreen: View {
                 .padding(.vertical, 2)
             }
         }
-    }
-
-    private func coverMetric(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.title2.bold())
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.68))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(11)
-        .background(.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var chapterPicker: some View {

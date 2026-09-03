@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 单个对象详情：相处状态、边界与安全、亲密记录和快捷入口。
+/// 猎获档案：封面、战绩小结、照片、评分、规矩、线索和她的时间线。
 struct CompanionDetailView: View {
 
     let companionID: UUID
@@ -13,6 +13,14 @@ struct CompanionDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var viewingPhotoIndex: Int?
     @State private var viewingPhotoIDs: [String] = []
+    @State private var photoShelf: PhotoShelf = .album
+
+    private enum PhotoShelf: String, CaseIterable, Identifiable {
+        case album
+        case profile
+
+        var id: String { rawValue }
+    }
 
     private var companion: Companion? { app.companion(id: companionID) }
 
@@ -53,6 +61,11 @@ struct CompanionDetailView: View {
                                 systemImage: companion.isArchived ? "tray.and.arrow.up" : "archivebox"
                             )
                         }
+                        Button {
+                            app.toggleNamesRevealed()
+                        } label: {
+                            Label(app.namesRevealed ? "隐藏代号和照片" : "显示代号和照片", systemImage: app.namesRevealed ? "eye.slash" : "eye")
+                        }
                         Divider()
                         Button(role: .destructive) {
                             Haptics.shared.play(.warning)
@@ -77,13 +90,13 @@ struct CompanionDetailView: View {
             isPresented: $showDeleteConfirm,
             titleVisibility: .visible
         ) {
-            Button("删除对象及全部记录", role: .destructive) {
+            Button("删除她和全部记录", role: .destructive) {
                 app.delete(companionID: companionID)
                 dismiss()
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("连同约过的记录和照片一起删掉，回不来。")
+            Text("约过的记录和照片一起删掉，回不来。")
         }
         .sheet(isPresented: Binding(
             get: { viewingPhotoIndex != nil },
@@ -97,6 +110,7 @@ struct CompanionDetailView: View {
 
     private func content(_ companion: Companion) -> some View {
         List {
+            heroSection(companion)
             if companion.isArchived {
                 Section {
                     Label("已归档，不计入猎场和名册", systemImage: "archivebox.fill")
@@ -104,11 +118,6 @@ struct CompanionDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
-            headerSection(companion)
-            quickActionsSection(companion)
-            profilePhotosSection(companion)
-            albumSection(companion)
             if let overdueNote = overdueNote(companion) {
                 Section {
                     Label(overdueNote, systemImage: "bell.badge.fill")
@@ -116,6 +125,10 @@ struct CompanionDetailView: View {
                         .foregroundStyle(Palette.accent)
                 }
             }
+            if app.hookupCount(for: companion.id) > 0 {
+                recordSection(companion)
+            }
+            photosSection(companion)
             relationshipSection(companion)
             scoreSection(companion)
             if hasIntimacyNotes(companion) {
@@ -125,180 +138,182 @@ struct CompanionDetailView: View {
             timelineSection(companion)
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(app.namesRevealed ? companion.displayName : "猎获档案")
+        .navigationTitle(app.namesRevealed ? companion.displayName : "档案")
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: 头部
+    // MARK: 封面
 
-    private func headerSection(_ companion: Companion) -> some View {
-        Section {
-            VStack(spacing: 10) {
-                AvatarView(companion: companion, size: 84)
+    private func heroSection(_ companion: Companion) -> some View {
+        let hookups = app.hookupCount(for: companion.id)
+        let missed = app.missedCount(for: companion.id)
+        let photos = app.albumIDs(for: companion.id).count
+        return Section {
+            HeroPanel(
+                gradient: Palette.dossierGradient(companion.paletteIndex),
+                cornerRadius: 26,
+                glow: Palette.avatarColors(companion.paletteIndex)[1],
+                padding: 18
+            ) {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 14) {
+                        AvatarView(companion: companion, size: 72, showRing: false)
 
-                MaskedName(
-                    name: companion.displayName,
-                    revealed: app.namesRevealed,
-                    font: .title2.weight(.bold)
-                )
+                        VStack(alignment: .leading, spacing: 6) {
+                            MaskedName(
+                                name: companion.displayName,
+                                revealed: app.namesRevealed,
+                                font: .title2.weight(.bold)
+                            )
+                            HStack(spacing: 6) {
+                                StageBadge(stage: companion.stage, filled: true)
+                                if hookups >= 3 {
+                                    TagLabel(title: "回头客", systemImage: "arrow.triangle.2.circlepath", tint: Palette.gold, filled: true)
+                                }
+                            }
+                            Label(app.locationName(for: companion), systemImage: "mappin")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.76))
+                        }
+                        Spacer(minLength: 0)
+                    }
 
-                HStack(spacing: 8) {
-                    StageBadge(stage: companion.stage, filled: true)
-                    Label(app.cityName(for: companion), systemImage: "mappin")
-                        .font(.caption)
+                    HStack(spacing: 8) {
+                        HeroMetric(value: "\(hookups)", label: "上床")
+                        HeroMetric(value: "\(missed)", label: "没上")
+                        HeroMetric(value: "\(photos)", label: "私藏")
+                        HeroMetric(
+                            value: app.lastHookup(for: companion.id).map { Format.relativeDay($0.date) } ?? "—",
+                            label: "上次上床"
+                        )
+                    }
+
+                    HStack(spacing: 10) {
+                        HeroButton(title: "上床了", systemImage: EncounterKind.intimacy.symbolName, prominent: true, cue: .waveSent) {
+                            editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
+                        }
+                        HeroButton(title: "没上床", systemImage: EncounterKind.missed.symbolName) {
+                            editingEncounter = Encounter(companionID: companion.id, kind: .missed, cityID: companion.cityID)
+                        }
+                    }
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        } footer: {
+            Text("只选有没有上床；时间、地点和细节在下一页补。")
+        }
+    }
+
+    // MARK: 和她的战绩
+
+    private func recordSection(_ companion: Companion) -> some View {
+        let insights = app.companionInsights(for: companion.id)
+        return Section {
+            if let rate = insights.hookupRate, insights.recordCount > 1 {
+                LabeledContent("上床率", value: rate.formatted(.percent.precision(.fractionLength(0))))
+            }
+            if let days = insights.averageGapDays {
+                LabeledContent("平均间隔", value: "\(Int(days.rounded())) 天")
+            }
+            if !insights.topActivities.isEmpty {
+                LabeledContent("最常做") {
+                    Text(insights.topActivities.prefix(3).map(\.item.label).joined(separator: "、"))
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+            if !insights.topClimaxDetails.isEmpty {
+                LabeledContent("怎么收的") {
+                    Text(insights.topClimaxDetails.prefix(3).map(\.item.label).joined(separator: "、"))
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(Palette.coral)
+                }
+            }
+            if insights.protectionRecordedCount > 0 {
+                LabeledContent("套") {
+                    HStack(spacing: 6) {
+                        Text("全程 \(insights.protectionCounts[.protected] ?? 0)")
+                        if insights.barrierGapCount > 0 {
+                            Text("· 没戴全 \(insights.barrierGapCount)")
+                                .foregroundStyle(Palette.warning)
+                        }
+                    }
+                }
+            }
+            if insights.spendRecordedCount > 0 {
+                LabeledContent("花费合计", value: Format.money(insights.totalSpend))
+            }
+            if let physical = insights.averagePhysical {
+                LabeledContent("身体感受", value: String(format: "%.1f / 5", physical))
+            }
+            if let part = insights.favoriteDayPart {
+                LabeledContent("常在", value: "\(part.label) \(part.hoursLabel)")
+            }
+        } header: {
+            Text("和她的战绩")
+        }
+    }
+
+    // MARK: 照片
+
+    private func photosSection(_ companion: Companion) -> some View {
+        let albumIDs = app.albumIDs(for: companion.id)
+        let profileIDs = app.profilePhotoIDs(for: companion.id)
+        let ids = photoShelf == .album ? albumIDs : profileIDs
+        return Section {
+            Picker("照片", selection: $photoShelf) {
+                Text("艳照 \(albumIDs.count)").tag(PhotoShelf.album)
+                Text("人物照 \(profileIDs.count)").tag(PhotoShelf.profile)
+            }
+            .pickerStyle(.segmented)
+
+            if !ids.isEmpty {
+                if app.namesRevealed {
+                    PhotoStrip(
+                        ids: ids,
+                        editable: true,
+                        onDelete: { id in
+                            if photoShelf == .album {
+                                app.removeAlbumPhoto(id, from: companion.id)
+                            } else {
+                                app.removeProfilePhoto(id, from: companion.id)
+                            }
+                        },
+                        onOpen: {
+                            viewingPhotoIDs = ids
+                            viewingPhotoIndex = $0
+                        }
+                    )
+                } else {
+                    Label("点右上角菜单里的眼睛再看照片", systemImage: "eye.slash")
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-
-                let hookups = app.hookupCount(for: companion.id)
-                let missed = app.missedCount(for: companion.id)
-                let photos = app.albumIDs(for: companion.id).count
-                if hookups >= 3 {
-                    Text("回头客")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Palette.coral, in: Capsule())
-                }
-
-                HStack(spacing: 8) {
-                    huntStat("上床", "\(hookups)", Palette.coral)
-                    huntStat("没上床", "\(missed)", EncounterKind.missed.tint)
-                    huntStat("照片", "\(photos)", Palette.accent)
-                    huntStat(
-                        "最近",
-                        app.lastHookup(for: companion.id).map { Format.relativeDay($0.date) } ?? "—",
-                        Palette.warning
-                    )
-                }
-                .padding(.top, 4)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-        }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-    }
-
-    // MARK: 快捷记录
-
-    private func quickActionsSection(_ companion: Companion) -> some View {
-        Section {
-            HStack(spacing: 10) {
-                quickAction("flame.fill", "上床了") {
-                    editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
-                }
-                quickAction("xmark.circle.fill", "没上床") {
-                    editingEncounter = Encounter(companionID: companion.id, kind: .missed, cityID: companion.cityID)
-                }
-            }
-            .padding(.vertical, 4)
-        } header: {
-            Text("这次结果")
-        } footer: {
-            Text("只选有没有上床；时间、地点和细节可以在下一页补。")
-        }
-    }
-
-    private func quickAction(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .semibold))
-                Text(title)
-                    .font(.caption2)
-            }
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .glassCard(cornerRadius: 14, interactive: true, shadowRadius: 6)
-        }
-        .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.95))
-    }
-
-    private func huntStat(_ caption: String, _ value: String, _ tint: Color) -> some View {
-        VStack(spacing: 3) {
-            Text(value)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(tint)
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-            Text(caption)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private func albumSection(_ companion: Companion) -> some View {
-        let ids = app.albumIDs(for: companion.id)
-        return Section {
-            if app.namesRevealed {
-                if !ids.isEmpty {
-                    PhotoStrip(
-                        ids: ids,
-                        editable: true,
-                        onDelete: { app.removeAlbumPhoto($0, from: companion.id) },
-                        onOpen: {
-                            viewingPhotoIDs = ids
-                            viewingPhotoIndex = $0
-                        }
-                    )
-                }
-            } else if !ids.isEmpty {
-                Label("点右上角眼睛再看照片", systemImage: "eye.slash")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            PhotoAddBar { importedIDs in
-                app.addAlbumPhotoIDs(importedIDs, to: companion.id)
-            }
-        } header: {
-            Text("艳照私藏")
-        } footer: {
-            Text("这里只放艳照和每次约会留下的照片，与头像、人物资料照分开；不限制数量，原图保存，可随设备 iCloud Backup 恢复。")
-        }
-    }
-
-    private func profilePhotosSection(_ companion: Companion) -> some View {
-        let ids = app.profilePhotoIDs(for: companion.id)
-        return Section {
-            if app.namesRevealed {
-                if !ids.isEmpty {
-                    PhotoStrip(
-                        ids: ids,
-                        editable: true,
-                        onDelete: { app.removeProfilePhoto($0, from: companion.id) },
-                        onOpen: {
-                            viewingPhotoIDs = ids
-                            viewingPhotoIndex = $0
-                        }
-                    )
-                }
-            } else if !ids.isEmpty {
-                Label("点右上角眼睛再看人物照片", systemImage: "eye.slash")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
 
             PhotoAddBar { importedIDs in
-                app.addProfilePhotoIDs(importedIDs, to: companion.id)
+                if photoShelf == .album {
+                    app.addAlbumPhotoIDs(importedIDs, to: companion.id)
+                } else {
+                    app.addProfilePhotoIDs(importedIDs, to: companion.id)
+                }
             }
         } header: {
-            Text("人物照片")
+            Text("照片")
         } footer: {
-            Text("头像封面和普通资料照放在这里，不限制数量并保留原图；不会混进艳照私藏。")
+            Text(
+                photoShelf == .album
+                    ? "艳照和每次留下的照片放这里，不限数量，原图保存。"
+                    : "头像和普通人物照放这里，不会混进艳照。"
+            )
         }
     }
 
     // MARK: 相处
 
     private func relationshipSection(_ companion: Companion) -> some View {
-        Section("怎么约") {
+        Section("到哪一步了") {
             Menu {
                 ForEach(RelationStage.allCases) { stage in
                     Button {
@@ -433,6 +448,18 @@ struct CompanionDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            if companion.age == nil, companion.heightCM == nil, companion.bustSizeText == nil,
+               companion.occupation.isEmpty, companion.metChannel.isEmpty, companion.metDate == nil,
+               companion.contactNote.isEmpty, companion.tags.isEmpty, companion.notes.isEmpty,
+               companion.daysUntilBirthday == nil {
+                Button {
+                    Haptics.shared.play(.lightTap)
+                    showEditor = true
+                } label: {
+                    Label("补几条线索：年龄、尺码、怎么认识的", systemImage: "square.and.pencil")
+                        .font(.footnote)
+                }
+            }
         }
     }
 
@@ -442,7 +469,7 @@ struct CompanionDetailView: View {
         Section {
             let encounters = app.encounters(for: companion.id)
             if encounters.isEmpty {
-                Text("还没记过。上面两个结果按钮，点一下就行。")
+                Text("还没记过。上面两个按钮，点一下就行。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -463,9 +490,18 @@ struct CompanionDetailView: View {
                         }
                     }
                 }
+                if encounters.count > 30 {
+                    Text("只显示最近 30 条，更早的去时间线搜。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
         } header: {
-            Text("时间线")
+            HStack {
+                Text("和她的时间线")
+                Spacer()
+                Text("\(app.encounters(for: companion.id).count) 条")
+            }
         }
     }
 
@@ -485,8 +521,8 @@ struct EncounterRow: View {
     @Environment(AppState.self) private var app
 
     private var companion: Companion? { app.companion(id: encounter.companionID) }
-    private var cityName: String? {
-        encounter.cityID.flatMap { app.city(id: $0)?.name }
+    private var locationName: String? {
+        encounter.cityID.flatMap { app.location(id: $0)?.name }
     }
 
     var body: some View {
@@ -522,8 +558,8 @@ struct EncounterRow: View {
 
                 HStack(spacing: 6) {
                     Text(showTime ? Format.clockTime(encounter.date) : Format.relativeDay(encounter.date))
-                    if let cityName {
-                        Label(cityName, systemImage: "mappin")
+                    if let locationName {
+                        Label(locationName, systemImage: "mappin")
                     }
                     if encounter.kind.isIntimate, encounter.protectionStatus.isRecorded {
                         Label(encounter.protectionStatus.compactLabel, systemImage: encounter.protectionStatus.symbolName)

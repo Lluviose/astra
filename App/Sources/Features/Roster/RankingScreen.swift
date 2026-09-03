@@ -125,29 +125,27 @@ struct RankingScreen: View {
     }
 
     private var cover: some View {
-        HStack(spacing: 18) {
-            ZStack {
-                Circle()
-                    .fill(.white.opacity(0.13))
-                    .frame(width: 72, height: 72)
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(Color(red: 1, green: 0.78, blue: 0.28))
-            }
+        HeroPanel(cornerRadius: 28, watermark: "crown.fill") {
+            HStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.13))
+                        .frame(width: 72, height: 72)
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(Palette.gold)
+                }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("你的猎艳榜单")
-                    .font(.title2.weight(.bold))
-                Text("只按你留下的分数在本机计算，可随设备备份恢复。")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.72))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("你的私密榜单")
+                        .font(.title2.weight(.bold))
+                    Text("只按你留下的分数和次数在本机排，(ranked.count) 人上榜。")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
-        .padding(18)
-        .background(Palette.heroGradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Palette.accentDeep.opacity(0.26), radius: 18, y: 9)
     }
 
     private var emptyMessage: String {
@@ -265,7 +263,7 @@ struct RankingScreen: View {
 
     private func medalColor(_ rank: Int) -> Color {
         switch rank {
-        case 1: Color(red: 0.95, green: 0.70, blue: 0.18)
+        case 1: Palette.goldDeep
         case 2: Color(red: 0.62, green: 0.67, blue: 0.76)
         default: Color(red: 0.76, green: 0.45, blue: 0.24)
         }
@@ -310,61 +308,4 @@ private struct RankingRow: View {
     }
 }
 
-struct RankingPreviewCard: View {
-    @Environment(AppState.self) private var app
 
-    private var top: [Companion] {
-        Array(
-            app.companions
-                .filter { !$0.isArchived && $0.overallScore > 0 }
-                .sorted {
-                    if $0.overallScore != $1.overallScore { return $0.overallScore > $1.overallScore }
-                    return app.lastContact(for: $0) > app.lastContact(for: $1)
-                }
-                .prefix(3)
-        )
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("私密排行", systemImage: "crown.fill")
-                    .font(.headline)
-                    .foregroundStyle(Color(red: 0.92, green: 0.62, blue: 0.18))
-                Spacer()
-                Text("看完整榜单")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.caption2.bold())
-                    .foregroundStyle(.tertiary)
-            }
-
-            if top.isEmpty {
-                Text("给档案打分后，这里会出现前三名。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack(spacing: 10) {
-                    ForEach(Array(top.enumerated()), id: \.element.id) { index, companion in
-                        VStack(spacing: 5) {
-                            AvatarView(companion: companion, size: 42)
-                            MaskedName(
-                                name: companion.displayName,
-                                revealed: app.namesRevealed,
-                                font: .caption2.weight(.semibold)
-                            )
-                            Text("#\(index + 1) · \(companion.overallScore)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(Palette.coral)
-                                .monospacedDigit()
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-    }
-}

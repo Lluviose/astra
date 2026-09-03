@@ -6,16 +6,17 @@
 
 ## 功能
 
-- **王者战绩首页**：女人 / 上床 / 回头客 / 战绩地点第一眼就能看到，后宫图鉴与成就等级紧跟在首屏
+- **猎场首页**：王者等级（每 10 枚成就升一级）+ 女人 / 上床 / 回头客 / 战绩地四格战绩；「点她，直接记」一条最近的人，点头像两步就能记下上床了 / 没上床；图鉴、成就册、战绩统计、版图四个入口并排
+- **战绩统计**：上床率、近 12 个月双柱趋势、套的分布、最常做的玩法与收尾、清晨 / 白天 / 晚上 / 深夜与周几偏好、上得最多的人和地点、花费合计与平均、间隔与空窗、还想不想再约
 - **后宫图鉴**：只有真正记录过「上床了」的人才能进入；每天固定回味一个她，支持按次数、最近、综合和照片排序，封面可直接翻阅照片
-- **今晚焦点**：按置顶、相处阶段和已有结果选出一个值得回味或推进的人；可直接打开档案并记录结果，不额外猜测对方意愿
+- **今夜焦点**：按置顶、相处阶段和已有结果选出一个值得回味或推进的人，可直接打开档案或记录结果
 - **名册与私密排行**：每个人一张猎获档案；支持综合、欲望、床上默契、回味欲和上床次数榜单，只在本机显示
 - **六维评分**：颜值、身材、床上默契、主动感、欲望值、回味欲均为 0–10，带快速预设、实时综合分、滑杆触感和旧五星数据迁移
-- **时间线**：记录只分「上床了 / 没上床」，按天显示具体时间、地点和备注；近 6 个月用双柱对比两种结果
+- **时间线**：记录只分「上床了 / 没上床」，按天显示具体时间、地点和备注；可按代号、地点、备注、玩法搜索；近 6 个月双柱对比，一键进完整统计；左滑直达档案
 - **成就册**：50 枚徽章分成猎获、上床、复盘、足迹、私藏、玩法六章，铜银金三档，并聚合成从「猎场开张」到「全册封神」的 6 级王者身份
 - **人物照与艳照分仓**：头像封面、普通人物资料照、艳照私藏和单次约会照片分开保存、分开浏览、分开计数
-- **猎获档案**：代号 / 头像、相处状态、明确胸部尺码（下胸围 + AA–K 罩杯）、六维评分、上床 / 没上床、怎么约、她说过不行的事
-- **结果记录**：对象、结果、时间和地点填了就能存；中国可选具体城市，境外只选国家；上床记录可继续补细节、照片和私密备注
+- **猎获档案**：以她的头像色做封面，上床 / 没上 / 私藏 / 上次上床四格加两个结果按钮；「和她的战绩」小结上床率、平均间隔、最常做、套、花费与常约时段；艳照与人物照分档切换；六维评分、说过的规矩、基本线索和她的时间线
+- **结果记录**：对象、结果、时间和地点填了就能存；上床记录按「套 → 做了什么 → 怎么收的 → 感受 → 照片」顺序展开，边界回看与跟进折叠在后；对回头客可一键「沿用上次的玩法、收尾和套」
 - **事后跟进**：回个消息、再约一次、去做检测、暴露咨询等，可设日期并勾完成
 - **安全小结**：戴套、PrEP、避孕分开记，不算「安全分」，也不按人打标签
 - **全球版图**：默认只看真正上过床的战绩地点，按时间连接路线并展示头号猎场、地点排名和当地后宫；有境外记录时自动切换全球视角
@@ -79,11 +80,11 @@ git push origin main
 project.yml                        # XcodeGen 工程定义（真源）
 App/Sources
   App/        AstraApp · RootView · AppState · AppLock
-  Domain/     Models · Achievement · City · ChinaRegion · CoordinateTransform · RosterFilter
+  Domain/     Models · Achievement(含 RoyalRank) · Insights · City · ChinaRegion · CoordinateTransform · RosterFilter
   Data/       LocalStore · MediaStore · CityCatalog · BackupService
-  Design/     LiquidGlass · Haptics · Palette · Components
+  Design/     LiquidGlass · Haptics · Palette · Components(HeroPanel · SectionCard · EntryTile 等)
   Support/    Formatters
-  Features/   Home · Map · Roster · Companion · Timeline · Settings · City · Media
+  Features/   Home · Insights · Record(RecordingFlow) · Map · Roster · Companion · Timeline · Settings · City · Media
 App/Resources  cities.json · countries.json · Assets.xcassets
 Scripts/       generate_icon.py（纯标准库，无依赖）
 Tests/AstraTests

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 记录编辑器：基础信息保持快速，亲密细节按真实行为与本人感受展开。
+/// 记录编辑器：结果、时间、地点填了就能存；上床了再往下补玩法、收尾、套和感受。
 struct EncounterEditor: View {
 
     let initial: Encounter
@@ -26,6 +26,12 @@ struct EncounterEditor: View {
     private var isNew: Bool { !app.encounters.contains { $0.id == initial.id } }
     private var companion: Companion? { app.companion(id: initial.companionID) }
     private var hasUnsavedChanges: Bool { draft != initial }
+
+    /// 上一次上床的记录；新建上床记录时可以一键沿用。
+    private var lastHookup: Encounter? {
+        guard isNew, draft.kind.isIntimate else { return nil }
+        return app.lastHookup(for: initial.companionID)
+    }
 
     private var availableFollowUps: [FollowUpKind] {
         if draft.kind.isIntimate { return FollowUpKind.allCases }
@@ -53,16 +59,19 @@ struct EncounterEditor: View {
                 basicsSection
 
                 if draft.kind.isIntimate {
+                    safetySection
                     activitySection
                     climaxSection
-                    boundarySection
-                    safetySection
                 }
 
                 experienceSection
                 photosSection
-                followUpSection
                 notesSection
+
+                if draft.kind.isIntimate {
+                    boundarySection
+                }
+                followUpSection
 
                 if !isNew {
                     Section {
@@ -75,7 +84,7 @@ struct EncounterEditor: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记录结果" : "改记录")
+            .navigationTitle(isNew ? "记一笔" : "改记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -139,37 +148,85 @@ struct EncounterEditor: View {
                 PhotoViewer(ids: draft.photoIDs, index: viewingPhotoIndex ?? 0)
             }
             .sheet(isPresented: $isPickingCity) {
-                CityPickerSheet(title: "这次在哪个地点") { city in
+                CityPickerSheet(title: "这次在哪", selectedID: draft.cityID) { city in
                     draft.cityID = city.id
                 }
             }
         }
     }
 
-    // MARK: - 快速基础记录
+    // MARK: - 对象
 
     @ViewBuilder
     private var subjectSection: some View {
         if let companion {
-            Section("对象") {
+            Section {
                 HStack(spacing: 12) {
                     AvatarView(companion: companion, size: 42)
                     VStack(alignment: .leading, spacing: 3) {
                         MaskedName(name: companion.displayName, revealed: app.namesRevealed)
-                        Text(app.cityName(for: companion))
+                        Text("\(companion.stage.label) · \(app.locationName(for: companion)) · 上床 \(app.hookupCount(for: companion.id)) 次")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                if let lastHookup {
+                    Button {
+                        applyTemplate(from: lastHookup)
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("沿用上次的玩法、收尾和套")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("\(Format.relativeDay(lastHookup.date)) · \(templateSummary(for: lastHookup))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        } icon: {
+                            Image(systemName: "arrow.uturn.backward.circle.fill")
+                                .foregroundStyle(Palette.coral)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("对象")
             }
         }
     }
+
+    private func templateSummary(for encounter: Encounter) -> String {
+        var parts: [String] = []
+        if !encounter.activitySummary.isEmpty { parts.append(encounter.activitySummary) }
+        if encounter.protectionStatus.isRecorded, encounter.protectionStatus != .notApplicable {
+            parts.append(encounter.protectionStatus.compactLabel)
+        }
+        return parts.isEmpty ? "上次没记细节" : parts.joined(separator: " · ")
+    }
+
+    private func applyTemplate(from encounter: Encounter) {
+        draft.activities = encounter.activities
+        draft.climaxDetails = encounter.climaxDetails
+        draft.protectionStatus = encounter.protectionStatus == .notApplicable ? .notRecorded : encounter.protectionStatus
+        draft.safetyMeasures = encounter.safetyMeasures
+        if draft.place.isEmpty { draft.place = encounter.place }
+        if draft.cost == nil, let cost = encounter.cost, cost > 0 {
+            draft.cost = cost
+            costText = String(Int(cost))
+        }
+        showSafetyDetails = showSafetyDetails || !draft.safetyMeasures.isEmpty
+        Haptics.shared.play(.success)
+    }
+
+    // MARK: - 结果 / 时间 / 地点
 
     private var basicsSection: some View {
         Section {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(kindChoices) { kind in
+                    ForEach(EncounterKind.recordableCases) { kind in
                         kindChip(kind)
                     }
                 }
@@ -185,10 +242,8 @@ struct EncounterEditor: View {
             } label: {
                 LabeledContent("地点") {
                     HStack(spacing: 5) {
-                        Text(selectedCityName)
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.tertiary)
+                        Text(selectedLocationName)
+                        ChevronHint()
                     }
                 }
                 .contentShape(Rectangle())
@@ -196,17 +251,69 @@ struct EncounterEditor: View {
             .buttonStyle(.plain)
 
             TextField(
-                draft.kind.isIntimate ? "酒店、住处等地点（可留空）" : "在哪一步没成（可留空）",
+                draft.kind.isIntimate ? "酒店、她家、车里…（可留空）" : "在哪一步没成（可留空）",
                 text: $draft.place
             )
         } header: {
             Text("这次结果")
         } footer: {
-            Text("只区分上床了还是没上床。时间和地点会进入时间线与猎场地图；中国到城市，境外到国家。")
+            Text("只分上床了还是没上床。时间和地点会进时间线和版图，细节以后补也行。")
         }
     }
 
-    // MARK: - 发生了什么
+    // MARK: - 套
+
+    private var safetySection: some View {
+        Section {
+            FlowLayout(spacing: 7, lineSpacing: 8) {
+                ForEach([ProtectionStatus.protected, .partial, .noProtection]) { status in
+                    GlassChip(
+                        title: status.label,
+                        systemImage: status.symbolName,
+                        isOn: draft.protectionStatus == status,
+                        tint: status.tint,
+                        compact: true
+                    ) {
+                        draft.protectionStatus = draft.protectionStatus == status ? .notRecorded : status
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+
+            DisclosureGroup(isExpanded: $showSafetyDetails) {
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(SafetyMeasure.allCases) { measure in
+                        GlassChip(
+                            title: measure.label,
+                            isOn: draft.safetyMeasures.contains(measure),
+                            tint: Palette.safe,
+                            compact: true
+                        ) {
+                            toggleSafetyMeasure(measure)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+
+                TextField("检测、吃药、身体情况（可选）", text: $draft.safetyNote, axis: .vertical)
+                    .lineLimit(2...4)
+            } label: {
+                Label("具体方式与备忘", systemImage: "checkmark.shield.fill")
+            }
+
+            if draft.protectionStatus.hasBarrierGap {
+                Label(barrierGuidanceText, systemImage: "info.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("有没有戴套")
+        } footer: {
+            Text("戴套、吃药、避孕不是一回事。无套和内射分开记。")
+        }
+    }
+
+    // MARK: - 做了什么
 
     private var activitySection: some View {
         Section {
@@ -231,7 +338,13 @@ struct EncounterEditor: View {
                 .padding(.vertical, 4)
             }
         } header: {
-            Text("床上做了什么")
+            HStack {
+                Text("床上做了什么")
+                Spacer()
+                if !draft.activities.isEmpty {
+                    Text("\(draft.activities.count) 项")
+                }
+            }
         } footer: {
             Text("姿势、口、她骑上来、车震，发生了就勾。")
         }
@@ -255,9 +368,95 @@ struct EncounterEditor: View {
         } header: {
             Text("这次怎么收的")
         } footer: {
-            Text("无套、内射、口爆、颜射分开勾。她高潮了也可以记。")
+            Text("内射、口爆、颜射分开勾；她高潮了也记一笔。")
         }
     }
+
+    // MARK: - 感受与下一步
+
+    private var experienceSection: some View {
+        Section {
+            if draft.kind.isIntimate {
+                experiencePicker(
+                    title: "身体感受",
+                    rating: $draft.physicalRating,
+                    emojis: ["😣", "😕", "😐", "😋", "🥵"]
+                )
+            }
+
+            experiencePicker(
+                title: "情绪感受",
+                rating: $draft.emotionalRating,
+                emojis: ["😞", "😕", "😐", "🙂", "😊"]
+            )
+
+            Picker(draft.kind.isIntimate ? "还想再上吗" : "还想再约吗", selection: $draft.meetAgainIntent) {
+                ForEach(MeetAgainIntent.allCases) { intent in
+                    Text(intent.label).tag(intent)
+                }
+            }
+        } header: {
+            Text(draft.kind.isIntimate ? "爽不爽，还想不想" : "感觉与下一步")
+        } footer: {
+            Text("记你自己的感觉就行，不用给她打分。")
+        }
+    }
+
+    // MARK: - 照片与补充
+
+    private var photosSection: some View {
+        Section {
+            if !draft.photoIDs.isEmpty {
+                PhotoStrip(
+                    ids: draft.photoIDs,
+                    editable: true,
+                    onDelete: removePhoto,
+                    onOpen: { viewingPhotoIndex = $0 }
+                )
+            }
+
+            if draft.photoIDs.count < maxPhotos {
+                PhotoAddBar(
+                    selectionLimit: maxPhotos - draft.photoIDs.count,
+                    onImported: addPhotos
+                )
+            }
+        } header: {
+            Text("这次的照片")
+        } footer: {
+            Text("最多 \(maxPhotos) 张，会一起进她的艳照私藏。不进系统相册。")
+        }
+    }
+
+    private var notesSection: some View {
+        Section("补充") {
+            HStack {
+                Text("花费")
+                Spacer()
+                TextField("0", text: $costText)
+                    .keyboardType(.numberPad)
+                    .focused($isCostFocused)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 120)
+                    .onChange(of: costText) { _, newValue in
+                        draft.cost = Double(newValue.filter { $0.isNumber })
+                    }
+                Text("元")
+                    .foregroundStyle(.secondary)
+            }
+
+            TextField(
+                draft.kind.isIntimate
+                    ? "她哪里敏感、叫得怎么样、下次想怎么玩"
+                    : "为什么没上床、下次要不要换时间或地点",
+                text: $draft.note,
+                axis: .vertical
+            )
+                .lineLimit(3...6)
+        }
+    }
+
+    // MARK: - 边界与状态
 
     private var boundarySection: some View {
         Section {
@@ -270,7 +469,7 @@ struct EncounterEditor: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("我的当时状态")
+                    Text("我当时的状态")
                         .font(.subheadline)
 
                     FlowLayout(spacing: 7, lineSpacing: 8) {
@@ -289,89 +488,23 @@ struct EncounterEditor: View {
                 .padding(.vertical, 4)
 
                 if draft.boundaryFeeling.needsFollowUp {
-                    Label("要是心里打鼓，下面可以勾「回个消息」或去做检测。", systemImage: "arrow.down.circle")
+                    Label("心里打鼓的话，下面可以勾「回个消息」或去做检测。", systemImage: "arrow.down.circle")
                         .font(.caption)
                         .foregroundStyle(Palette.warning)
                 }
             } label: {
-                Label("边界与当时状态", systemImage: "person.crop.circle.badge.checkmark")
+                HStack {
+                    Label("边界与当时状态", systemImage: "person.crop.circle.badge.checkmark")
+                    Spacer()
+                    if draft.boundaryFeeling != .notRecorded {
+                        Text(draft.boundaryFeeling.label)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(draft.boundaryFeeling.needsFollowUp ? Palette.warning : .secondary)
+                    }
+                }
             }
         } footer: {
             Text("这是你的事后回看，不替代双方当时清醒、明确且持续的同意。")
-        }
-    }
-
-    // MARK: - 防护与健康
-
-    private var safetySection: some View {
-        Section {
-            Picker("有没有戴套", selection: $draft.protectionStatus) {
-                ForEach(ProtectionStatus.allCases) { status in
-                    Label(status.label, systemImage: status.symbolName)
-                        .tag(status)
-                }
-            }
-
-            DisclosureGroup(isExpanded: $showSafetyDetails) {
-                FlowLayout(spacing: 7, lineSpacing: 8) {
-                    ForEach(SafetyMeasure.allCases) { measure in
-                        GlassChip(
-                            title: measure.label,
-                            isOn: draft.safetyMeasures.contains(measure),
-                            tint: Palette.safe,
-                            compact: true
-                        ) {
-                            toggleSafetyMeasure(measure)
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-
-            TextField("检测、有没有戴套、身体情况（可选）", text: $draft.safetyNote, axis: .vertical)
-                    .lineLimit(2...4)
-            } label: {
-                Label("具体方式与备忘", systemImage: "checkmark.shield.fill")
-            }
-
-            if draft.protectionStatus.hasBarrierGap {
-                Label(barrierGuidanceText, systemImage: "info.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } header: {
-            Text("套和健康")
-        } footer: {
-            Text("戴套、吃药、避孕不是一回事。无套和内射分开记。")
-        }
-    }
-
-    // MARK: - 本人感受与决定
-
-    private var experienceSection: some View {
-        Section {
-            if draft.kind.isIntimate {
-                experiencePicker(
-                    title: "身体感受",
-                    rating: $draft.physicalRating,
-                    emojis: ["😣", "😕", "😐", "😋", "🥵"]
-                )
-            }
-
-            experiencePicker(
-                title: "情绪感受",
-                rating: $draft.emotionalRating,
-                emojis: ["😞", "😕", "😐", "🙂", "😊"]
-            )
-
-            Picker(continuationPrompt, selection: $draft.meetAgainIntent) {
-                ForEach(MeetAgainIntent.allCases) { intent in
-                    Text(intent.label).tag(intent)
-                }
-            }
-        } header: {
-            Text(draft.kind.isIntimate ? "爽不爽，还想不想再干" : "这次感觉与下一步")
-        } footer: {
-            Text("记你自己的感觉就行，不用给她打分。")
         }
     }
 
@@ -424,7 +557,7 @@ struct EncounterEditor: View {
                 }
             } label: {
                 HStack {
-                    Label("需要后续处理吗", systemImage: "checklist")
+                    Label("要不要跟进", systemImage: "checklist")
                     Spacer()
                     if draft.hasPendingFollowUp {
                         Text("待处理")
@@ -438,46 +571,14 @@ struct EncounterEditor: View {
         }
     }
 
-    private var notesSection: some View {
-        Section("补充") {
-            HStack {
-                Text("花费")
-                Spacer()
-                TextField("0", text: $costText)
-                    .keyboardType(.numberPad)
-                    .focused($isCostFocused)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 120)
-                    .onChange(of: costText) { _, newValue in
-                        draft.cost = Double(newValue.filter { $0.isNumber })
-                    }
-                Text("元")
-                    .foregroundStyle(.secondary)
-            }
-
-            TextField(
-                draft.kind.isIntimate
-                    ? "她哪里敏感、叫得怎么样、下次想怎么玩"
-                    : "为什么没上床、下次要不要换时间或地点",
-                text: $draft.note,
-                axis: .vertical
-            )
-                .lineLimit(3...6)
-        }
-    }
-
     // MARK: - 组件与状态
 
-    private var kindChoices: [EncounterKind] {
-        return EncounterKind.recordableCases
-    }
-
-    private var selectedCityName: String {
-        if let cityID = draft.cityID, let city = app.city(id: cityID) {
-            return city.name
+    private var selectedLocationName: String {
+        if let cityID = draft.cityID, let location = app.location(id: cityID) {
+            return location.name
         }
         if let companion {
-            return app.cityName(for: companion)
+            return app.locationName(for: companion)
         }
         return "选择地点"
     }
@@ -558,34 +659,6 @@ struct EncounterEditor: View {
         )
     }
 
-    private var continuationPrompt: String {
-        draft.kind.isIntimate ? "还想再上床吗" : "还想再约吗"
-    }
-
-    private var photosSection: some View {
-        Section {
-            if !draft.photoIDs.isEmpty {
-                PhotoStrip(
-                    ids: draft.photoIDs,
-                    editable: true,
-                    onDelete: removePhoto,
-                    onOpen: { viewingPhotoIndex = $0 }
-                )
-            }
-
-            if draft.photoIDs.count < maxPhotos {
-                PhotoAddBar(
-                    selectionLimit: maxPhotos - draft.photoIDs.count,
-                    onImported: addPhotos
-                )
-            }
-        } header: {
-            Text("这次的照片")
-        } footer: {
-            Text("最多 \(maxPhotos) 张。不进系统相册或开发者服务器，可随设备 iCloud Backup 恢复。")
-        }
-    }
-
     private func addPhotos(_ importedIDs: [String]) {
         let room = maxPhotos - draft.photoIDs.count
         let accepted = Array(importedIDs.prefix(max(0, room)))
@@ -611,9 +684,9 @@ struct EncounterEditor: View {
     private var barrierGuidanceText: String {
         switch draft.protectionStatus {
         case .partial:
-            "部分行为使用屏障不等于具体风险结论；可以在备忘里记清对应行为，需要时安排检测或咨询。"
+            "中途摘了不等于一定有风险，看具体做了什么；需要的话下面勾去做检测。"
         case .noProtection:
-            "“未用屏障”本身不等于风险结论；是否需要处理取决于具体行为。你可以在下方安排检测或咨询。"
+            "无套本身不等于风险结论，看具体行为；需要的话下面勾去做检测或咨询。"
         default:
             ""
         }

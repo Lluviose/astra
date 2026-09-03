@@ -69,7 +69,7 @@ struct CompanionRow: View {
                 HStack(spacing: 6) {
                     StageBadge(stage: companion.stage)
                     if showCity {
-                        Label(app.cityName(for: companion), systemImage: "mappin")
+                        Label(app.locationName(for: companion), systemImage: "mappin")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .labelStyle(.titleAndIcon)

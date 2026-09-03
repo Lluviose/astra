@@ -227,50 +227,270 @@ struct StageBadge: View {
     }
 }
 
-// MARK: - 默契度
+// MARK: - Hero 面板（首页 / 图鉴 / 成就册 / 排行共用）
 
-struct RatingStars: View {
-    let rating: Int
-    var size: CGFloat = 11
-    var tint: Color = Color(red: 0.98, green: 0.72, blue: 0.24)
+/// 渐变底 + 白字 + 右上角装饰的大卡。所有页面的「封面」都用它，保证同一套气质。
+struct HeroPanel<Content: View>: View {
+    var gradient: LinearGradient = Palette.heroGradient
+    var cornerRadius: CGFloat = 30
+    var glow: Color = Palette.accentDeep
+    /// 传 SF Symbol 名就画成右上角水印，不传就用一枚柔光圆。
+    var watermark: String? = nil
+    var padding: CGFloat = 20
+    @ViewBuilder var content: () -> Content
 
     var body: some View {
-        HStack(spacing: 1.5) {
-            ForEach(1...5, id: \.self) { index in
-                Image(systemName: index <= rating ? "star.fill" : "star")
-                    .font(.system(size: size))
-                    .foregroundStyle(index <= rating ? tint : Color.secondary.opacity(0.35))
-            }
+        content()
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(padding)
+            .background(gradient, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(alignment: .topTrailing) { decoration }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: glow.opacity(0.28), radius: 22, y: 12)
+            .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var decoration: some View {
+        if let watermark {
+            Image(systemName: watermark)
+                .font(.system(size: 94, weight: .black))
+                .foregroundStyle(.white.opacity(0.055))
+                .offset(x: 14, y: -12)
+                .allowsHitTesting(false)
+        } else {
+            Circle()
+                .fill(.white.opacity(0.09))
+                .frame(width: 170, height: 170)
+                .blur(radius: 2)
+                .offset(x: 70, y: -92)
+                .allowsHitTesting(false)
         }
-        .accessibilityLabel("默契度 \(rating) 星")
     }
 }
 
-/// 可交互的五星选择器
-struct RatingPicker: View {
-    @Binding var rating: Int
-    var size: CGFloat = 26
+/// hero 里的一格数字
+struct HeroMetric: View {
+    let value: String
+    let label: String
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(1...5, id: \.self) { index in
-                Button {
-                    Haptics.shared.play(.selection)
-                    rating = (rating == index) ? index - 1 : index
-                } label: {
-                    Image(systemName: index <= rating ? "star.fill" : "star")
-                        .font(.system(size: size))
-                        .foregroundStyle(
-                            index <= rating
-                                ? Color(red: 0.98, green: 0.72, blue: 0.24)
-                                : Color.secondary.opacity(0.35)
-                        )
-                        .contentTransition(.symbolEffect(.replace))
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.title2.bold())
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.68))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(11)
+        .background(.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+/// hero 左上角的小胶囊，如「只在这台手机上」
+struct HeroBadge: View {
+    let title: String
+    var systemImage: String = "lock.shield.fill"
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.white.opacity(0.14), in: Capsule())
+    }
+}
+
+/// hero 底部的横排按钮：`prominent` 是白底主按钮，否则是半透明副按钮。
+struct HeroButton: View {
+    let title: String
+    let systemImage: String
+    var prominent: Bool = false
+    var cue: HapticCue = .lightTap
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HeroButtonLabel(title: title, systemImage: systemImage, prominent: prominent)
+        }
+        .buttonStyle(HapticButtonStyle(cue: cue, scale: 0.97))
+    }
+}
+
+/// 给 Menu / NavigationLink 复用的 hero 按钮外观
+struct HeroButtonLabel: View {
+    let title: String
+    let systemImage: String
+    var prominent: Bool = false
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline.weight(.bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background {
+                if prominent {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white)
+                } else {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.white.opacity(0.13))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(.white.opacity(0.20), lineWidth: 0.8)
+                        }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(index) 星")
+            }
+            .foregroundStyle(prominent ? Palette.accentDeep : .white)
+    }
+}
+
+// MARK: - 玻璃卡片区块
+
+/// 带一行标题的玻璃卡片。列表页大部分模块都长这样。
+struct SectionCard<Content: View, Trailing: View>: View {
+    let title: String
+    let systemImage: String
+    var tint: Color = Palette.accent
+    var cornerRadius: CGFloat = 22
+    @ViewBuilder var trailing: () -> Trailing
+    @ViewBuilder var content: () -> Content
+
+    init(
+        _ title: String,
+        systemImage: String,
+        tint: Color = Palette.accent,
+        cornerRadius: CGFloat = 22,
+        @ViewBuilder trailing: @escaping () -> Trailing,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.tint = tint
+        self.cornerRadius = cornerRadius
+        self.trailing = trailing
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+                    .foregroundStyle(tint)
+                Spacer()
+                trailing()
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .glassCard(cornerRadius: cornerRadius, shadowRadius: 10)
+    }
+}
+
+extension SectionCard where Trailing == EmptyView {
+    init(
+        _ title: String,
+        systemImage: String,
+        tint: Color = Palette.accent,
+        cornerRadius: CGFloat = 22,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.init(
+            title,
+            systemImage: systemImage,
+            tint: tint,
+            cornerRadius: cornerRadius,
+            trailing: { EmptyView() },
+            content: content
+        )
+    }
+}
+
+/// 两格并排的入口砖：图标 + 标题 + 一行小字。
+struct EntryTile: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    var tint: Color = Palette.accent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 40, height: 40)
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+        .padding(14)
+        .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+/// 统计页的一根横向柱：标题 · 数字 · 比例条。
+struct InsightBarRow: View {
+    let title: String
+    let count: Int
+    let peak: Int
+    var tint: Color = Palette.coral
+    var systemImage: String?
+    var trailing: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tint)
+                }
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                Text(trailing ?? "\(count)")
+                    .font(.subheadline.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(tint)
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(tint.opacity(0.12))
+                    Capsule()
+                        .fill(tint.gradient)
+                        .frame(width: max(6, proxy.size.width * CGFloat(count) / CGFloat(max(peak, 1))))
+                }
+            }
+            .frame(height: 7)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) \(trailing ?? "\(count)")")
     }
 }
 
@@ -302,6 +522,15 @@ struct StatTile: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .glassCard(cornerRadius: 20, shadowRadius: 10)
+    }
+}
+
+/// 行尾的灰色小箭头
+struct ChevronHint: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption.bold())
+            .foregroundStyle(.tertiary)
     }
 }
 

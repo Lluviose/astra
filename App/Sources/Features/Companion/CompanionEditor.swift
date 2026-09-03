@@ -1,120 +1,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - 国家 / 城市选择（编辑表单里的内嵌路由）
-
-private struct EditorCityPickerRoute: View {
-    @Environment(AppState.self) private var app
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var query = ""
-    @State private var showsCountries = false
-    @Binding var cityID: String
-
-    private var selectedCity: City? { app.city(id: cityID) }
-
-    var body: some View {
-        List {
-            if query.isEmpty {
-                Section {
-                    Picker("地点范围", selection: $showsCountries) {
-                        Text("中国城市").tag(false)
-                        Text("境外国家").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                } footer: {
-                    Text(showsCountries ? "除中国外只记录国家，不添加境外省市。" : "中国可以选到具体城市。")
-                }
-            }
-            if query.isEmpty, let selectedCity {
-                Section("当前选择") {
-                    cityRow(selectedCity, isSelected: true)
-                }
-            }
-            if query.isEmpty {
-                let known = app.buckets.map(\.city).filter { $0.isCountry == showsCountries }
-                if !known.isEmpty {
-                    Section("已有记录") {
-                        ForEach(known) { cityRow($0) }
-                    }
-                }
-                if showsCountries {
-                    ForEach(groupedCountries, id: \.0) { region, countries in
-                        Section(region) {
-                            ForEach(countries) { cityRow($0) }
-                        }
-                    }
-                } else {
-                    ForEach(groupedCities, id: \.0) { tier, cities in
-                        Section(tier.label) {
-                            ForEach(cities) { cityRow($0) }
-                        }
-                    }
-                }
-            } else {
-                Section("搜索结果") {
-                    ForEach(app.catalog.search(query)) { cityRow($0) }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "国家 / 中国城市 / 拼音 / 英文")
-        .autocorrectionDisabled()
-        .textInputAutocapitalization(.never)
-        .navigationTitle("选择地点")
-        .navigationBarTitleDisplayMode(.inline)
-        .overlay {
-            if !query.isEmpty, app.catalog.search(query).isEmpty {
-                ContentUnavailableView.search(text: query)
-            }
-        }
-        .onAppear {
-            showsCountries = selectedCity?.isCountry == true
-        }
-    }
-
-    private var groupedCities: [(CityTier, [City])] {
-        let grouped = Dictionary(grouping: app.catalog.cities, by: \.tier)
-        return CityTier.allCases.compactMap { tier in
-            guard let cities = grouped[tier], !cities.isEmpty else { return nil }
-            return (tier, cities.sorted { $0.pinyin < $1.pinyin })
-        }
-    }
-
-    private var groupedCountries: [(String, [City])] {
-        let order = ["亚洲", "欧洲", "北美洲", "南美洲", "大洋洲", "非洲"]
-        let grouped = Dictionary(grouping: app.catalog.countries, by: \.province)
-        return order.compactMap { region in
-            guard let countries = grouped[region], !countries.isEmpty else { return nil }
-            return (region, countries.sorted { $0.pinyin < $1.pinyin })
-        }
-    }
-
-    private func cityRow(_ city: City, isSelected: Bool = false) -> some View {
-        Button {
-            Haptics.shared.play(.cityFocus)
-            cityID = city.id
-            dismiss()
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(city.name)
-                    Text(city.locationSubtitle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if isSelected || city.id == cityID {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Palette.accent)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - 对象档案编辑器
 
 struct CompanionEditor: View {
@@ -156,12 +42,12 @@ struct CompanionEditor: View {
         NavigationStack {
             Form {
                 basicSection
+                statusSection
+                citySection
+                scoreSection
                 profilePhotosEditorSection
                 privatePhotosEditorSection
-                statusSection
-                scoreSection
                 intimacySection
-                citySection
                 tagsSection
                 optionalInfoSection
                 detailSection
@@ -183,7 +69,7 @@ struct CompanionEditor: View {
                 }
             }
             .navigationDestination(isPresented: $isPickingCity) {
-                EditorCityPickerRoute(cityID: $draft.cityID)
+                LocationPickerRoute(cityID: $draft.cityID)
             }
             .interactiveDismissDisabled(hasUnsavedChanges)
             .onChange(of: hasMetDate) { _, enabled in
@@ -212,14 +98,14 @@ struct CompanionEditor: View {
                 Button("取消", role: .cancel) {}
             }
             .confirmationDialog("确定删除这条档案？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("删除对象及全部记录", role: .destructive) {
+                Button("删除她和全部记录", role: .destructive) {
                     discardPendingMedia()
                     app.delete(companionID: initial.id)
                     dismiss()
                 }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("连同约过的记录和照片一起删掉，回不来。")
+                Text("约过的记录和照片一起删掉，回不来。")
             }
         }
     }
@@ -303,15 +189,15 @@ struct CompanionEditor: View {
             }
 
             if !pendingProfilePhotoIDs.isEmpty {
-                Button("清除本次人物资料照", role: .destructive) {
+                Button("清除本次人物照", role: .destructive) {
                     MediaStore.delete(ids: pendingProfilePhotoIDs)
                     pendingProfilePhotoIDs = []
                 }
             }
         } header: {
-            Text("人物资料照")
+            Text("人物照")
         } footer: {
-            Text("普通人物照片放这里，和艳照私藏分开；不限制数量，并保留相册源文件画质。")
+            Text("普通照片放这里，和艳照分开；不限数量，原图保存。")
         }
     }
 
@@ -336,7 +222,7 @@ struct CompanionEditor: View {
         } header: {
             Text("艳照私藏")
         } footer: {
-            Text("这里只放私密照片；不限制单次选择或档案总数量，并保留相册源文件画质。")
+            Text("只放私密照片；不限数量，原图保存，代号打码时会一起糊掉。")
         }
     }
 
@@ -398,7 +284,7 @@ struct CompanionEditor: View {
     // MARK: 相处状态
 
     private var statusSection: some View {
-        Section("现在是什么关系") {
+        Section("现在到哪一步") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(RelationStage.allCases, id: \.self) { stage in
@@ -440,7 +326,7 @@ struct CompanionEditor: View {
         } header: {
             Text("这一眼的感觉")
         } footer: {
-            Text("六维评分只给你自己看；保存档案时会同步为旧版五星评分，兼容已有筛选与备份。")
+            Text("六维评分只给你自己看，会同步成旧版五星，方便筛选和备份。")
         }
     }
 
@@ -461,7 +347,7 @@ struct CompanionEditor: View {
         }
     }
 
-    // MARK: 城市与认识渠道
+    // MARK: 地点与认识渠道
 
     private var citySection: some View {
         Section("哪儿认识的") {
@@ -470,12 +356,10 @@ struct CompanionEditor: View {
                 isPickingCity = true
             } label: {
                 HStack {
-                    Label(app.cityName(for: draft), systemImage: "mappin.circle.fill")
+                    Label(app.locationName(for: draft), systemImage: "mappin.circle.fill")
                         .foregroundStyle(.primary)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                    ChevronHint()
                 }
                 .contentShape(Rectangle())
             }
@@ -529,7 +413,7 @@ struct CompanionEditor: View {
         } header: {
             Text("标签")
         } footer: {
-            Text("方便以后翻出来；只在私人档案里显示，可随设备备份恢复。")
+            Text("方便以后翻出来，也能在名册里按标签筛。")
         }
     }
 

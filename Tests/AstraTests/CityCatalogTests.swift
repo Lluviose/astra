@@ -23,9 +23,9 @@ final class CityCatalogTests: XCTestCase {
     }
 
     func testLegacyCitiesStillPresent() {
-        XCTAssertEqual(catalog.city(id: "110000")?.name, "北京")
-        XCTAssertEqual(catalog.city(id: "330100")?.name, "杭州")
-        XCTAssertEqual(catalog.city(id: "810000")?.name, "香港")
+        XCTAssertEqual(catalog.location(id: "110000")?.name, "北京")
+        XCTAssertEqual(catalog.location(id: "330100")?.name, "杭州")
+        XCTAssertEqual(catalog.location(id: "810000")?.name, "香港")
     }
 
     func testPreviouslyMissingCitiesAreSearchable() {
@@ -86,8 +86,8 @@ final class CityCatalogTests: XCTestCase {
     }
 
     func testCityLookup() {
-        XCTAssertEqual(catalog.city(id: "110000")?.name, "北京")
-        XCTAssertNil(catalog.city(id: "000000"))
+        XCTAssertEqual(catalog.location(id: "110000")?.name, "北京")
+        XCTAssertNil(catalog.location(id: "000000"))
     }
 
     func testSearchWithNonPositiveLimitReturnsEmptyInsteadOfTrapping() {

@@ -204,6 +204,7 @@ struct CompanionScoreEditor: View {
     }
 
     private var hero: some View {
+        HeroPanel(cornerRadius: 26, glow: Palette.coral, padding: 18) {
         HStack(spacing: 18) {
             ScoreRing(score: scorecard.overallScore, size: 82)
 
@@ -216,10 +217,7 @@ struct CompanionScoreEditor: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
-        .padding(18)
-        .background(Palette.heroGradient, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .shadow(color: Palette.coral.opacity(0.24), radius: 18, y: 9)
+        }
     }
 
     private var presets: some View {

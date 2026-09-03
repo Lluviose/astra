@@ -82,6 +82,8 @@ final class AppState {
 
     private(set) var buckets: [CityBucket] = []
     private(set) var stats = IntimacyStats()
+    /// 全部记录的战绩统计，随数据变化重算。
+    private(set) var insights = EncounterInsights()
 
     private let store: LocalStore
     private var isBooting = true
@@ -168,28 +170,26 @@ final class AppState {
 
     var conquestLocationCount: Int { conquestBuckets.count }
 
-    /// 兼容旧界面与测试名称。
-    var conquestCityCount: Int { conquestLocationCount }
-
     var topConquestBucket: CityBucket? { conquestBuckets.first }
 
     func companion(id: UUID) -> Companion? { companions.first { $0.id == id } }
 
     func location(id: String) -> City? { catalog.location(id: id) }
 
-    /// 兼容旧调用。
-    func city(id: String) -> City? { location(id: id) }
-
     func location(for companion: Companion) -> City? { catalog.location(id: companion.cityID) }
-
-    func city(for companion: Companion) -> City? { location(for: companion) }
 
     func locationName(for companion: Companion) -> String {
         catalog.location(id: companion.cityID)?.name ?? "未知地点"
     }
 
-    func cityName(for companion: Companion) -> String {
-        locationName(for: companion)
+    func locationName(id: String) -> String {
+        catalog.location(id: id)?.name ?? "未知地点"
+    }
+
+    /// 记录自己填的地点优先，没填就沿用她的常驻地。
+    func locationName(for encounter: Encounter) -> String {
+        if let id = encounter.cityID, let location = catalog.location(id: id) { return location.name }
+        return companion(id: encounter.companionID).map { locationName(for: $0) } ?? "未知地点"
     }
 
     var hasCountryLocations: Bool { buckets.contains { $0.city.isCountry } }
@@ -280,6 +280,16 @@ final class AppState {
             companions: companions,
             encounters: encounters,
             cityCount: buckets.count
+        )
+    }
+
+    var royalRank: RoyalRank { RoyalRank.resolve(from: achievements) }
+
+    /// 某个人的战绩小结。
+    func companionInsights(for companionID: UUID) -> EncounterInsights {
+        EncounterInsights.compute(
+            encounters: encounters(for: companionID),
+            companions: companion(id: companionID).map { [$0] } ?? []
         )
     }
 
@@ -441,9 +451,6 @@ final class AppState {
         }
         return path
     }
-
-    /// 兼容旧调用。
-    func conquestCityPath() -> [City] { conquestLocationPath() }
 
     // MARK: - 对象
 
@@ -884,6 +891,7 @@ final class AppState {
         encounters.sort { $0.date > $1.date }
         rebuildBuckets()
         rebuildStats()
+        insights = EncounterInsights.compute(encounters: encounters, companions: companions)
         if !isBooting {
             captureUnlocks()
         }
@@ -955,15 +963,9 @@ final class AppState {
         let calendar = Calendar.current
         let monthStart = calendar.dateInterval(of: .month, for: Date())?.start ?? Date.distantPast
 
-        var experienceTotal = 0.0
-        var experienceCount = 0
         for encounter in encounters {
             if encounter.kind.isIntimate {
                 result.totalIntimacyCount += 1
-                if let rating = encounter.experienceRating {
-                    experienceTotal += rating
-                    experienceCount += 1
-                }
                 if encounter.date >= monthStart {
                     result.intimaciesThisMonth += 1
                     if encounter.protectionStatus.isRecorded {
@@ -981,9 +983,6 @@ final class AppState {
             }
         }
         result.pendingFollowUpCount = pendingFollowUps.count
-        result.averageExperience = experienceCount > 0
-            ? experienceTotal / Double(experienceCount)
-            : nil
 
         result.girlsThisMonth = current.filter { $0.createdAt >= monthStart }.count
         result.photosThisMonth = encounters
@@ -995,10 +994,6 @@ final class AppState {
             hookupsByGirl[encounter.companionID, default: 0] += 1
         }
         result.repeatGirlCount = hookupsByGirl.values.filter { $0 >= 3 }.count
-        if let top = hookupsByGirl.max(by: { $0.value < $1.value }), top.value > 0 {
-            result.topCompanionID = top.key
-        }
-        result.topCityName = buckets.first?.city.name
 
         stats = result
     }

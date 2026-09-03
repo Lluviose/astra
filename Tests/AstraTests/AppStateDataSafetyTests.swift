@@ -250,8 +250,8 @@ final class AppStateDataSafetyTests: XCTestCase {
 
         XCTAssertEqual(app.conqueredCompanions.map(\.id), [second.id, first.id])
         XCTAssertEqual(app.privateCollectionCount, 3)
-        XCTAssertEqual(app.conquestCityCount, 2)
-        XCTAssertEqual(app.conquestCityPath().map(\.id), ["310000", "110000"])
+        XCTAssertEqual(app.conquestLocationCount, 2)
+        XCTAssertEqual(app.conquestLocationPath().map(\.id), ["310000", "110000"])
         XCTAssertEqual(app.topConquestBucket?.id, "110000")
         XCTAssertEqual(app.topConquestBucket?.hookupCount, 3)
         XCTAssertEqual(app.topConquestBucket?.hookupCompanionCount, 2)

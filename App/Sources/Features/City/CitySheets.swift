@@ -35,6 +35,8 @@ struct CityDetailSheet: View {
         app.conquestBuckets.firstIndex { $0.id == bucket.id }.map { $0 + 1 }
     }
 
+    private var placeWord: String { bucket.city.isCountry ? "这个国家" : "这座城" }
+
     var body: some View {
         NavigationStack {
             List {
@@ -46,7 +48,7 @@ struct CityDetailSheet: View {
                 }
 
                 if !hookupCompanions.isEmpty {
-                    Section(bucket.city.isCountry ? "这个国家拿下的" : "这座城拿下的") {
+                    Section("\(placeWord)拿下的") {
                         ForEach(hookupCompanions) { companion in
                             NavigationLink(value: companion.id) {
                                 CompanionRow(companion: companion, showCity: false)
@@ -56,7 +58,7 @@ struct CityDetailSheet: View {
                 }
 
                 if !bucket.encounters.isEmpty {
-                    Section(bucket.city.isCountry ? "这个国家的战绩时间线" : "这座城市的战绩时间线") {
+                    Section("\(placeWord)的战绩时间线") {
                         ForEach(Array(bucket.encounters.prefix(12))) { encounter in
                             if app.companion(id: encounter.companionID) != nil {
                                 NavigationLink(value: encounter.companionID) {
@@ -87,9 +89,7 @@ struct CityDetailSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Haptics.shared.play(.mediumTap)
-                        var draft = app.makeDraftCompanion(cityID: bucket.city.id)
-                        draft.cityID = bucket.city.id
-                        onAdd(draft)
+                        onAdd(app.makeDraftCompanion(cityID: bucket.city.id))
                         dismiss()
                     } label: {
                         Image(systemName: "plus")
@@ -114,7 +114,7 @@ struct CityDetailSheet: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(
                         bucket.city.isCountry
-                            ? "\(bucket.city.province) · 国家级记录"
+                            ? "\(bucket.city.province) · 只记到国家"
                             : "\(bucket.city.shortProvince) · \(bucket.city.tier.label)"
                     )
                         .font(.caption)
@@ -122,7 +122,7 @@ struct CityDetailSheet: View {
                     Text(
                         bucket.hookupCount > 0
                             ? "\(bucket.hookupCompanionCount) 个她 · 上床 \(bucket.hookupCount) 次"
-                            : "\(bucket.count) 个对象 · 还没有战绩"
+                            : "\(bucket.count) 个人 · 还没有战绩"
                     )
                         .font(.title3.weight(.bold))
                 }
@@ -132,11 +132,7 @@ struct CityDetailSheet: View {
                 if let conquestRank {
                     Label("#\(conquestRank)", systemImage: conquestRank == 1 ? "crown.fill" : "medal.fill")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(
-                            conquestRank == 1
-                                ? Color(red: 0.92, green: 0.63, blue: 0.12)
-                                : Palette.coral
-                        )
+                        .foregroundStyle(conquestRank == 1 ? Palette.goldDeep : Palette.coral)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(bucket.mapTint.opacity(0.12), in: Capsule())
@@ -161,7 +157,7 @@ struct CityDetailSheet: View {
                 Label("没上 \(bucket.missedCount)", systemImage: "xmark.circle.fill")
                     .foregroundStyle(EncounterKind.missed.tint)
                 if let rate = bucket.hookupRate {
-                    Text("成功率 \(rate.formatted(.percent.precision(.fractionLength(0))))")
+                    Text("上床率 \(rate.formatted(.percent.precision(.fractionLength(0))))")
                         .foregroundStyle(.secondary)
                 }
                 if let date = bucket.lastRecordDate {
@@ -178,7 +174,7 @@ struct CityDetailSheet: View {
     }
 }
 
-// MARK: - 国家 / 城市选择器
+// MARK: - 地点选择
 
 private enum LocationPickerScope: String, CaseIterable, Identifiable {
     case china
@@ -195,37 +191,31 @@ private enum LocationPickerScope: String, CaseIterable, Identifiable {
 
     var helpText: String {
         switch self {
-        case .china: "中国可以选到具体城市。"
-        case .international: "除中国外只记录国家，不添加境外省市。"
+        case .china: "中国选到具体城市。"
+        case .international: "境外只记到国家，不再细分省市。"
         }
     }
 }
 
-/// 中国支持城市粒度，境外只支持国家粒度；可搜中文、拼音、英文和国家代码。
-struct CityPickerSheet: View {
+/// 中国到城市、境外到国家的选择列表。sheet 和编辑器内嵌路由共用这一份，
+/// 中文 / 拼音 / 首字母 / 英文 / 国家代码都能搜。
+struct LocationPickerList: View {
 
-    var title: String
-    var subtitle: String?
+    /// 当前已选中的地点，用来打勾并决定默认展开哪一档。
+    var selectedID: String?
     var onSelect: (City) -> Void
 
     @Environment(AppState.self) private var app
-    @Environment(\.dismiss) private var dismiss
 
     @State private var query = ""
     @State private var scope: LocationPickerScope = .china
 
-    private var searchResults: [City] {
-        app.catalog.search(query)
-    }
+    private var searchResults: [City] { app.catalog.search(query) }
+
+    private var selected: City? { selectedID.flatMap { app.location(id: $0) } }
 
     private var knownLocations: [City] {
-        app.buckets.map(\.city)
-    }
-
-    private var visibleKnownLocations: [City] {
-        knownLocations.filter { location in
-            scope == .international ? location.isCountry : !location.isCountry
-        }
+        app.buckets.map(\.city).filter { $0.isCountry == (scope == .international) }
     }
 
     private var featuredTiers: [(CityTier, [City])] {
@@ -256,79 +246,75 @@ struct CityPickerSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if !query.isEmpty {
-                    Section("搜索结果") {
-                        ForEach(searchResults) { city in row(city) }
+        List {
+            if !query.isEmpty {
+                Section("搜索结果") {
+                    ForEach(searchResults) { row($0) }
+                }
+            } else {
+                Section {
+                    Picker("地点范围", selection: $scope) {
+                        ForEach(LocationPickerScope.allCases) { item in
+                            Text(item.label).tag(item)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    Text(scope.helpText)
+                }
+
+                if let selected {
+                    Section("当前选择") { row(selected) }
+                }
+
+                if !knownLocations.isEmpty {
+                    Section("已有记录") {
+                        ForEach(knownLocations) { row($0) }
+                    }
+                }
+
+                if scope == .china {
+                    ForEach(featuredTiers, id: \.0) { tier, cities in
+                        Section(tier.label) {
+                            ForEach(cities) { row($0) }
+                        }
+                    }
+                    ForEach(otherByProvince, id: \.0) { province, cities in
+                        Section(province) {
+                            ForEach(cities) { row($0) }
+                        }
                     }
                 } else {
-                    Section {
-                        Picker("地点范围", selection: $scope) {
-                            ForEach(LocationPickerScope.allCases) { item in
-                                Text(item.label).tag(item)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    } footer: {
-                        Text(scope.helpText)
-                    }
-
-                    if !visibleKnownLocations.isEmpty {
-                        Section("已有记录") {
-                            ForEach(visibleKnownLocations) { city in row(city) }
+                    ForEach(countriesByRegion, id: \.0) { region, countries in
+                        Section(region) {
+                            ForEach(countries) { row($0) }
                         }
                     }
-
-                    if scope == .china {
-                        ForEach(featuredTiers, id: \.0) { tier, cities in
-                            Section(tier.label) {
-                                ForEach(cities) { city in row(city) }
-                            }
-                        }
-                        ForEach(otherByProvince, id: \.0) { province, cities in
-                            Section(province) {
-                                ForEach(cities) { city in row(city) }
-                            }
-                        }
-                    } else {
-                        ForEach(countriesByRegion, id: \.0) { region, countries in
-                            Section(region) {
-                                ForEach(countries) { country in row(country) }
-                            }
-                        }
-                    }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .overlay {
-                if !query.isEmpty, searchResults.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                }
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(
-                text: $query,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: subtitle ?? "国家 / 中国城市 / 拼音 / 英文"
-            )
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
                 }
             }
         }
-        .onAppear { Haptics.shared.play(.sheetRise) }
+        .listStyle(.insetGrouped)
+        .overlay {
+            if !query.isEmpty, searchResults.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+        .searchable(
+            text: $query,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "国家 / 城市 / 拼音 / 首字母 / 英文"
+        )
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
+        .onAppear {
+            if selected?.isCountry == true { scope = .international }
+        }
     }
 
     private func row(_ city: City) -> some View {
         Button {
             Haptics.shared.play(.cityFocus)
             onSelect(city)
-            dismiss()
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -345,13 +331,59 @@ struct CityPickerSheet: View {
                         .foregroundStyle(bucket.mapTint)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background {
-                            Capsule().fill(bucket.mapTint.opacity(0.15))
-                        }
+                        .background { Capsule().fill(bucket.mapTint.opacity(0.15)) }
+                }
+                if city.id == selectedID {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Palette.accent)
                 }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// 独立弹出的地点选择面板。
+struct CityPickerSheet: View {
+
+    var title: String
+    var selectedID: String? = nil
+    var onSelect: (City) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            LocationPickerList(selectedID: selectedID) { city in
+                onSelect(city)
+                dismiss()
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("取消") { dismiss() }
+                }
+            }
+        }
+        .onAppear { Haptics.shared.play(.sheetRise) }
+    }
+}
+
+/// 嵌在编辑表单导航栈里的地点选择页。
+struct LocationPickerRoute: View {
+
+    @Binding var cityID: String
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        LocationPickerList(selectedID: cityID) { city in
+            cityID = city.id
+            dismiss()
+        }
+        .navigationTitle("选择地点")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

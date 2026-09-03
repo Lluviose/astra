@@ -2,8 +2,7 @@ import Foundation
 
 /// 地点目录：中国使用城市粒度，境外只使用国家粒度。
 ///
-/// 保留 `CityCatalog` / `city(id:)` 命名是为了兼容旧代码与备份；新界面应优先使用
-/// `locations` 和 `location(id:)`。
+/// 类型名保留 `CityCatalog`，是因为备份和设置里的字段仍叫 `cityID`；查询一律走 `location(id:)`。
 struct CityCatalog: Sendable {
 
     /// 中国城市。
@@ -79,13 +78,7 @@ struct CityCatalog: Sendable {
 
     func location(id: String) -> City? { index[id] }
 
-    /// 兼容旧调用：境外国家 ID 也能被正常解析。
-    func city(id: String) -> City? { location(id: id) }
-
     func locations(ids: some Sequence<String>) -> [City] { ids.compactMap { index[$0] } }
-
-    /// 兼容旧调用。
-    func cities(ids: some Sequence<String>) -> [City] { locations(ids: ids) }
 
     /// 支持「杭州」「hangzhou」「hz」「浙江」，也支持「美国」「meiguo」「USA」。
     func search(_ rawQuery: String, limit: Int = 80) -> [City] {

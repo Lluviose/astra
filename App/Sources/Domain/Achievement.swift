@@ -102,6 +102,66 @@ struct Achievement: Identifiable, Hashable, Sendable {
     }
 }
 
+/// 把已点亮的徽章数折算成一个「王者身份」，每 10 枚升一级。
+struct RoyalRank: Hashable, Sendable {
+    static let titles = [
+        "猎场开张",
+        "初露锋芒",
+        "后宫领主",
+        "猎艳王者",
+        "传奇藏家",
+        "全册封神",
+    ]
+
+    let unlockedCount: Int
+    let totalCount: Int
+
+    /// 0 起算的档位；`level` 是给人看的 1 起算。
+    var index: Int {
+        guard totalCount > 0 else { return 0 }
+        return min(unlockedCount / 10, Self.titles.count - 1)
+    }
+
+    var level: Int { index + 1 }
+    var title: String { Self.titles[index] }
+    var isComplete: Bool { totalCount > 0 && unlockedCount >= totalCount }
+
+    /// 下一档需要的徽章总数；已经封神时为 nil。
+    var nextThreshold: Int? {
+        guard !isComplete else { return nil }
+        return min((unlockedCount / 10 + 1) * 10, totalCount)
+    }
+
+    var nextTitle: String? {
+        guard !isComplete else { return nil }
+        return Self.titles[min(index + 1, Self.titles.count - 1)]
+    }
+
+    var remainingToNext: Int? {
+        nextThreshold.map { max(0, $0 - unlockedCount) }
+    }
+
+    /// 当前档位内的进度，0...1。
+    var progressInBand: Double {
+        guard let nextThreshold else { return 1 }
+        let bandStart = (unlockedCount / 10) * 10
+        let bandLength = max(1, nextThreshold - bandStart)
+        return min(1, Double(unlockedCount - bandStart) / Double(bandLength))
+    }
+
+    var nextRankText: String {
+        guard let remainingToNext, let nextTitle else { return "整本成就册已经全部点亮" }
+        return "再点亮 \(remainingToNext) 枚，升到 \(nextTitle)"
+    }
+
+    static func resolve(from achievements: [Achievement]) -> RoyalRank {
+        RoyalRank(
+            unlockedCount: achievements.filter(\.isUnlocked).count,
+            totalCount: achievements.count
+        )
+    }
+}
+
 enum AchievementCatalog {
 
     static let firstTierCityIDs: Set<String> = ["110000", "310000", "440100", "440300"]
