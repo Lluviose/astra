@@ -144,6 +144,7 @@ struct MapScreen: View {
 
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var camera: MapCameraPosition = .region(ChinaRegion.overview)
     @State private var selectedCityID: String?
@@ -152,6 +153,10 @@ struct MapScreen: View {
     @State private var isPickingCity = false
     @State private var isJumpingToCity = false
     @State private var showsWorld = false
+    @State private var usesGlobeView = false
+    @State private var isGlobeTouring = false
+    @State private var globeTourID: UUID?
+    @State private var globeTourStops: [CLLocationCoordinate2D] = []
     /// 地图默认就是巡视已经拿下的版图，而不是把待推进对象和战绩混在一起。
     @State private var scope: MapRecordScope = .hookedUp
 
@@ -172,6 +177,11 @@ struct MapScreen: View {
 
     private var mapBounds: MapCameraBounds {
         showsWorld ? WorldRegion.cameraBounds : ChinaRegion.cameraBounds
+    }
+
+    private var overviewCoordinates: [CLLocationCoordinate2D] {
+        let buckets = filteredBuckets.isEmpty ? app.buckets : filteredBuckets
+        return buckets.map { $0.city.displayCoordinate }
     }
 
     private var maxDisplayCount: Int {
@@ -214,18 +224,35 @@ struct MapScreen: View {
         }
         .animation(.easeInOut(duration: 0.25), value: app.buckets.count)
         .animation(.easeInOut(duration: 0.25), value: scope)
-        .onChange(of: scope) { _, _ in selectedCityID = nil }
+        .onChange(of: scope) { _, _ in
+            selectedCityID = nil
+            cancelGlobeTour()
+        }
+        .onChange(of: camera.positionedByUser) { _, positionedByUser in
+            if positionedByUser { cancelGlobeTour() }
+        }
         .onAppear {
             guard app.hasCountryLocations else { return }
             showsWorld = true
-            camera = .region(WorldRegion.overview)
+            showWorldOverview(animated: false, allowsGlobeTour: false)
         }
         .onChange(of: app.hasCountryLocations) { _, hasCountryLocations in
+            cancelGlobeTour()
             showsWorld = hasCountryLocations
-            withAnimation(.easeInOut(duration: 0.7)) {
-                camera = .region(hasCountryLocations ? WorldRegion.overview : ChinaRegion.overview)
+            if hasCountryLocations {
+                showWorldOverview(animated: true, allowsGlobeTour: false)
+            } else {
+                usesGlobeView = false
+                withAnimation(.easeInOut(duration: 0.7)) {
+                    camera = .region(ChinaRegion.overview)
+                }
             }
         }
+        .task(id: globeTourID) {
+            guard let globeTourID else { return }
+            await runGlobeTour(id: globeTourID)
+        }
+        .onDisappear { cancelGlobeTour() }
         .sheet(item: selectedBucketBinding, onDismiss: presentPendingEditor) { bucket in
             CityDetailSheet(bucket: bucket) { companion in
                 pendingEditorTarget = companion
@@ -289,11 +316,15 @@ struct MapScreen: View {
     private var resolvedMapStyle: MapStyle {
         switch app.settings.mapSkin {
         case .muted:
-            .standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll)
+            .standard(
+                elevation: usesGlobeView ? .realistic : .flat,
+                emphasis: .muted,
+                pointsOfInterest: .excludingAll
+            )
         case .standard:
-            .standard(elevation: .flat, pointsOfInterest: .excludingAll)
+            .standard(elevation: usesGlobeView ? .realistic : .flat, pointsOfInterest: .excludingAll)
         case .satellite:
-            .imagery(elevation: .flat)
+            .imagery(elevation: usesGlobeView ? .realistic : .flat)
         }
     }
 
@@ -410,7 +441,9 @@ struct MapScreen: View {
             VStack(spacing: 12) {
                 GlassIconButton(
                     systemImage: "globe.asia.australia.fill",
-                    accessibilityText: showsWorld ? "回到全球" : "回到全国"
+                    tint: Palette.accent,
+                    isActive: isGlobeTouring,
+                    accessibilityText: showsWorld ? "显示全部地点" : "回到全国"
                 ) {
                     resetCamera()
                 }
@@ -525,6 +558,8 @@ struct MapScreen: View {
     }
 
     private func focus(on city: City, select shouldSelect: Bool) {
+        cancelGlobeTour()
+        usesGlobeView = false
         if shouldSelect { selectedCityID = city.id }
         if city.isCountry { showsWorld = true }
         withAnimation(.easeInOut(duration: 0.65)) {
@@ -534,9 +569,98 @@ struct MapScreen: View {
 
     private func resetCamera() {
         selectedCityID = nil
-        withAnimation(.easeInOut(duration: 0.7)) {
-            camera = .region(showsWorld ? WorldRegion.overview : ChinaRegion.overview)
+        cancelGlobeTour()
+        if showsWorld {
+            showWorldOverview(animated: true, allowsGlobeTour: true)
+        } else {
+            usesGlobeView = false
+            withAnimation(.easeInOut(duration: 0.7)) {
+                camera = .region(ChinaRegion.overview)
+            }
         }
+    }
+
+    private func showWorldOverview(animated: Bool, allowsGlobeTour: Bool) {
+        let plan = WorldRegion.overviewPlan(for: overviewCoordinates)
+        usesGlobeView = false
+
+        if plan.fitsInSingleView || !allowsGlobeTour || reduceMotion || plan.tourStops.count < 2 {
+            let update = { camera = .region(plan.region) }
+            if animated {
+                withAnimation(.easeInOut(duration: 0.7), update)
+            } else {
+                update()
+            }
+            return
+        }
+
+        usesGlobeView = true
+        globeTourStops = plan.tourStops
+        isGlobeTouring = true
+        globeTourID = UUID()
+    }
+
+    @MainActor
+    private func runGlobeTour(id: UUID) async {
+        let stops = orderedTourStops(globeTourStops, nearestTo: currentCameraCenter)
+        guard !stops.isEmpty, globeTourID == id else { return }
+
+        let startingCenter = currentCameraCenter ?? stops[0]
+        withAnimation(.easeInOut(duration: 0.85)) {
+            camera = .camera(WorldRegion.globeCamera(center: startingCenter))
+        }
+        guard await waitForCameraAnimation(seconds: 0.9), globeTourID == id else { return }
+
+        for stop in stops {
+            withAnimation(.easeInOut(duration: 1.35)) {
+                camera = .camera(WorldRegion.globeCamera(center: stop))
+            }
+            guard await waitForCameraAnimation(seconds: 1.4), globeTourID == id else { return }
+        }
+
+        isGlobeTouring = false
+    }
+
+    private var currentCameraCenter: CLLocationCoordinate2D? {
+        camera.camera?.centerCoordinate ?? camera.region?.center
+    }
+
+    private func orderedTourStops(
+        _ stops: [CLLocationCoordinate2D],
+        nearestTo coordinate: CLLocationCoordinate2D?
+    ) -> [CLLocationCoordinate2D] {
+        guard let coordinate, stops.count > 1,
+              let nearestIndex = stops.indices.min(by: {
+                  angularDistance(from: coordinate, to: stops[$0])
+                      < angularDistance(from: coordinate, to: stops[$1])
+              }) else {
+            return stops
+        }
+        return Array(stops[nearestIndex...]) + Array(stops[..<nearestIndex])
+    }
+
+    private func angularDistance(
+        from lhs: CLLocationCoordinate2D,
+        to rhs: CLLocationCoordinate2D
+    ) -> Double {
+        let longitudeDifference = abs(lhs.longitude - rhs.longitude)
+        let wrappedLongitudeDifference = min(longitudeDifference, 360 - longitudeDifference)
+        return hypot(lhs.latitude - rhs.latitude, wrappedLongitudeDifference)
+    }
+
+    @MainActor
+    private func waitForCameraAnimation(seconds: Double) async -> Bool {
+        do {
+            try await Task.sleep(for: .seconds(seconds))
+            return !Task.isCancelled
+        } catch {
+            return false
+        }
+    }
+
+    private func cancelGlobeTour() {
+        globeTourID = nil
+        isGlobeTouring = false
     }
 
     private func cycleMapSkin() {

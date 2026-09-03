@@ -41,4 +41,40 @@ final class ChinaRegionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(WorldRegion.cameraCenterBounds.span.latitudeDelta, 160)
         _ = WorldRegion.cameraBounds
     }
+
+    func testWorldOverviewFramesChinaAndThailandInsteadOfAfrica() {
+        let plan = WorldRegion.overviewPlan(for: [
+            CLLocationCoordinate2D(latitude: 39.9042, longitude: 116.4074),
+            CLLocationCoordinate2D(latitude: 15.87, longitude: 100.9925),
+        ])
+
+        XCTAssertTrue(plan.fitsInSingleView)
+        XCTAssertTrue(plan.tourStops.isEmpty)
+        XCTAssertEqual(plan.region.center.latitude, 27.8871, accuracy: 0.001)
+        XCTAssertEqual(plan.region.center.longitude, 108.69995, accuracy: 0.001)
+        XCTAssertLessThan(plan.region.span.longitudeDelta, 40)
+        XCTAssertLessThan(plan.region.span.latitudeDelta, 40)
+    }
+
+    func testWorldOverviewUsesShortestArcAcrossDateLine() {
+        let plan = WorldRegion.overviewPlan(for: [
+            CLLocationCoordinate2D(latitude: -17.7, longitude: 178.1),
+            CLLocationCoordinate2D(latitude: -13.8, longitude: -172.1),
+        ])
+
+        XCTAssertTrue(plan.fitsInSingleView)
+        XCTAssertLessThan(plan.region.span.longitudeDelta, 25)
+        XCTAssertGreaterThan(abs(plan.region.center.longitude), 170)
+    }
+
+    func testWorldOverviewBuildsTourForLocationsBeyondOneHemisphere() {
+        let plan = WorldRegion.overviewPlan(for: [
+            CLLocationCoordinate2D(latitude: 39.9042, longitude: 116.4074),
+            CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
+        ])
+
+        XCTAssertFalse(plan.fitsInSingleView)
+        XCTAssertEqual(plan.tourStops.count, 2)
+        XCTAssertEqual(WorldRegion.globeCameraDistance, 38_000_000)
+    }
 }
