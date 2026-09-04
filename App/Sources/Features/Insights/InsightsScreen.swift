@@ -18,7 +18,7 @@ struct InsightsScreen: View {
                         title: "还没有可统计的记录",
                         message: "记下几次上床或没上床，这里会自动算出上床率、套的情况、最常做的和最常约的时段。"
                     )
-                    .glassCard(cornerRadius: 24, shadowRadius: 10)
+                    .astraSurface(cornerRadius: 24)
                 } else {
                     trendCard
                     if insights.hookupCount > 0 {
@@ -33,11 +33,12 @@ struct InsightsScreen: View {
                     if insights.wantAgainRate != nil { meetAgainCard }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
-        .navigationTitle("战绩统计")
+        .navigationTitle("相处统计")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -53,7 +54,7 @@ struct InsightsScreen: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(insights.isEmpty ? "还没开张" : headline)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(.largeTitle, design: .serif).weight(.regular))
                     Text(subheadline)
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.76))

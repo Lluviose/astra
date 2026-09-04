@@ -43,14 +43,10 @@ enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifia
 
     var tint: Color {
         switch self {
-        case .new: Color(red: 0.52, green: 0.58, blue: 0.72)
-        case .chatting: Color(red: 0.95, green: 0.56, blue: 0.30)
-        case .flirting: Color(red: 0.93, green: 0.39, blue: 0.60)
-        case .prospect: Color(red: 0.96, green: 0.32, blue: 0.42)
-        case .casual: Color(red: 0.94, green: 0.22, blue: 0.46)
-        case .regular: Color(red: 0.67, green: 0.32, blue: 0.94)
-        case .paused: Color(red: 0.36, green: 0.62, blue: 0.86)
-        case .ended: Color(red: 0.55, green: 0.55, blue: 0.58)
+        case .new, .ended: Palette.secondaryInk
+        case .chatting, .prospect: Palette.accent
+        case .flirting, .casual: Palette.coral
+        case .regular, .paused: Palette.safe
         }
     }
 

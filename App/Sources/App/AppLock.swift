@@ -134,30 +134,16 @@ struct LockScreen: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.07, green: 0.08, blue: 0.15),
-                    Color(red: 0.15, green: 0.10, blue: 0.20),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-
-            StarfieldBackground()
-                .ignoresSafeArea()
-                .opacity(0.55)
+            Palette.heroGradient.ignoresSafeArea()
 
             VStack(spacing: 22) {
-                Image(systemName: lock.biometrySymbol)
-                    .font(.system(size: 46, weight: .light))
-                    .foregroundStyle(.white)
+                AstraMark()
+                    .scaleEffect(1.7)
                     .frame(width: 104, height: 104)
-                    .glassCircle()
 
                 VStack(spacing: 6) {
                     Text("星图已锁定")
-                        .font(.title3.weight(.semibold))
+                        .font(.system(.title, design: .serif))
                         .foregroundStyle(.white)
                     Text(lock.lastErrorMessage ?? "用\(lock.biometryLabel)继续")
                         .font(.footnote)
@@ -167,13 +153,10 @@ struct LockScreen: View {
                 Button {
                     Task { await lock.authenticate() }
                 } label: {
-                    Label("解锁", systemImage: "lock.open.fill")
-                        .font(.headline)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                    PrimaryActionLabel(title: lock.isAuthenticating ? "正在验证…" : "解锁星图", systemImage: lock.biometrySymbol, onDark: true)
                 }
-                .glassActionStyle(prominent: true)
-                .tint(Palette.accent)
+                .buttonStyle(HapticButtonStyle())
+                .frame(maxWidth: 260)
                 .disabled(lock.isAuthenticating)
             }
         }
@@ -211,11 +194,10 @@ struct PrivacyCurtain: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(Palette.background)
                 .ignoresSafeArea()
             VStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 34, weight: .light))
+                AstraMark(color: Palette.accent)
                 Text("星图")
                     .font(.headline)
             }

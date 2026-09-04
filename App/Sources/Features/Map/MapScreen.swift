@@ -338,15 +338,15 @@ struct MapScreen: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-                .accessibilityLabel("关闭猎场地图")
+                .accessibilityLabel("关闭足迹地图")
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("猎场版图")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text("足迹地图")
+                        .font(.headline.weight(.medium))
                     Text(summaryText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -359,7 +359,7 @@ struct MapScreen: View {
                 } label: {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 15, weight: .semibold))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
@@ -375,19 +375,20 @@ struct MapScreen: View {
 
             if scope != .missed, conquestRoute.count >= 2 {
                 HStack(spacing: 6) {
-                    Label("战绩路线 \(conquestRoute.count) 个地点", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    Label("足迹路线 \(conquestRoute.count) 个地点", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                     Spacer()
                     if let top = app.topConquestBucket {
-                        Text("头号猎场 · \(top.city.name)")
+                        Text("常去 · \(top.city.name)")
                     }
                 }
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
             }
         }
         .padding(10)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 14)
+        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .frame(maxWidth: 600)
         .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 8)
@@ -420,7 +421,7 @@ struct MapScreen: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("头号猎场 · \(bucket.city.name)")
+                    Text("常去 · \(bucket.city.name)")
                         .font(.caption.weight(.bold))
                     Text("\(bucket.hookupCompanionCount) 个她 · 上床 \(bucket.hookupCount) 次")
                         .font(.caption2)

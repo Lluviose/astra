@@ -14,6 +14,7 @@ struct EncounterEditor: View {
     @State private var showBoundaryDetails: Bool
     @State private var showSafetyDetails: Bool
     @State private var showFollowUpDetails: Bool
+    @State private var showOptionalDetails: Bool
     @State private var showDeleteConfirm = false
     @State private var showUnsavedAlert = false
     @State private var isPickingCity = false
@@ -41,6 +42,7 @@ struct EncounterEditor: View {
     init(encounter: Encounter) {
         self.initial = encounter
         _draft = State(initialValue: encounter)
+        _showOptionalDetails = State(initialValue: false)
         _costText = State(initialValue: encounter.cost.map { String(Int($0)) } ?? "")
         _hasFollowUpDate = State(initialValue: encounter.followUpDate != nil)
         _showBoundaryDetails = State(
@@ -58,20 +60,26 @@ struct EncounterEditor: View {
                 subjectSection
                 basicsSection
 
-                if draft.kind.isIntimate {
-                    safetySection
-                    activitySection
-                    climaxSection
-                }
-
-                experienceSection
-                photosSection
+                if draft.kind.isIntimate { safetySection }
                 notesSection
-
-                if draft.kind.isIntimate {
-                    boundarySection
+                Section {
+                    Toggle(isOn: $showOptionalDetails) {
+                        Label("补充相处细节", systemImage: "text.badge.plus")
+                    }
+                    .accessibilityIdentifier("record-details")
+                } footer: {
+                    Text("玩法、感受、照片和跟进可随时补充；收起不会清空已填写的内容。")
                 }
-                followUpSection
+                if showOptionalDetails {
+                    if draft.kind.isIntimate {
+                        activitySection
+                        climaxSection
+                    }
+                    experienceSection
+                    photosSection
+                    if draft.kind.isIntimate { boundarySection }
+                    followUpSection
+                }
 
                 if !isNew {
                     Section {
@@ -83,15 +91,18 @@ struct EncounterEditor: View {
                     }
                 }
             }
+            .astraListStyle()
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记一笔" : "改记录")
+            .navigationTitle(isNew ? "记一笔" : "编辑记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { cancel() }
+                        .accessibilityIdentifier("record-cancel")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("保存") { save() }
+                        .accessibilityIdentifier("record-save")
                         .fontWeight(.semibold)
                         .tint(Palette.accent)
                 }
@@ -120,6 +131,9 @@ struct EncounterEditor: View {
                     dismiss()
                 }
                 Button("取消", role: .cancel) {}
+            }
+            .onAppear {
+                if !isNew { showOptionalDetails = true }
             }
             .onChange(of: draft.kind) { _, kind in
                 normalizeForKind(kind)
@@ -257,7 +271,7 @@ struct EncounterEditor: View {
         } header: {
             Text("这次结果")
         } footer: {
-            Text("只分上床了还是没上床。时间和地点会进时间线和版图，细节以后补也行。")
+            Text("时间、地点与结果确认后即可保存，其他内容可以稍后补充。")
         }
     }
 
@@ -453,6 +467,7 @@ struct EncounterEditor: View {
                 axis: .vertical
             )
                 .lineLimit(3...6)
+                .accessibilityIdentifier("record-note")
         }
     }
 

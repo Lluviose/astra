@@ -42,14 +42,17 @@ struct SettingsScreen: View {
     var body: some View {
         NavigationStack {
             Form {
+                identitySection
                 privacySection
-                principlesSection
-                hapticsSection
                 appearanceSection
+                hapticsSection
                 dataSection
+                principlesSection
                 aboutSection
             }
+            .astraListStyle()
             .navigationTitle("设置")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .fileExporter(
             isPresented: $isExporting,
@@ -114,6 +117,23 @@ struct SettingsScreen: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("所有人、约过的记录、照片和设置都会被删掉，回不来。建议先导出一份备份。")
+        }
+    }
+
+    private var identitySection: some View {
+        Section {
+            HStack(spacing: 18) {
+                AstraMark(color: Palette.accent)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("星图 · ASTRA")
+                        .font(.system(.title2, design: .serif))
+                    Text("你的记录，由你掌握。")
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.secondaryInk)
+                }
+            }
+            .padding(.vertical, 14)
+            .listRowBackground(Color.clear)
         }
     }
 

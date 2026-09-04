@@ -7,6 +7,7 @@ struct CompanionDetailView: View {
 
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var showEditor = false
     @State private var editingEncounter: Encounter?
@@ -139,6 +140,7 @@ struct CompanionDetailView: View {
             timelineSection(companion)
         }
         .listStyle(.insetGrouped)
+        .astraListStyle()
         .navigationTitle(app.namesRevealed ? companion.displayName : "档案")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -146,70 +148,50 @@ struct CompanionDetailView: View {
     // MARK: 封面
 
     private func heroSection(_ companion: Companion) -> some View {
-        let hookups = app.hookupCount(for: companion.id)
-        let missed = app.missedCount(for: companion.id)
-        let photos = app.albumIDs(for: companion.id).count
-        return Section {
-            HeroPanel(
-                gradient: Palette.dossierGradient(companion.paletteIndex),
-                cornerRadius: 26,
-                glow: Palette.avatarColors(companion.paletteIndex)[1],
-                padding: 18
-            ) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 14) {
-                        AvatarView(companion: companion, size: 72, showRing: false)
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            MaskedName(
-                                name: companion.displayName,
-                                revealed: app.namesRevealed,
-                                font: .title2.weight(.bold)
-                            )
-                            HStack(spacing: 6) {
-                                StageBadge(stage: companion.stage, filled: true)
-                                if hookups > 0 {
-                                    let legendTier = CompanionLegendTier.resolve(hookupCount: hookups)
-                                    TagLabel(
-                                        title: legendTier.label,
-                                        systemImage: legendTier.symbolName,
-                                        tint: legendTier.tint,
-                                        filled: true
-                                    )
-                                }
-                            }
-                            Label(app.locationName(for: companion), systemImage: "mappin")
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.76))
-                        }
-                        Spacer(minLength: 0)
-                    }
-
-                    HStack(spacing: 8) {
-                        HeroMetric(value: "\(hookups)", label: "上床")
-                        HeroMetric(value: "\(missed)", label: "没上")
-                        HeroMetric(value: "\(photos)", label: "私藏")
-                        HeroMetric(
-                            value: app.lastHookup(for: companion.id).map { Format.relativeDay($0.date) } ?? "—",
-                            label: "上次上床"
-                        )
-                    }
-
-                    HStack(spacing: 10) {
-                        HeroButton(title: "上床了", systemImage: EncounterKind.intimacy.symbolName, prominent: true, cue: .waveSent) {
-                            editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
-                        }
-                        HeroButton(title: "没上床", systemImage: EncounterKind.missed.symbolName) {
-                            editingEncounter = Encounter(companionID: companion.id, kind: .missed, cityID: companion.cityID)
-                        }
+        Section {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top, spacing: 18) {
+                    AvatarView(companion: companion, size: 76, showRing: false)
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("PRIVATE DOSSIER")
+                            .font(.caption2.monospaced()).tracking(2)
+                            .foregroundStyle(Palette.accent)
+                        MaskedName(name: companion.displayName, revealed: app.namesRevealed,
+                                   font: .system(.title, design: .serif))
+                        Label(app.locationName(for: companion), systemImage: "mappin")
+                            .font(.caption).foregroundStyle(Palette.secondaryInk)
                     }
                 }
+                FlowLayout {
+                    StageBadge(stage: companion.stage)
+                    if app.hookupCount(for: companion.id) > 0 {
+                        let tier = CompanionLegendTier.resolve(hookupCount: app.hookupCount(for: companion.id))
+                        TagLabel(title: tier.label, systemImage: tier.symbolName, tint: Palette.accent)
+                    }
+                    if companion.isPinned { TagLabel(title: "已置顶", systemImage: "pin", tint: Palette.accent) }
+                }
+                Divider().overlay(Palette.hairline)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 220 : 120), spacing: 16)], alignment: .leading, spacing: 20) {
+                    QuietMetric(value: "\(app.hookupCount(for: companion.id))", label: "上床记录")
+                    QuietMetric(value: "\(app.missedCount(for: companion.id))", label: "没上床记录")
+                    QuietMetric(value: "\(app.albumIDs(for: companion.id).count)", label: "私藏照片")
+                    QuietMetric(value: app.lastHookup(for: companion.id).map { Format.relativeDay($0.date) } ?? "—", label: "上次上床")
+                }
+                Button {
+                    editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
+                } label: {
+                    PrimaryActionLabel(title: "记录一次相处", systemImage: "square.and.pencil")
+                }
+                .buttonStyle(HapticButtonStyle())
+                .accessibilityIdentifier("dossier-record")
             }
-            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .padding(20)
+            .astraSurface(cornerRadius: 24)
+            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         } footer: {
-            Text("只选有没有上床；时间、地点和细节在下一页补。")
+            Text("进入记录后，可以选择这次的结果。")
         }
     }
 

@@ -9,10 +9,10 @@ struct HaremGalleryScreen: View {
     @State private var viewingPhotoIDs: [String] = []
     @State private var viewingPhotoIndex: Int?
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 280 : 158), spacing: 14)]
+    }
 
     private var companions: [Companion] {
         let photoCounts = Dictionary(
@@ -64,11 +64,12 @@ struct HaremGalleryScreen: View {
                     emptyState
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
-        .navigationTitle("后宫图鉴")
+        .navigationTitle("私人图鉴")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -89,43 +90,11 @@ struct HaremGalleryScreen: View {
     }
 
     private var royalHeader: some View {
-        HeroPanel(gradient: Palette.velvetGradient, glow: Palette.coral, watermark: "crown.fill") {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    HeroBadge(title: "私人收藏")
-                    Spacer()
-                    Label("Lv.\(app.royalRank.level) \(app.royalRank.title)", systemImage: "crown.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Palette.gold)
-                }
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("上过的，都在这里")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                    Text("不是待办，也不是聊天列表。这里专门用来翻照片、数战绩、回味已经发生过的。")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.76))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HStack(spacing: 9) {
-                    HeroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
-                    HeroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
-                    HeroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
-                    HeroMetric(value: "\(app.conquestLocationCount)", label: "战绩地")
-                }
-
-                HStack(spacing: 6) {
-                    Image(systemName: "photo.stack.fill")
-                    Text("私藏 \(app.privateCollectionCount) 张")
-                    Text("·")
-                    Image(systemName: "medal.fill")
-                    Text("成就 \(app.royalRank.unlockedCount)/\(app.royalRank.totalCount)")
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.70))
-            }
-        }
+        PageMasthead(
+            eyebrow: "THE PRIVATE COLLECTION",
+            title: "值得，慢慢回味。",
+            subtitle: "\(app.conqueredCompanions.count) 位人物 · \(app.privateCollectionCount) 张私藏"
+        )
     }
 
     private func memoryHero(_ companion: Companion) -> some View {
@@ -193,7 +162,7 @@ struct HaremGalleryScreen: View {
             }
             .buttonStyle(.plain)
         }
-        .glassCard(cornerRadius: 26, shadowRadius: 12)
+        .astraSurface(cornerRadius: 26)
     }
 
     private var collectionControls: some View {
@@ -244,7 +213,7 @@ struct HaremGalleryScreen: View {
         )
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-        .glassCard(cornerRadius: 24, shadowRadius: 10)
+        .astraSurface(cornerRadius: 24)
     }
 
     private func coverPhotoID(for companion: Companion) -> String? {
@@ -405,7 +374,7 @@ private struct HaremCard: View {
             }
             .buttonStyle(.plain)
         }
-        .glassCard(cornerRadius: 20, shadowRadius: 9)
+        .astraSurface(cornerRadius: 20)
         .opacity(companion.isArchived ? 0.72 : 1)
     }
 }

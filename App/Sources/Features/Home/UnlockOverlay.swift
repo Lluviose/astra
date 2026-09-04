@@ -55,7 +55,7 @@ struct UnlockOverlay: View {
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .glassCard(cornerRadius: 14, interactive: true, shadowRadius: 6)
+                        .astraSurface(cornerRadius: 14)
 
                     Button("去成就册", action: onOpenBook)
                         .font(.subheadline.weight(.bold))
@@ -66,7 +66,7 @@ struct UnlockOverlay: View {
                 }
             }
             .padding(20)
-            .glassCard(cornerRadius: 28, shadowRadius: 18)
+            .astraSurface(cornerRadius: 28)
             .padding(.horizontal, 28)
             .scaleEffect(appeared ? 1 : 0.9)
             .opacity(appeared ? 1 : 0)

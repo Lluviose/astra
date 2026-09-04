@@ -10,6 +10,9 @@ struct TimelineScreen: View {
     @State private var encounterTarget: Encounter?
     @State private var scope: RecordScope = .all
     @State private var query = ""
+    @State private var showTrends = false
+    @State private var pendingDeletion: Encounter?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var normalizedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -65,6 +68,7 @@ struct TimelineScreen: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityIdentifier("timeline-scope")
                 }
 
                 if normalizedQuery.isEmpty, scope == .all, !app.pendingFollowUps.isEmpty {
@@ -86,21 +90,14 @@ struct TimelineScreen: View {
                     }
                 }
 
-                if normalizedQuery.isEmpty, scope == .all || scope == .hookedUp {
+                if normalizedQuery.isEmpty, (scope == .all || scope == .hookedUp), !app.encounters.isEmpty {
                     Section {
-                        OutcomeMonthChart(points: EncounterInsights.monthSeries(encounters: app.encounters, monthCount: 6))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-
-                        NavigationLink {
-                            InsightsScreen()
-                        } label: {
-                            Label("看完整战绩统计", systemImage: "chart.bar.xaxis")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Palette.accent)
+                        DisclosureGroup("近 6 个月的节奏", isExpanded: $showTrends) {
+                            OutcomeMonthChart(points: EncounterInsights.monthSeries(encounters: app.encounters, monthCount: 6))
+                            NavigationLink { InsightsScreen() } label: {
+                                Label("查看完整统计", systemImage: "chart.xyaxis.line")
+                            }
                         }
-                    } header: {
-                        Text("近 6 个月")
                     }
                 }
 
@@ -134,7 +131,7 @@ struct TimelineScreen: View {
                                     .buttonStyle(.plain)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
-                                            app.delete(encounterID: encounter.id)
+                                            pendingDeletion = encounter
                                         } label: {
                                             Label("删除", systemImage: "trash")
                                         }
@@ -154,11 +151,13 @@ struct TimelineScreen: View {
                 }
             }
             .listStyle(.insetGrouped)
+        .astraListStyle()
             .navigationTitle("时间线")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
-            .searchable(text: $query, prompt: "代号 / 地点 / 备注 / 玩法")
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索人物、地点或记忆")
             .autocorrectionDisabled()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -170,6 +169,18 @@ struct TimelineScreen: View {
                     .accessibilityLabel("记一笔")
                 }
             }
+        }
+        .confirmationDialog("删除这条记录？", isPresented: Binding(
+            get: { pendingDeletion != nil },
+            set: { if !$0 { pendingDeletion = nil } }
+        ), titleVisibility: .visible) {
+            Button("删除记录", role: .destructive) {
+                if let encounter = pendingDeletion { app.delete(encounterID: encounter.id) }
+                pendingDeletion = nil
+            }
+            Button("取消", role: .cancel) { pendingDeletion = nil }
+        } message: {
+            Text("这条记录与仅由它引用的照片将被删除。")
         }
         .recordingFlowSheets(flow)
         .sheet(item: $encounterTarget) { encounter in
@@ -194,35 +205,18 @@ struct TimelineScreen: View {
     }
 
     private var outcomeStatsGrid: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow {
-                StatTile(
-                    value: "\(app.stats.totalIntimacyCount)",
-                    caption: "上床",
-                    systemImage: "flame.fill",
-                    tint: Palette.accent
-                )
-                StatTile(
-                    value: "\(app.stats.missedCount)",
-                    caption: "没上床",
-                    systemImage: "xmark.circle.fill",
-                    tint: EncounterKind.missed.tint
-                )
+        VStack(alignment: .leading, spacing: 20) {
+            PageMasthead(eyebrow: "CHRONICLE", title: "片刻，自有回响。", subtitle: "\(app.encounters.count) 篇记录，按时间珍藏。")
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+            layout {
+                QuietMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
+                QuietMetric(value: "\(app.stats.missedCount)", label: "没上床")
+                QuietMetric(value: "\(app.stats.cityCount)", label: "地点")
             }
-            GridRow {
-                StatTile(
-                    value: "\(app.stats.cityCount)",
-                    caption: "涉及地点",
-                    systemImage: "map.fill",
-                    tint: Palette.safe
-                )
-                StatTile(
-                    value: hookupRateText,
-                    caption: "上床率",
-                    systemImage: "chart.line.uptrend.xyaxis",
-                    tint: Color(red: 0.95, green: 0.62, blue: 0.28)
-                )
-            }
+            .padding(18)
+            .astraSurface(cornerRadius: 20)
         }
     }
 
@@ -471,7 +465,8 @@ struct CompanionPickerSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("记谁？")
+        .astraListStyle()
+            .navigationTitle("这次和谁")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "代号 / 地点")
             .toolbar {

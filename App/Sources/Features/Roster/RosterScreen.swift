@@ -5,6 +5,7 @@ struct RosterScreen: View {
 
     @Environment(AppState.self) private var app
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var flow = RecordingFlow()
     @State private var showFilter = false
     @State private var pendingDeletion: Companion?
@@ -24,7 +25,9 @@ struct RosterScreen: View {
                     rosterList
                 }
             }
+            .background(Palette.background)
             .navigationTitle("名册")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
@@ -78,7 +81,7 @@ struct RosterScreen: View {
             .searchable(text: Binding(
                 get: { app.searchText },
                 set: { app.searchText = $0 }
-            ), prompt: "代号 / 标签 / 地点 / 尺码")
+            ), placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索代号、标签或地点")
             .autocorrectionDisabled()
         }
         .recordingFlowSheets(flow)
@@ -107,56 +110,49 @@ struct RosterScreen: View {
     private var rosterList: some View {
         List {
             Section {
-                HStack(spacing: 12) {
-                    digestChip("\(app.stats.activeCount)", "在册")
-                    digestChip("\(app.conqueredCompanions.count)", "上过")
-                    digestChip("\(app.stats.repeatGirlCount)", "回头客")
-                    digestChip("\(app.stats.cityCount)", "地点")
-                }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                .listRowBackground(Color.clear)
+                PageMasthead(eyebrow: "PEOPLE / PRIVATE INDEX", title: "记得每一个她。", subtitle: "\(app.stats.activeCount) 位在册 · \(app.stats.cityCount) 处足迹")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
-
             Section {
-                HStack(spacing: 12) {
-                    NavigationLink {
-                        HaremGalleryScreen()
-                    } label: {
-                        EntryTile(
-                            title: "后宫图鉴",
-                            subtitle: app.conqueredCompanions.isEmpty
-                                ? "上过的才会进来"
-                                : "\(app.conqueredCompanions.count) 个她 · 私藏 \(app.privateCollectionCount) 张",
-                            systemImage: "crown.fill",
-                            tint: Palette.coral
-                        )
+                NavigationLink { HaremGalleryScreen() } label: {
+                    Label {
+                        HStack {
+                            Text("私人图鉴")
+                            Spacer()
+                            Text("\(app.conqueredCompanions.count)").monospacedDigit().foregroundStyle(Palette.secondaryInk)
+                        }
+                    } icon: {
+                        Image(systemName: "rectangle.stack").foregroundStyle(Palette.accent)
                     }
-                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-
-                    NavigationLink {
-                        RankingScreen()
-                    } label: {
-                        EntryTile(
-                            title: "私密排行",
-                            subtitle: rankingSubtitle,
-                            systemImage: "list.number",
-                            tint: Palette.goldDeep
-                        )
-                    }
-                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
                 }
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                NavigationLink { RankingScreen() } label: {
+                    Label("私密排行", systemImage: "list.number")
+                }
+            }
+            if app.filter.activeConditionCount > 0 || !app.searchText.isEmpty {
+                Section {
+                    HStack {
+                        Text("\(app.filter.activeConditionCount) 项筛选 · \(app.rosterSections().reduce(0) { $0 + $1.companions.count }) 位匹配")
+                            .font(.caption)
+                            .foregroundStyle(Palette.secondaryInk)
+                        Spacer()
+                        Button("重置") {
+                            app.searchText = ""
+                            app.resetFilter()
+                        }
+                        .frame(minHeight: 44)
+                    }
+                }
             }
 
-            if !app.needsAttention.isEmpty {
+            if !app.needsAttention.isEmpty, app.searchText.isEmpty, app.filter.isDefault {
                 Section {
                     ForEach(app.needsAttention) { companion in
                         NavigationLink(value: companion.id) {
                             CompanionRow(companion: companion)
                         }
-                        .listRowBackground(Palette.accent.opacity(0.06))
+                        .listRowBackground(Palette.surface)
                     }
                 } header: {
                     HStack(spacing: 5) {
@@ -173,7 +169,9 @@ struct RosterScreen: View {
                     EmptyStateView(
                         symbol: "line.3.horizontal.decrease.circle",
                         title: "没有符合条件的人",
-                        message: "放宽筛选条件，或清空搜索词。"
+                        message: "试试其他代号，或清除当前条件。",
+                        actionTitle: "清除搜索与筛选",
+                        action: { app.searchText = ""; app.resetFilter() }
                     )
                 }
             } else {
@@ -200,7 +198,7 @@ struct RosterScreen: View {
                                         systemImage: companion.isPinned ? "pin.slash" : "pin.fill"
                                     )
                                 }
-                                .tint(.orange)
+                                .tint(Palette.accent)
 
                                 Button(role: .destructive) {
                                     Haptics.shared.play(.warning)
@@ -225,6 +223,8 @@ struct RosterScreen: View {
             }
         }
         .listStyle(.insetGrouped)
+        .astraListStyle()
+        .listRowSpacing(2)
         .haptic(.selection, trigger: app.filter.activeConditionCount)
     }
 

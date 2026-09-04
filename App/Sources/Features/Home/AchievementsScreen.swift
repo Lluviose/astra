@@ -3,6 +3,7 @@ import SwiftUI
 struct AchievementsScreen: View {
     @Environment(AppState.self) private var app
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var category: AchievementCategory?
     @State private var selected: Achievement?
 
@@ -28,7 +29,8 @@ struct AchievementsScreen: View {
                     chapterBlock(chapter.category, items: chapter.items)
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 24)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -65,7 +67,7 @@ struct AchievementsScreen: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Lv.\(rank.level) · \(rank.title)")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(.system(.largeTitle, design: .serif).weight(.regular))
                     Text(rank.nextRankText)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.80))
@@ -129,7 +131,7 @@ struct AchievementsScreen: View {
                             }
                             .padding(14)
                             .frame(width: 276, alignment: .leading)
-                            .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+                            .astraSurface(cornerRadius: 20)
                             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         }
                         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.98))
@@ -152,22 +154,9 @@ struct AchievementsScreen: View {
     }
 
     private func chapterChip(_ value: AchievementCategory?, title: String, symbol: String) -> some View {
-        let on = category == value
-        return Button {
-            Haptics.shared.play(.selection)
+        GlassChip(title: title, systemImage: symbol, isOn: category == value, compact: true) {
             category = value
-        } label: {
-            Label(title, systemImage: symbol)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .foregroundStyle(on ? .white : .primary)
-                .background {
-                    if on { Capsule().fill(Palette.coral.gradient) }
-                }
-                .glassCapsule(interactive: true, shadowRadius: 6)
         }
-        .buttonStyle(.plain)
     }
 
     private func chapterBlock(_ category: AchievementCategory, items: [Achievement]) -> some View {
@@ -181,7 +170,7 @@ struct AchievementsScreen: View {
                     .foregroundStyle(.secondary)
             }
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 280 : 150), spacing: 12)], spacing: 12) {
                 ForEach(items) { achievement in
                     Button {
                         Haptics.shared.play(.selection)
@@ -237,8 +226,8 @@ struct AchievementCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 176, alignment: .topLeading)
-        .glassCard(cornerRadius: 20, shadowRadius: 8)
-        .opacity(achievement.isUnlocked ? 1 : 0.7)
+        .astraSurface(cornerRadius: 20)
+
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(achievement.title)，\(achievement.category.label) \(achievement.tier.label)，\(achievement.detail)，\(achievement.progressText)")
     }
@@ -316,7 +305,7 @@ struct AchievementPreviewRow: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 10)
+        .astraSurface(cornerRadius: 22)
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }

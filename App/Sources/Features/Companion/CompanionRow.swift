@@ -23,6 +23,7 @@ struct CompanionRow: View {
     var showCity: Bool = true
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var isOverdue: Bool { app.isOverdue(companion) }
     private var intimateEncounters: [Encounter] {
@@ -30,63 +31,47 @@ struct CompanionRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            AvatarView(companion: companion, size: 52)
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 5) {
+        HStack(alignment: .top, spacing: 14) {
+            AvatarView(companion: companion, size: 52, showRing: false)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     MaskedName(name: companion.displayName, revealed: app.namesRevealed)
-
                     if companion.isPinned {
                         Image(systemName: "pin.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(Color(red: 0.98, green: 0.66, blue: 0.28))
+                            .font(.caption2).foregroundStyle(Palette.accent)
+                            .accessibilityLabel("已置顶")
                     }
                     if isOverdue {
-                        Image(systemName: "bell.badge.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(Palette.warning)
+                        Image(systemName: "bell.badge")
+                            .font(.caption2).foregroundStyle(Palette.warning)
                             .accessibilityLabel("到了联系周期")
                     }
-                    if intimateEncounters.count >= 3 {
-                        Text("回头客")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Palette.coral)
+                    if let days = companion.daysUntilBirthday, days <= 14 {
+                        Image(systemName: "birthday.cake")
+                            .font(.caption2).foregroundStyle(Palette.accent)
+                            .accessibilityLabel(Format.birthdayCountdown(days: days))
                     }
-                    if let daysToBirthday = companion.daysUntilBirthday, daysToBirthday <= 14 {
-                        Image(systemName: "birthday.cake.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(Palette.accent)
-                            .accessibilityLabel(Format.birthdayCountdown(days: daysToBirthday))
-                    }
-                    if companion.isArchived {
-                        Image(systemName: "archivebox.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    if companion.overallScore > 0, !typeSize.isAccessibilitySize {
+                        Text("\(companion.overallScore)")
+                            .font(.system(.subheadline, design: .serif).weight(.medium))
+                            .monospacedDigit().foregroundStyle(Palette.accent)
+                            .accessibilityLabel("综合评分 \(companion.overallScore)")
                     }
                 }
-
-                HStack(spacing: 6) {
-                    StageBadge(stage: companion.stage)
-                    if showCity {
-                        Label(app.locationName(for: companion), systemImage: "mappin")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .labelStyle(.titleAndIcon)
-                    }
+                FlowLayout(spacing: 8, lineSpacing: 5) {
+                    Text(companion.stage.label).foregroundStyle(companion.stage.tint)
+                    if showCity { Text(app.locationName(for: companion)).foregroundStyle(Palette.secondaryInk) }
+                    if companion.isArchived { Text("已归档").foregroundStyle(Palette.secondaryInk) }
                 }
-            }
-
-            Spacer(minLength: 6)
-
-            VStack(alignment: .trailing, spacing: 6) {
-                CompanionScoreBadge(score: companion.overallScore, compact: true)
+                .font(.caption)
                 Text(intimacySummary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(Palette.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 10)
         .contentShape(Rectangle())
     }
 

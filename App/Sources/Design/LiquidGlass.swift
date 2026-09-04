@@ -12,6 +12,7 @@ import SwiftUI
 // MARK: - 玻璃背景
 
 struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let shape: S
     var tint: Color?
     var interactive: Bool
@@ -21,6 +22,10 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
+        if reduceTransparency {
+            content.background(Palette.surface, in: shape)
+                .overlay { shape.strokeBorder(Palette.hairline, lineWidth: 0.5) }
+        } else {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
             applyLiquidGlass(content)
@@ -30,6 +35,7 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
         #else
         fallbackBody(content)
         #endif
+        }
     }
 
     #if compiler(>=6.2)
@@ -71,7 +77,7 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
             .overlay { shape.fill(tint?.opacity(0.22) ?? .clear) }
             .overlay { shape.strokeBorder(highlight, lineWidth: 0.8) }
             .compositingGroup()
-            .shadow(color: .black.opacity(0.16), radius: shadowRadius, y: shadowRadius * 0.45)
+            .shadow(color: .black.opacity(0.06), radius: shadowRadius, y: shadowRadius * 0.45)
     }
 }
 
@@ -155,7 +161,7 @@ extension View {
         tint: Color? = nil,
         interactive: Bool = false,
         fallback: Material = .ultraThinMaterial,
-        strokeOpacity: Double = 0.18,
+        strokeOpacity: Double = 0.10,
         shadowRadius: CGFloat = 14
     ) -> some View {
         modifier(

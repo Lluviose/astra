@@ -81,6 +81,7 @@ struct CityDetailSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
+        .astraListStyle()
             .navigationTitle(bucket.city.name)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
@@ -193,7 +194,7 @@ struct CityDetailSheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .astraSurface(cornerRadius: 22)
     }
 }
 
@@ -317,6 +318,7 @@ struct LocationPickerList: View {
             }
         }
         .listStyle(.insetGrouped)
+        .astraListStyle()
         .overlay {
             if !query.isEmpty, searchResults.isEmpty {
                 ContentUnavailableView.search(text: query)

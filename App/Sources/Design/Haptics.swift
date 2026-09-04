@@ -263,13 +263,15 @@ extension View {
 
 /// 让按钮的按下瞬间也有反馈（系统按钮默认没有）
 struct HapticButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var cue: HapticCue = .lightTap
     var scale: CGFloat = 0.96
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.62), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, pressed in
                 if pressed { Haptics.shared.play(cue) }
             }

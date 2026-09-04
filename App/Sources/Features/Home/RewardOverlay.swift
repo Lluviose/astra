@@ -32,7 +32,7 @@ struct RewardOverlay: View {
                 HStack(spacing: 10) {
                     Button("收下", action: onDismiss)
                         .frame(maxWidth: .infinity).padding(.vertical, 12)
-                        .glassCard(cornerRadius: 14, interactive: true, shadowRadius: 6)
+                        .astraSurface(cornerRadius: 14)
                     Button("去王者殿堂", action: onOpenHall)
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity).padding(.vertical, 12)
@@ -41,7 +41,7 @@ struct RewardOverlay: View {
                 }
             }
             .padding(20)
-            .glassCard(cornerRadius: 28, shadowRadius: 18)
+            .astraSurface(cornerRadius: 28)
             .padding(.horizontal, 26)
             .scaleEffect(appeared ? 1 : 0.90)
             .opacity(appeared ? 1 : 0)

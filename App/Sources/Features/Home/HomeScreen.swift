@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// 猎场首页：战绩总览、快速记一笔、今夜焦点、待处理事项和四个入口。
+/// A quiet daily overview: record first, then recent people and memories.
 struct HomeScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var flow = RecordingFlow()
     @State private var path = NavigationPath()
@@ -43,75 +44,63 @@ struct HomeScreen: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ZStack {
-                Palette.screenGradient
-                    .ignoresSafeArea()
-
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        hero
-
-                        if !quickLogCompanions.isEmpty {
-                            quickLogStrip
-                        }
-
-                        focusCard
-
-                        if !app.pendingFollowUps.isEmpty || !app.needsAttention.isEmpty {
-                            todoCard
-                        }
-
-                        entryGrid
-
-                        safetyCard
-
-                        if !recentEncounters.isEmpty {
-                            recordsCard
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 28)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: AstraLayout.sectionSpacing) {
+                    masthead
+                    overview
+                    if !quickLogCompanions.isEmpty { quickLogStrip }
+                    if !app.pendingFollowUps.isEmpty || !app.needsAttention.isEmpty { todoCard }
+                    if !recentEncounters.isEmpty { recordsCard }
+                    entryGrid
+                    if let companion = focusCompanion { focusRow(companion) }
+                    if app.stats.intimaciesThisMonth > 0 { safetyCard }
+                    Label("属于你的私人记录", systemImage: "lock")
+                        .font(.caption)
+                        .foregroundStyle(Palette.secondaryInk)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                 }
+                .padding(.horizontal, AstraLayout.gutter)
+                .padding(.bottom, 24)
+                .astraContentMargins()
             }
-            .navigationTitle("猎场")
+            .background(Palette.background.ignoresSafeArea())
+            .navigationTitle("星图")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
-            .navigationDestination(for: RoyalRoute.self) { _ in
-                RoyalHallScreen()
-            }
+            .navigationDestination(for: RoyalRoute.self) { _ in RoyalHallScreen() }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        flow.beginAddingCompanion()
-                    } label: {
-                        Image(systemName: "person.badge.plus")
-                    }
-                    .accessibilityLabel("加个人")
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("ASTRA")
+                        .font(.caption.weight(.semibold).monospaced())
+                        .tracking(3)
+                        .foregroundStyle(Palette.accent)
+                        .accessibilityHidden(true)
                 }
-
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        app.toggleNamesRevealed()
-                    } label: {
+                    Button { app.toggleNamesRevealed() } label: {
                         Image(systemName: app.namesRevealed ? "eye.slash" : "eye")
                     }
                     .accessibilityLabel(app.namesRevealed ? "隐藏代号" : "显示代号")
+                    .accessibilityIdentifier("privacy-toggle")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { flow.beginAddingCompanion() } label: {
+                        Image(systemName: "person.badge.plus")
+                    }
+                    .accessibilityLabel("添加档案")
                 }
             }
         }
         .recordingFlowSheets(flow)
-        .sheet(item: $followUpTarget) { encounter in
-            EncounterEditor(encounter: encounter)
-        }
+        .sheet(item: $followUpTarget) { EncounterEditor(encounter: $0) }
         .sheet(isPresented: $showMap) {
-            MapScreen()
-                .presentationDragIndicator(.visible)
-                .interactiveDismissDisabled(false)
+            MapScreen().presentationDragIndicator(.visible)
         }
         .confirmationDialog(
-            quickLogTitle,
+            "记录这次相处",
             isPresented: Binding(
                 get: { quickLogTarget != nil },
                 set: { if !$0 { quickLogTarget = nil } }
@@ -123,8 +112,6 @@ struct HomeScreen: View {
             Button("没上床") { flow.record(.missed, for: companion) }
             Button("打开档案") { path.append(companion.id) }
             Button("取消", role: .cancel) {}
-        } message: { companion in
-            Text(quickLogMessage(for: companion))
         }
         .onChange(of: app.royalHallRequestToken) { oldValue, newValue in
             guard newValue != oldValue else { return }
@@ -132,259 +119,160 @@ struct HomeScreen: View {
         }
     }
 
-    // MARK: - 首屏主卡
+    private var masthead: some View {
+        HStack(alignment: .center, spacing: 16) {
+            PageMasthead(
+                eyebrow: Date().formatted(.dateTime.month(.wide).day().weekday(.wide)),
+                title: "留住，属于你的片刻。",
+                subtitle: app.isEmpty ? "从一个名字，开始你的私人记忆。" : "人物、相处与足迹，在这里慢慢珍藏。"
+            )
+        }
+    }
 
-    private var hero: some View {
-        let rank = app.royalRank
-        return HeroPanel {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    HeroBadge(title: "只在这台手机上")
-                    Spacer()
-                    Label("Lv.\(rank.level)", systemImage: "crown.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Palette.gold)
+    private var overview: some View {
+        HeroPanel {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("PERSONAL JOURNAL")
+                            .font(.caption2.monospaced())
+                            .tracking(2)
+                            .foregroundStyle(Palette.gold)
+                        Text(app.isEmpty ? "你的故事，待续" : "记忆正在生长")
+                            .font(.system(.title2, design: .serif))
+                    }
+                    Spacer(minLength: 10)
+                    AstraMark()
                 }
 
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(rank.title)
-                        .font(.system(size: 29, weight: .bold, design: .rounded))
-                        .tracking(-0.6)
-                    Text(monthLine)
+                if !app.isEmpty {
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+                        : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+                    layout {
+                        QuietMetric(value: "\(app.stats.activeCount)", label: "在册人物", onDark: true)
+                        QuietMetric(value: "\(app.encounters.count)", label: "相处记录", onDark: true)
+                        QuietMetric(value: "\(app.stats.cityCount)", label: "足迹地点", onDark: true)
+                    }
+                } else {
+                    Text("记下相识与每次相处。时间、地点和感受，都有自己的位置。")
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.76))
+                        .foregroundStyle(.white.opacity(0.75))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack(spacing: 8) {
-                    HeroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
-                    HeroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
-                    HeroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
-                    HeroMetric(value: "\(app.conquestLocationCount)", label: "战绩地")
+                Button {
+                    flow.begin(kind: .intimacy, app: app)
+                } label: {
+                    PrimaryActionLabel(title: app.isEmpty ? "开始第一篇记录" : "记一笔", systemImage: "square.and.pencil", onDark: true)
                 }
+                .buttonStyle(HapticButtonStyle())
+                .accessibilityIdentifier("home-record")
 
-                HStack(spacing: 10) {
-                    Menu {
-                        Button {
-                            flow.begin(kind: .intimacy, app: app)
-                        } label: {
-                            Label("上床了", systemImage: EncounterKind.intimacy.symbolName)
-                        }
-                        Button {
-                            flow.begin(kind: .missed, app: app)
-                        } label: {
-                            Label("没上床", systemImage: EncounterKind.missed.symbolName)
-                        }
-                    } label: {
-                        HeroButtonLabel(title: "记一笔", systemImage: "plus.circle.fill", prominent: true)
+                NavigationLink {
+                    RoyalHallScreen()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "crown").foregroundStyle(Palette.gold)
+                        Text("Lv.\(app.royalRank.level) · \(app.royalRank.title)")
+                        Spacer()
+                        Text("殿堂")
+                        Image(systemName: "arrow.right")
                     }
-                    .buttonStyle(.plain)
-
-                    NavigationLink {
-                        RoyalHallScreen()
-                    } label: {
-                        HeroButtonLabel(title: "王者殿堂", systemImage: "crown.fill")
-                    }
-                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-                }
-
-                Text("私藏 \(app.privateCollectionCount) 张 · 成就 \(rank.unlockedCount)/\(rank.totalCount) · 名册 \(app.stats.activeCount) 人")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    private var monthLine: String {
-        if app.stats.intimaciesThisMonth == 0,
-           app.stats.missedThisMonth == 0,
-           app.stats.girlsThisMonth == 0 {
-            return "这个月还没动笔。上床或没上床，都记进时间线。"
-        }
-        var parts: [String] = []
-        if app.stats.girlsThisMonth > 0 { parts.append("新人 \(app.stats.girlsThisMonth)") }
-        parts.append("上床 \(app.stats.intimaciesThisMonth)")
-        if app.stats.missedThisMonth > 0 { parts.append("没上 \(app.stats.missedThisMonth)") }
-        if app.stats.photosThisMonth > 0 { parts.append("照片 \(app.stats.photosThisMonth)") }
-        return "本月：" + parts.joined(separator: " · ")
-    }
-
-    // MARK: - 快速记一笔
-
     private var quickLogStrip: some View {
-        SectionCard("点她，直接记", systemImage: "hand.tap.fill", tint: Palette.coral) {
-            Text("最近的人")
-        } content: {
+        SectionCard("最近的人", systemImage: "person.crop.circle", trailing: {
+            Text("轻点记录")
+        }) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
+                HStack(alignment: .top, spacing: 20) {
                     ForEach(quickLogCompanions) { companion in
-                        Button {
-                            Haptics.shared.play(.selection)
-                            quickLogTarget = companion
-                        } label: {
-                            VStack(spacing: 6) {
-                                AvatarView(companion: companion, size: 54)
-                                MaskedName(
-                                    name: companion.displayName,
-                                    revealed: app.namesRevealed,
-                                    font: .caption2.weight(.semibold)
-                                )
-                                .frame(width: 62)
+                        Button { quickLogTarget = companion } label: {
+                            VStack(spacing: 10) {
+                                AvatarView(companion: companion, size: 56, showRing: false)
+                                MaskedName(name: companion.displayName, revealed: app.namesRevealed, font: .caption)
+                                    .frame(width: typeSize.isAccessibilitySize ? 104 : 68)
                             }
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.94))
+                        .buttonStyle(HapticButtonStyle())
+                        .accessibilityLabel(app.namesRevealed ? "记录与\(companion.displayName)的相处" : "记录与隐藏人物的相处")
                     }
                 }
-                .padding(.vertical, 2)
+                .padding(.vertical, 4)
             }
         }
     }
 
-    private var quickLogTitle: String {
-        guard let companion = quickLogTarget else { return "" }
-        return app.namesRevealed ? "和\(companion.displayName)，这次怎么样？" : "这次怎么样？"
-    }
-
-    private func quickLogMessage(for companion: Companion) -> String {
-        let hookups = app.hookupCount(for: companion.id)
-        let last = app.lastContact(for: companion)
-        return "\(companion.stage.label) · 上床 \(hookups) 次 · 最近 \(Format.relativeDay(last))"
-    }
-
-    // MARK: - 今夜焦点
-
-    @ViewBuilder
-    private var focusCard: some View {
-        if let companion = focusCompanion {
-            HeroPanel(gradient: Palette.velvetGradient, cornerRadius: 26, glow: Palette.coral, padding: 18) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Label(focusKicker, systemImage: "sparkles")
-                            .font(.caption.weight(.bold))
-                        Spacer()
-                        Label("按你的记录", systemImage: "lock.fill")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-
-                    HStack(spacing: 14) {
-                        AvatarView(companion: companion, size: 58)
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            MaskedName(
-                                name: companion.displayName,
-                                revealed: app.namesRevealed,
-                                font: .title3.weight(.bold)
-                            )
-                            Text(focusHeadline(for: companion))
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.76))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-
-                    FlowLayout(spacing: 8, lineSpacing: 8) {
-                        focusPill(companion.stage.label, symbol: companion.stage.symbolName)
-                        if companion.overallScore > 0 {
-                            focusPill("综合 \(companion.overallScore)", symbol: "crown.fill")
-                        }
-                        focusPill("上床 \(app.hookupCount(for: companion.id))", symbol: "flame.fill")
-                        let photoCount = app.albumIDs(for: companion.id).count
-                        if photoCount > 0 {
-                            focusPill("私藏 \(photoCount)", symbol: "photo.fill")
-                        }
-                    }
-
+    private func focusRow(_ companion: Companion) -> some View {
+        SectionCard("回到一段记忆", systemImage: "bookmark") {
+            NavigationLink(value: companion.id) {
+                HStack(spacing: 14) {
+                    AvatarView(companion: companion, size: 52, showRing: false)
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("升温轨迹")
-                            Spacer()
-                            Text(focusRecency(for: companion))
-                        }
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.68))
-
-                        ProgressView(value: Double(companion.stage.weight), total: 7)
-                            .tint(.white)
+                        MaskedName(name: companion.displayName, revealed: app.namesRevealed)
+                        Text("\(companion.stage.label) · \(Format.relativeDay(app.lastContact(for: companion)))")
+                            .font(.caption)
+                            .foregroundStyle(Palette.secondaryInk)
                     }
+                    Spacer()
+                    ChevronHint()
+                }
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
 
-                    HStack(spacing: 10) {
-                        NavigationLink(value: companion.id) {
-                            HeroButtonLabel(title: "打开档案", systemImage: "book.pages.fill")
-                        }
-                        .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-
-                        HeroButton(title: "记录结果", systemImage: "plus.circle.fill", prominent: true, cue: .waveSent) {
-                            quickLogTarget = companion
-                        }
-                    }
+    private var entryGrid: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("慢慢翻阅")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 280 : 150), spacing: 12)], spacing: 12) {
+                NavigationLink { HaremGalleryScreen() } label: {
+                    EntryTile(title: "私人图鉴", subtitle: "\(app.conqueredCompanions.count) 位人物 · \(app.privateCollectionCount) 张私藏", systemImage: "rectangle.stack", tint: Palette.coral)
+                }
+                NavigationLink { InsightsScreen() } label: {
+                    EntryTile(title: "相处统计", subtitle: "在时间里发现自己的节奏", systemImage: "chart.xyaxis.line", tint: Palette.safe)
+                }
+                Button { showMap = true } label: {
+                    EntryTile(title: "足迹地图", subtitle: "\(app.conquestLocationCount) 处记录里的地点", systemImage: "map", tint: Palette.safe)
+                }
+                .accessibilityIdentifier("home-map")
+                NavigationLink { AchievementsScreen() } label: {
+                    EntryTile(title: "成就收藏", subtitle: "已点亮 \(app.royalRank.unlockedCount) / \(app.royalRank.totalCount)", systemImage: "seal", tint: Palette.accent)
                 }
             }
-        } else {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("下一次，从一个名字开始", systemImage: "sparkles")
-                    .font(.headline)
-                    .foregroundStyle(Palette.coral)
-                Text("先记下一个她。等关系升温、留下记录，这里会把最值得回味和推进的人放到前面。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button {
-                    flow.beginAddingCompanion()
-                } label: {
-                    Label("加第一个人", systemImage: "person.badge.plus")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(Palette.accent.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .foregroundStyle(.white)
+            .buttonStyle(HapticButtonStyle(scale: 0.98))
+        }
+    }
+
+    private var recordsCard: some View {
+        SectionCard("最近记录", systemImage: "clock") {
+            ForEach(Array(recentEncounters.enumerated()), id: \.element.id) { index, encounter in
+                if app.companion(id: encounter.companionID) != nil {
+                    Button { followUpTarget = encounter } label: {
+                        EncounterRow(encounter: encounter)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("打开并编辑这条记录")
+                    if index < recentEncounters.count - 1 { Divider().padding(.leading, 48) }
                 }
-                .buttonStyle(HapticButtonStyle(cue: .mediumTap, scale: 0.97))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .glassCard(cornerRadius: 22, shadowRadius: 10)
         }
-    }
-
-    private var focusKicker: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        return (hour >= 18 || hour < 5) ? "今夜焦点" : "下一次焦点"
-    }
-
-    private func focusHeadline(for companion: Companion) -> String {
-        switch companion.stage {
-        case .regular, .casual:
-            return "熟悉的默契还在，打开档案就能回到上一次。"
-        case .prospect:
-            return "已经是准炮友了，下一步先确认彼此今晚想要什么。"
-        case .flirting:
-            return "暧昧正在升温，欲望和边界都值得记清楚。"
-        case .chatting, .new:
-            return "故事刚开场，把节奏推到你们都舒服的位置。"
-        case .paused, .ended:
-            return "这段记录先留在册子里。"
-        }
-    }
-
-    private func focusRecency(for companion: Companion) -> String {
-        if let last = app.lastHookup(for: companion.id) {
-            return "上次上床 \(Format.relativeDay(last.date))"
-        }
-        return "最近互动 \(Format.relativeDay(app.lastContact(for: companion)))"
-    }
-
-    private func focusPill(_ title: String, symbol: String) -> some View {
-        Label(title, systemImage: symbol)
-            .font(.caption2.weight(.semibold))
-            .lineLimit(1)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(.black.opacity(0.16), in: Capsule())
-            .foregroundStyle(.white.opacity(0.84))
     }
 
     // MARK: - 待处理
@@ -432,85 +320,11 @@ struct HomeScreen: View {
         }
     }
 
-    // MARK: - 四个入口
-
-    private var entryGrid: some View {
-        let rank = app.royalRank
-        let next = AchievementCatalog.nextUp(in: app.achievements, limit: 1).first
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            NavigationLink {
-                HaremGalleryScreen()
-            } label: {
-                EntryTile(
-                    title: "后宫图鉴",
-                    subtitle: app.conqueredCompanions.isEmpty
-                        ? "上过的才会进来"
-                        : "\(app.conqueredCompanions.count) 个她 · 私藏 \(app.privateCollectionCount) 张",
-                    systemImage: "crown.fill",
-                    tint: Palette.coral
-                )
-            }
-            .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-
-            NavigationLink {
-                AchievementsScreen()
-            } label: {
-                EntryTile(
-                    title: "成就册",
-                    subtitle: next.map { "已点亮 \(rank.unlockedCount)/\(rank.totalCount) · 下一枚：\($0.title)" }
-                        ?? (rank.totalCount > 0 ? "全册点亮了" : "记下第一个她就翻开"),
-                    systemImage: "medal.fill",
-                    tint: Palette.goldDeep
-                )
-            }
-            .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-
-            NavigationLink {
-                InsightsScreen()
-            } label: {
-                EntryTile(
-                    title: "战绩统计",
-                    subtitle: insightsSubtitle,
-                    systemImage: "chart.bar.xaxis",
-                    tint: Palette.accent
-                )
-            }
-            .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-
-            Button {
-                showMap = true
-            } label: {
-                EntryTile(
-                    title: "猎场版图",
-                    subtitle: app.buckets.isEmpty
-                        ? "还没点亮地点"
-                        : "\(app.conquestLocationCount) 处战绩地 · 头号 \(app.topConquestBucket?.city.name ?? "—")",
-                    systemImage: "map.fill",
-                    tint: Palette.safe
-                )
-            }
-            .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-        }
-    }
-
-    private var insightsSubtitle: String {
-        let insights = app.insights
-        if insights.isEmpty { return "记几笔就有数了" }
-        var parts = ["上床率 \(rateText(insights.hookupRate))"]
-        if let part = insights.favoriteDayPart { parts.append("偏爱\(part.label)") }
-        return parts.joined(separator: " · ")
-    }
-
-    private func rateText(_ rate: Double?) -> String {
-        guard let rate else { return "—" }
-        return rate.formatted(.percent.precision(.fractionLength(0)))
-    }
-
     // MARK: - 安全小结
 
     private var safetyCard: some View {
         SectionCard("安全小结", systemImage: "checkmark.shield.fill", tint: Palette.safe) {
-            Text("不做评判，只帮你记住")
+            Text("本月")
         } content: {
             if app.stats.intimaciesThisMonth == 0 {
                 Label("上床的时候，顺手记一下有没有戴套。", systemImage: "shield.lefthalf.filled")
@@ -541,23 +355,4 @@ struct HomeScreen: View {
         }
     }
 
-    // MARK: - 最近记录
-
-    private var recordsCard: some View {
-        SectionCard("最近记录", systemImage: "clock.arrow.circlepath", tint: Palette.coral) {
-            ForEach(Array(recentEncounters.enumerated()), id: \.element.id) { index, encounter in
-                if app.companion(id: encounter.companionID) != nil {
-                    NavigationLink(value: encounter.companionID) {
-                        EncounterRow(encounter: encounter)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if index < recentEncounters.count - 1 {
-                        Divider().padding(.leading, 48)
-                    }
-                }
-            }
-        }
-    }
 }

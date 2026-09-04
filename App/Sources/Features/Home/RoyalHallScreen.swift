@@ -18,7 +18,8 @@ struct RoyalHallScreen: View {
                 entranceGrid
                 records
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -184,7 +185,7 @@ struct LegendHallScreen: View {
                     VStack(alignment: .leading, spacing: 7) {
                         HeroBadge(title: "战绩升阶", systemImage: "sparkles")
                         Text("传奇后宫")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
+                            .font(.system(.largeTitle, design: .serif).weight(.regular))
                         Text("一次初猎，三次回头，五次王牌，十次封为传奇。")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.74))
@@ -205,7 +206,8 @@ struct LegendHallScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -241,7 +243,7 @@ struct LegendHallScreen: View {
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 8)
+        .astraSurface(cornerRadius: 22)
     }
 }
 
@@ -255,7 +257,7 @@ struct TerritoryHallScreen: View {
                 HeroPanel(watermark: "map.fill") {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("领地版图")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
+                            .font(.system(.largeTitle, design: .serif).weight(.regular))
                         Text("每一次当地战绩都在筑城：1 初征 · 3 据点 · 8 主场 · 15 王城。")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.74))
@@ -272,7 +274,8 @@ struct TerritoryHallScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -311,7 +314,7 @@ struct TerritoryHallScreen: View {
             }
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .astraSurface(cornerRadius: 22)
     }
 }
 
@@ -341,7 +344,8 @@ struct CampaignChronicleScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())

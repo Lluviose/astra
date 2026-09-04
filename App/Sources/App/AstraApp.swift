@@ -3,7 +3,12 @@ import SwiftUI
 @main
 struct AstraApp: App {
 
-    @State private var appState = AppState()
+    @State private var appState: AppState = {
+        #if DEBUG
+        if let reviewState = UIReviewFixtures.makeStateIfRequested() { return reviewState }
+        #endif
+        return AppState()
+    }()
     @State private var lock = AppLock()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -12,6 +17,7 @@ struct AstraApp: App {
             RootView()
                 .environment(appState)
                 .environment(lock)
+                .modifier(UIReviewDisplayModifier())
                 .tint(Palette.accent)
                 .preferredColorScheme(appState.settings.appearance.colorScheme)
                 .onAppear {
@@ -83,15 +89,16 @@ struct RootView: View {
     @Environment(AppLock.self) private var lock
 
     @State private var selection: AppTab = .home
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             TabView(selection: tabSelection) {
-                Tab("猎场", systemImage: "flame.fill", value: AppTab.home) {
+                Tab("星图", systemImage: "sparkle", value: AppTab.home) {
                     HomeScreen()
                 }
 
-                Tab("名册", systemImage: "person.2.fill", value: AppTab.roster) {
+                Tab("名册", systemImage: "person.2", value: AppTab.roster) {
                     RosterScreen()
                 }
                 .badge(app.needsAttention.count)
@@ -100,18 +107,18 @@ struct RootView: View {
                     TimelineScreen()
                 }
 
-                Tab("成就册", systemImage: "crown.fill", value: AppTab.achievements) {
+                Tab("成就册", systemImage: "seal", value: AppTab.achievements) {
                     NavigationStack {
                         AchievementsScreen()
                     }
                 }
                 .badge(app.unseenUnlockCount)
 
-                Tab("设置", systemImage: "gearshape.fill", value: AppTab.settings) {
+                Tab("设置", systemImage: "slider.horizontal.3", value: AppTab.settings) {
                     SettingsScreen()
                 }
             }
-            .minimizableTabBar()
+            .toolbarBackground(Palette.surface, for: .tabBar)
 
             if !lock.isConfigured {
                 PrivacyCurtain()
@@ -154,8 +161,8 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.22), value: lock.isLocked)
         .animation(.easeInOut(duration: 0.12), value: lock.isObscured)
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.pendingUnlocks.isEmpty)
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.pendingRewards.isEmpty)
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82), value: app.pendingUnlocks.isEmpty)
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82), value: app.pendingRewards.isEmpty)
     }
 
     /// 切换 Tab 时给一记轻反馈
@@ -167,5 +174,24 @@ struct RootView: View {
                 selection = newValue
             }
         )
+    }
+}
+
+/// UI review overrides only exist in Debug; production follows system settings.
+private struct UIReviewDisplayModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+           ProcessInfo.processInfo.arguments.contains("--ui-large-type") {
+            content.dynamicTypeSize(.accessibility3)
+                .environment(\.accessibilityReduceMotion, true)
+                .environment(\.accessibilityReduceTransparency, true)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
     }
 }

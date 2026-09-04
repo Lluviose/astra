@@ -91,6 +91,20 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.lluviose.astra.tests
 
+  AstraUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Tests/AstraUITests
+    dependencies:
+      - target: Astra
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.lluviose.astra.uitests
+
+
 schemes:
   Astra:
     build:
@@ -110,3 +124,15 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  Astra-UIReview:
+    build:
+      targets:
+        Astra: all
+        AstraTests: [test]
+        AstraUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - AstraTests
+        - AstraUITests

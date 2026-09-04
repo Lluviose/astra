@@ -10,6 +10,7 @@ struct CompanionEditor: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showProfileDetails = false
     @State private var draft: Companion
     @State private var ageText: String
     @State private var showDeleteConfirm = false
@@ -48,20 +49,29 @@ struct CompanionEditor: View {
                 basicSection
                 statusSection
                 citySection
-                scoreSection
-                profilePhotosEditorSection
-                dossierPhotosEditorSection
-                privatePhotosEditorSection
-                intimacySection
                 tagsSection
-                optionalInfoSection
-                detailSection
+                Section {
+                    Toggle("完善档案", isOn: $showProfileDetails)
+                } footer: {
+                    Text("照片、评分和个人线索可稍后补充，收起时保留已填写内容。")
+                }
+                if showProfileDetails {
+                    profilePhotosEditorSection
+                    dossierPhotosEditorSection
+                    privatePhotosEditorSection
+                    scoreSection
+                    intimacySection
+                    optionalInfoSection
+                    detailSection
+                }
                 if !isNew {
                     dangerSection
                 }
             }
+            .astraListStyle()
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记下她" : "改档案")
+            .navigationTitle(isNew ? "新建档案" : "编辑档案")
+            .onAppear { showProfileDetails = !isNew }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
