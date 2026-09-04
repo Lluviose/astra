@@ -120,7 +120,7 @@ struct AvatarView: View {
     }
 
     private var shouldObscure: Bool {
-        !ignorePrivacyMask && !app.namesRevealed && photoID != nil
+        !ignorePrivacyMask && !app.namesRevealed
     }
 }
 

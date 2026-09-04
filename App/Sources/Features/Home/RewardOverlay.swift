@@ -5,6 +5,7 @@ struct RewardOverlay: View {
     let onDismiss: () -> Void
     let onOpenHall: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
 
     var body: some View {
@@ -36,18 +37,19 @@ struct RewardOverlay: View {
                     Button("去王者殿堂", action: onOpenHall)
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity).padding(.vertical, 12)
-                        .background(Palette.goldDeep.gradient, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(.white)
+                        .background(Palette.ink, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(Palette.background)
                 }
             }
             .padding(20)
             .astraSurface(cornerRadius: 28)
+            .frame(maxWidth: 480)
             .padding(.horizontal, 26)
-            .scaleEffect(appeared ? 1 : 0.90)
+            .scaleEffect(appeared || reduceMotion ? 1 : 0.90)
             .opacity(appeared ? 1 : 0)
         }
         .onAppear {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) { appeared = true }
+            withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82)) { appeared = true }
         }
     }
 }

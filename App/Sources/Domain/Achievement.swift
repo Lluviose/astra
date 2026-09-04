@@ -71,7 +71,13 @@ enum AchievementTier: String, CaseIterable, Hashable, Sendable {
         }
     }
 
-    var tint: Color { Color(red: red, green: green, blue: blue) }
+    var tint: Color {
+        switch self {
+        case .bronze: Palette.warning
+        case .silver: Palette.secondaryInk
+        case .gold: Palette.goldDeep
+        }
+    }
 }
 
 /// 根据已有档案现场计算的成就，不另存进度。
@@ -89,7 +95,13 @@ struct Achievement: Identifiable, Hashable, Sendable {
     var current: Int
     var goal: Int
 
-    var tint: Color { Color(red: red, green: green, blue: blue) }
+    var tint: Color {
+        switch category {
+        case .hunt, .album: Palette.accent
+        case .hookup, .play: Palette.coral
+        case .missed, .trail: Palette.safe
+        }
+    }
     var isUnlocked: Bool { current >= goal }
     var remaining: Int { max(0, goal - current) }
     var progress: Double {

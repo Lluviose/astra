@@ -31,11 +31,11 @@ enum CompanionRankingMetric: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
-        case .overall: Color(red: 0.96, green: 0.66, blue: 0.22)
+        case .overall: Palette.accent
         case .desire: Palette.coral
-        case .chemistry: Color(red: 0.80, green: 0.24, blue: 0.62)
+        case .chemistry: Palette.coral
         case .afterglow: Palette.accent
-        case .hookups: Color(red: 0.95, green: 0.48, blue: 0.28)
+        case .hookups: Palette.warning
         }
     }
 
@@ -141,7 +141,7 @@ struct RankingScreen: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("你的私密榜单")
                         .font(.title2.weight(.bold))
-                    Text("只按你留下的分数和次数在本机排，(ranked.count) 人上榜。")
+                    Text("只按你留下的分数和次数在本机排，\(ranked.count) 人上榜。")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.72))
                 }

@@ -171,9 +171,9 @@ struct SettingsScreen: View {
             }
 
             Toggle(isOn: app.settingsBinding(\.privacyScreenEnabled)) {
-                Label("后台模糊遮盖", systemImage: "eye.slash")
+                Label("后台隐私遮盖", systemImage: "eye.slash")
             }
-            .accessibilityHint("切到多任务界面时，用毛玻璃盖住内容")
+            .accessibilityHint("切到多任务界面时，完整遮住私密内容")
 
             Toggle(isOn: app.settingsBinding(\.maskNamesByDefault)) {
                 Label("默认隐藏代号", systemImage: "person.crop.circle.badge.questionmark")

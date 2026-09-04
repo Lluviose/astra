@@ -116,7 +116,7 @@ final class NativeRedesignUITests: XCTestCase {
         let search = app.searchFields.firstMatch
         search.tap()
         search.typeText("UI review saved memory")
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "UI review saved memory")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "UI review saved memory")).firstMatch.waitForExistence(timeout: 5))
         capture("16-record-saved")
     }
 

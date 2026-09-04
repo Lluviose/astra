@@ -7,11 +7,10 @@ struct MaskedName: View {
     var font: Font = .body.weight(.semibold)
 
     var body: some View {
-        Text(name)
+        Text(revealed ? name : "••••")
             .font(font)
             .lineLimit(1)
-            .blur(radius: revealed ? 0 : 5)
-            .animation(.easeInOut(duration: 0.2), value: revealed)
+            .privacySensitive()
             .accessibilityLabel(revealed ? name : "代号已隐藏")
     }
 }

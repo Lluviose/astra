@@ -40,7 +40,8 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath DerivedData -resultBundlePath UIReview.xcresult \
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO > ui-review.log 2>&1 || {
-              tail -100 ui-review.log
+              grep -n -E "error:|Testing failed|failed|TEST FAILED" ui-review.log | head -60 || true
+              tail -60 ui-review.log
               exit 1
             }
       - name: Export native screenshots

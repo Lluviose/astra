@@ -185,8 +185,6 @@ private struct UIReviewDisplayModifier: ViewModifier {
         if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
            ProcessInfo.processInfo.arguments.contains("--ui-large-type") {
             content.dynamicTypeSize(.accessibility3)
-                .environment(\.accessibilityReduceMotion, true)
-                .environment(\.accessibilityReduceTransparency, true)
         } else {
             content
         }

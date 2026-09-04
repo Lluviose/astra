@@ -182,7 +182,7 @@ struct InsightsScreen: View {
 
     private var climaxCard: some View {
         let peak = insights.topClimaxDetails.first?.count ?? 1
-        return SectionCard("怎么收的", systemImage: "drop.fill", tint: Color(red: 0.94, green: 0.22, blue: 0.46)) {
+        return SectionCard("怎么收的", systemImage: "drop.fill", tint: Palette.coral) {
             VStack(spacing: 10) {
                 ForEach(insights.topClimaxDetails) { item in
                     InsightBarRow(title: item.item.label, count: item.count, peak: peak, tint: item.item.tint)

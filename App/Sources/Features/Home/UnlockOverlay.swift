@@ -6,6 +6,7 @@ struct UnlockOverlay: View {
     var onKeep: () -> Void
     var onOpenBook: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
 
     var body: some View {
@@ -61,18 +62,19 @@ struct UnlockOverlay: View {
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Palette.coral.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .foregroundStyle(.white)
+                        .background(Palette.ink, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .foregroundStyle(Palette.background)
                 }
             }
             .padding(20)
             .astraSurface(cornerRadius: 28)
+            .frame(maxWidth: 480)
             .padding(.horizontal, 28)
-            .scaleEffect(appeared ? 1 : 0.9)
+            .scaleEffect(appeared || reduceMotion ? 1 : 0.9)
             .opacity(appeared ? 1 : 0)
         }
         .onAppear {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82)) {
                 appeared = true
             }
         }

@@ -474,7 +474,7 @@ struct CompanionDetailView: View {
         Section {
             let encounters = app.encounters(for: companion.id)
             if encounters.isEmpty {
-                Text("还没记过。上面两个按钮，点一下就行。")
+                Text("还没有记录。点「记录一次相处」，留下第一个片刻。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -530,95 +530,63 @@ struct EncounterRow: View {
         encounter.cityID.flatMap { app.location(id: $0)?.name }
     }
 
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(encounter.kind.tint.opacity(0.16))
-                    .frame(width: 36, height: 36)
-                Image(systemName: encounter.kind.symbolName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(encounter.kind.tint)
-            }
+    @Environment(\.dynamicTypeSize) private var typeSize
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: encounter.kind.symbolName)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(encounter.kind.tint)
+                .frame(width: 34, height: 38)
+                .background(encounter.kind.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 9) {
+                FlowLayout(spacing: 10, lineSpacing: 6) {
                     if showName, let companion {
-                        MaskedName(
-                            name: companion.displayName,
-                            revealed: app.namesRevealed,
-                            font: .subheadline.weight(.semibold)
-                        )
+                        MaskedName(name: companion.displayName, revealed: app.namesRevealed,
+                                   font: .subheadline.weight(.semibold))
                     }
                     Text(encounter.kind.label)
-                        .font(.subheadline)
-                        .foregroundStyle(showName ? .secondary : .primary)
-                    if !encounter.place.isEmpty {
-                        Text("· \(encounter.place)")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
+                        .font(.caption)
+                        .foregroundStyle(encounter.kind.tint)
                 }
-
-                HStack(spacing: 6) {
+                FlowLayout(spacing: 10, lineSpacing: 6) {
                     Text(showTime ? Format.clockTime(encounter.date) : Format.relativeDay(encounter.date))
-                    if let locationName {
-                        Label(locationName, systemImage: "mappin")
-                    }
+                        .monospacedDigit()
+                    if let locationName { Label(locationName, systemImage: "mappin") }
+                    if !encounter.place.isEmpty { Text(encounter.place) }
+                }
+                .font(.caption)
+                .foregroundStyle(Palette.secondaryInk)
+
+                if !encounter.note.isEmpty {
+                    Text(encounter.note)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.secondaryInk)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                }
+                FlowLayout(spacing: 10, lineSpacing: 6) {
                     if encounter.kind.isIntimate, encounter.protectionStatus.isRecorded {
                         Label(encounter.protectionStatus.compactLabel, systemImage: encounter.protectionStatus.symbolName)
                             .foregroundStyle(encounter.protectionStatus.tint)
                     }
-                    if !encounter.photoIDs.isEmpty {
-                        Label("\(encounter.photoIDs.count)", systemImage: "photo")
+                    if !encounter.photoIDs.isEmpty { Label("\(encounter.photoIDs.count)", systemImage: "photo") }
+                    if let cost = encounter.cost, cost > 0 { Text(Format.money(cost)) }
+                    if encounter.kind.isIntimate, !encounter.activitySummary.isEmpty { Text(encounter.activitySummary) }
+                    if encounter.kind.isIntimate, !encounter.climaxSummary.isEmpty { Text(encounter.climaxSummary) }
+                    if encounter.kind.isIntimate, encounter.boundaryFeeling.needsFollowUp {
+                        Label("边界待回看", systemImage: "exclamationmark.bubble")
+                            .foregroundStyle(Palette.warning)
                     }
-                    if let cost = encounter.cost, cost > 0 {
-                        Label(Format.money(cost), systemImage: "yensign.circle")
-                    }
-                    if !encounter.note.isEmpty {
-                        Text("· \(encounter.note)")
-                            .lineLimit(1)
+                    if encounter.hasPendingFollowUp {
+                        Label("待跟进", systemImage: "checklist").foregroundStyle(Palette.warning)
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-                if encounter.kind.isIntimate,
-                   !encounter.activities.isEmpty
-                    || !encounter.climaxDetails.isEmpty
-                    || encounter.boundaryFeeling.needsFollowUp
-                    || encounter.hasPendingFollowUp {
-                    HStack(spacing: 6) {
-                        if !encounter.activities.isEmpty {
-                            Text(encounter.activitySummary)
-                                .lineLimit(1)
-                        }
-                        if !encounter.climaxSummary.isEmpty {
-                            Text(encounter.climaxSummary)
-                                .lineLimit(1)
-                                .foregroundStyle(Palette.coral)
-                        }
-                        if encounter.boundaryFeeling.needsFollowUp {
-                            Label("边界待回看", systemImage: "exclamationmark.bubble.fill")
-                                .foregroundStyle(Palette.warning)
-                        }
-                        if encounter.hasPendingFollowUp {
-                            Label("待跟进", systemImage: "checklist")
-                                .foregroundStyle(Palette.warning)
-                        }
-                    }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                }
-
-                if encounter.kind.isMissed, encounter.hasPendingFollowUp {
-                    Label("待跟进", systemImage: "checklist")
-                        .font(.caption2)
-                        .foregroundStyle(Palette.warning)
-                }
+                .font(.caption)
+                .foregroundStyle(Palette.secondaryInk)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 10)
     }
 }

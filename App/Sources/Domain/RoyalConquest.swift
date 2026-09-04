@@ -31,13 +31,13 @@ enum RoyalBannerStyle: String, Codable, CaseIterable, Hashable, Sendable, Identi
         case .velvet: Palette.velvetGradient
         case .imperial:
             LinearGradient(
-                colors: [Color(red: 0.18, green: 0.08, blue: 0.22), Palette.goldDeep, Color(red: 0.52, green: 0.12, blue: 0.20)],
+                colors: [Palette.midnight, Palette.midnight.mix(with: Palette.gold, by: 0.28)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         case .midnight:
             LinearGradient(
-                colors: [Palette.midnight, Color(red: 0.15, green: 0.10, blue: 0.34), Color(red: 0.34, green: 0.10, blue: 0.40)],
+                colors: [Palette.midnight, Color(red: 0.14, green: 0.19, blue: 0.20)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

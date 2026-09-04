@@ -1,8 +1,14 @@
 # 星图 · Astra
 
-给成年人用的猎艳 / 约炮笔记。记下她是谁、每次上床或没上床、地点足迹、艳照和成就；不传开发者服务器，可随设备 iCloud Backup 恢复。iOS 原生 App，SwiftUI + MapKit，iOS 26 液态玻璃风格，Core Haptics 原生触感。
+给成年人用的猎艳 / 约炮笔记。记下她是谁、每次上床或没上床、地点足迹、艳照和成就；不传开发者服务器，可随设备 iCloud Backup 恢复。iOS 原生 App，SwiftUI + MapKit，墨色 / 暖白原生界面与 iOS 26 液态玻璃控件，Core Haptics 原生触感。
 
 > 想换名字？只改一处：`project.yml` 里的 `CFBundleDisplayName`（工程名、bundle id 也随之改掉即可），图标在 `Scripts/generate_icon.py`。
+
+## 原生界面改版
+
+新的星图采用暖白、墨色与香槟金，统一深浅模式、内容表面和原生导航。首页前置记录入口，名册支持搜索/筛选恢复，时间线按需展开趋势，档案与图鉴优先呈现人物和照片。新建记录与档案先填写基础信息，细节可稍后展开补充。
+
+设计规则、页面结构和模拟器验证方式见 [原生设计说明](Docs/native-design.md)。
 
 ## 功能
 
