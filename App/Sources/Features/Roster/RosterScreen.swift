@@ -5,26 +5,29 @@ struct RosterScreen: View {
 
     @Environment(AppState.self) private var app
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var flow = RecordingFlow()
     @State private var showFilter = false
+    @State private var isSearching = false
     @State private var pendingDeletion: Companion?
 
     var body: some View {
-        NavigationStack {
-            Group {
+        Group {
                 if app.companions.isEmpty {
                     EmptyStateView(
                         symbol: "person.2",
-                        title: "名册还是空的",
-                        message: "记下她是谁、到哪一步、约过几次、留过什么照片。",
-                        actionTitle: "加个人",
-                        action: { flow.beginAddingCompanion() }
+                        title: "从一个代号开始",
+                        message: "把重要的人和相处细节放在一起，资料可以慢慢补充。",
+                        actionTitle: "新建人物",
+                        action: { flow.beginAddingCompanion(app: app) }
                     )
                 } else {
                     rosterList
                 }
             }
+            .background(Palette.background)
             .navigationTitle("名册")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
@@ -68,19 +71,18 @@ struct RosterScreen: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        flow.beginAddingCompanion()
+                        flow.beginAddingCompanion(app: app)
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .accessibilityLabel("加进名册")
+                    .accessibilityLabel("新建人物")
                 }
             }
             .searchable(text: Binding(
                 get: { app.searchText },
                 set: { app.searchText = $0 }
-            ), prompt: "代号 / 标签 / 地点 / 尺码")
+            ), isPresented: $isSearching, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索代号、标签或地点")
             .autocorrectionDisabled()
-        }
         .recordingFlowSheets(flow)
         .sheet(isPresented: $showFilter) {
             RosterFilterSheet()
@@ -106,57 +108,42 @@ struct RosterScreen: View {
 
     private var rosterList: some View {
         List {
-            Section {
-                HStack(spacing: 12) {
-                    digestChip("\(app.stats.activeCount)", "在册")
-                    digestChip("\(app.conqueredCompanions.count)", "上过")
-                    digestChip("\(app.stats.repeatGirlCount)", "回头客")
-                    digestChip("\(app.stats.cityCount)", "地点")
+            if app.searchText.isEmpty, app.filter.isDefault, !isSearching {
+                Section {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("人物与关系")
+                            .font(.system(.title2, design: .serif))
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                        Text("\(app.stats.activeCount) 位人物")
+                            .font(.caption).foregroundStyle(Palette.secondaryInk)
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                .listRowBackground(Color.clear)
+            }
+            if app.filter.activeConditionCount > 0 || !app.searchText.isEmpty {
+                Section {
+                    HStack {
+                        Text("\(app.filter.activeConditionCount) 项筛选 · \(app.rosterSections().reduce(0) { $0 + $1.companions.count }) 位匹配")
+                            .font(.caption)
+                            .foregroundStyle(Palette.secondaryInk)
+                        Spacer()
+                        Button("重置", action: resetSearchAndFilter)
+                            .accessibilityIdentifier("roster-reset")
+                        .frame(minHeight: 44)
+                    }
+                }
             }
 
-            Section {
-                HStack(spacing: 12) {
-                    NavigationLink {
-                        HaremGalleryScreen()
-                    } label: {
-                        EntryTile(
-                            title: "后宫图鉴",
-                            subtitle: app.conqueredCompanions.isEmpty
-                                ? "上过的才会进来"
-                                : "\(app.conqueredCompanions.count) 个她 · 私藏 \(app.privateCollectionCount) 张",
-                            systemImage: "crown.fill",
-                            tint: Palette.coral
-                        )
-                    }
-                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-
-                    NavigationLink {
-                        RankingScreen()
-                    } label: {
-                        EntryTile(
-                            title: "私密排行",
-                            subtitle: rankingSubtitle,
-                            systemImage: "list.number",
-                            tint: Palette.goldDeep
-                        )
-                    }
-                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
-                }
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-
-            if !app.needsAttention.isEmpty {
+            if !app.needsAttention.isEmpty, app.searchText.isEmpty, app.filter.isDefault {
                 Section {
                     ForEach(app.needsAttention) { companion in
                         NavigationLink(value: companion.id) {
                             CompanionRow(companion: companion)
                         }
-                        .listRowBackground(Palette.accent.opacity(0.06))
+                        .listRowBackground(Palette.surface)
                     }
                 } header: {
                     HStack(spacing: 5) {
@@ -173,7 +160,9 @@ struct RosterScreen: View {
                     EmptyStateView(
                         symbol: "line.3.horizontal.decrease.circle",
                         title: "没有符合条件的人",
-                        message: "放宽筛选条件，或清空搜索词。"
+                        message: "试试其他代号，或清除当前条件。",
+                        actionTitle: "清除搜索与筛选",
+                        action: resetSearchAndFilter
                     )
                 }
             } else {
@@ -200,7 +189,7 @@ struct RosterScreen: View {
                                         systemImage: companion.isPinned ? "pin.slash" : "pin.fill"
                                     )
                                 }
-                                .tint(.orange)
+                                .tint(Palette.accent)
 
                                 Button(role: .destructive) {
                                     Haptics.shared.play(.warning)
@@ -225,29 +214,19 @@ struct RosterScreen: View {
             }
         }
         .listStyle(.insetGrouped)
+        .astraListStyle()
+        .scrollDismissesKeyboard(.interactively)
+        .listRowSpacing(2)
         .haptic(.selection, trigger: app.filter.activeConditionCount)
     }
 
-    private var rankingSubtitle: String {
-        let top = app.companions
-            .filter { !$0.isArchived && $0.overallScore > 0 }
-            .max { $0.overallScore < $1.overallScore }
-        guard let top else { return "打分后自动排榜" }
-        let name = app.namesRevealed ? top.displayName : "第一名"
-        return "\(name) 综合 \(top.overallScore) 分领先"
+    private func resetSearchAndFilter() {
+        app.searchText = ""
+        app.resetFilter()
+        isSearching = false
     }
 
-    private func digestChip(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.headline.weight(.bold))
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
+
 }
 
 // MARK: - 筛选面板
@@ -276,28 +255,19 @@ struct RosterFilterSheet: View {
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("到哪一步")
+                    Text("关系状态")
                 }
 
                 Section("其他条件") {
+                    Picker("综合评分", selection: app.filterBinding(\.minRating)) {
+                        Text("不限").tag(0)
+                        ForEach(1...5, id: \.self) { threshold in
+                            Text("\(threshold * 20) 分及以上").tag(threshold)
+                        }
+                    }
                     Toggle("只看到了联系周期的", isOn: app.filterBinding(\.needsContactOnly))
                     Toggle("包含已归档", isOn: app.filterBinding(\.includeArchived))
 
-                    HStack {
-                        Text("综合评分 ≥")
-                        Spacer()
-                        Stepper(
-                            app.filter.minRating == 0 ? "不限" : "\(app.filter.minRating * 20) 分",
-                            value: Binding(
-                                get: { app.filter.minRating },
-                                set: { newValue in
-                                    app.mutateFilter { $0.minRating = min(max(newValue, 0), 5) }
-                                }
-                            ),
-                            in: 0...5,
-                            step: 1
-                        )
-                    }
                 }
 
                 Section {

@@ -43,14 +43,10 @@ enum RelationStage: String, Codable, CaseIterable, Hashable, Sendable, Identifia
 
     var tint: Color {
         switch self {
-        case .new: Color(red: 0.52, green: 0.58, blue: 0.72)
-        case .chatting: Color(red: 0.95, green: 0.56, blue: 0.30)
-        case .flirting: Color(red: 0.93, green: 0.39, blue: 0.60)
-        case .prospect: Color(red: 0.96, green: 0.32, blue: 0.42)
-        case .casual: Color(red: 0.94, green: 0.22, blue: 0.46)
-        case .regular: Color(red: 0.67, green: 0.32, blue: 0.94)
-        case .paused: Color(red: 0.36, green: 0.62, blue: 0.86)
-        case .ended: Color(red: 0.55, green: 0.55, blue: 0.58)
+        case .new, .ended: Palette.secondaryInk
+        case .chatting, .prospect: Palette.accent
+        case .flirting, .casual: Palette.coral
+        case .regular, .paused: Palette.safe
         }
     }
 
@@ -117,12 +113,12 @@ enum CompanionScoreDimension: String, CaseIterable, Codable, Hashable, Sendable,
 
     var tint: Color {
         switch self {
-        case .looks: Color(red: 0.92, green: 0.38, blue: 0.68)
-        case .body: Color(red: 0.68, green: 0.34, blue: 0.94)
-        case .chemistry: Color(red: 0.96, green: 0.29, blue: 0.50)
-        case .initiative: Color(red: 0.96, green: 0.58, blue: 0.24)
-        case .desire: Color(red: 0.92, green: 0.18, blue: 0.35)
-        case .afterglow: Color(red: 0.48, green: 0.38, blue: 0.94)
+        case .looks: Palette.coral
+        case .body: Palette.accent
+        case .chemistry: Palette.coral
+        case .initiative: Palette.accent
+        case .desire: Palette.coral
+        case .afterglow: Palette.safe
         }
     }
 
@@ -526,8 +522,8 @@ enum EncounterKind: String, Codable, CaseIterable, Hashable, Sendable, Identifia
 
     var tint: Color {
         switch self {
-        case .intimacy: Color(red: 0.94, green: 0.28, blue: 0.52)
-        case .missed: Color(red: 0.35, green: 0.56, blue: 0.94)
+        case .intimacy: Palette.coral
+        case .missed: Palette.safe
         }
     }
 
@@ -581,9 +577,9 @@ enum ProtectionStatus: String, Codable, CaseIterable, Hashable, Sendable, Identi
     var tint: Color {
         switch self {
         case .notRecorded, .notApplicable: .secondary
-        case .protected: Color(red: 0.22, green: 0.70, blue: 0.56)
-        case .partial: Color(red: 0.95, green: 0.62, blue: 0.25)
-        case .noProtection: Color(red: 0.94, green: 0.42, blue: 0.34)
+        case .protected: Palette.safe
+        case .partial: Palette.warning
+        case .noProtection: Palette.coral
         }
     }
 
@@ -721,9 +717,9 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
 
     var tint: Color {
         switch self {
-        case .creampie, .swallow, .facial: Color(red: 0.94, green: 0.22, blue: 0.46)
-        case .sheCame, .sheMultiple: Color(red: 0.93, green: 0.39, blue: 0.60)
-        default: Color(red: 0.95, green: 0.56, blue: 0.30)
+        case .creampie, .swallow, .facial: Palette.coral
+        case .sheCame, .sheMultiple: Palette.coral
+        default: Palette.accent
         }
     }
 }

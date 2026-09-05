@@ -6,10 +6,12 @@ import UIKit
 struct CompanionEditor: View {
 
     let initial: Companion
+    var continuesToRecord = false
 
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showProfileDetails = false
     @State private var draft: Companion
     @State private var ageText: String
     @State private var showDeleteConfirm = false
@@ -35,7 +37,8 @@ struct CompanionEditor: View {
             || !pendingAlbumPhotoIDs.isEmpty
     }
 
-    init(companion: Companion) {
+    init(companion: Companion, continuesToRecord: Bool = false) {
+        self.continuesToRecord = continuesToRecord
         self.initial = companion
         _draft = State(initialValue: companion)
         _ageText = State(initialValue: companion.age.map(String.init) ?? "")
@@ -46,29 +49,39 @@ struct CompanionEditor: View {
         NavigationStack {
             Form {
                 basicSection
-                statusSection
-                citySection
-                scoreSection
-                profilePhotosEditorSection
-                dossierPhotosEditorSection
-                privatePhotosEditorSection
-                intimacySection
-                tagsSection
-                optionalInfoSection
-                detailSection
+                Section {
+                    Toggle("完善档案", isOn: $showProfileDetails)
+                } footer: {
+                    Text("只需一个代号就能开始。关系、地点、照片和其他资料可以稍后补充。")
+                }
+                if showProfileDetails {
+                    statusSection
+                    citySection
+                    tagsSection
+                    profilePhotosEditorSection
+                    dossierPhotosEditorSection
+                    privatePhotosEditorSection
+                    scoreSection
+                    intimacySection
+                    optionalInfoSection
+                    detailSection
+                }
                 if !isNew {
                     dangerSection
                 }
             }
+            .astraListStyle()
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记下她" : "改档案")
+            .navigationTitle(isNew ? "新建档案" : "编辑档案")
+            .onAppear { showProfileDetails = !isNew }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { cancel() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { save() }
+                    Button(continuesToRecord ? "保存并记录" : "保存") { save() }
+                        .accessibilityIdentifier("companion-save")
                         .fontWeight(.semibold)
                         .tint(Palette.accent)
                 }
@@ -147,13 +160,15 @@ struct CompanionEditor: View {
     // MARK: 基本信息
 
     private var basicSection: some View {
-        Section("她是谁") {
+        Section(continuesToRecord ? "这次和谁" : "人物代号") {
             HStack(spacing: 12) {
                 avatarPreview
-                TextField("怎么叫她（可留空）", text: $draft.name)
+                TextField("代号（可留空）", text: $draft.name)
+                    .accessibilityIdentifier("companion-name")
                     .textInputAutocapitalization(.never)
             }
 
+            if showProfileDetails {
             AvatarPickerRow(
                 hasPhoto: (draft.photoID != nil && !removeExistingPhoto) || pendingAvatarID != nil
             ) { importedID in
@@ -177,7 +192,8 @@ struct CompanionEditor: View {
                     .textInputAutocapitalization(.never)
             }
 
-            TextField("微信 / 备注名", text: $draft.contactNote)
+            TextField("联系方式备注", text: $draft.contactNote)
+            }
         }
     }
 
@@ -202,7 +218,7 @@ struct CompanionEditor: View {
         } header: {
             Text("人物照")
         } footer: {
-            Text("普通照片放这里，和艳照分开；不限数量，原图保存。")
+            Text("普通人物照片放这里，与私密相册分开；不限数量，原图保存。")
         }
     }
 
@@ -225,7 +241,7 @@ struct CompanionEditor: View {
                 }
             }
         } header: {
-            Text("艳照私藏")
+            Text("私密相册")
         } footer: {
             Text("只放私密照片；不限数量，原图保存，代号打码时会一起糊掉。")
         }
@@ -321,35 +337,14 @@ struct CompanionEditor: View {
     // MARK: 相处状态
 
     private var statusSection: some View {
-        Section("现在到哪一步") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(RelationStage.allCases, id: \.self) { stage in
-                        Button {
-                            draft.stage = stage
-                        } label: {
-                            HStack(spacing: 5) {
-                                if draft.stage == stage {
-                                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                                }
-                                Text(stage.label).font(.subheadline.weight(.semibold))
-                            }
-                            .foregroundStyle(draft.stage == stage ? .white : Color.primary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background {
-                                if draft.stage == stage {
-                                    Capsule().fill(stage.tint.gradient)
-                                }
-                            }
-                            .glassCapsule(interactive: true, shadowRadius: 8)
-                        }
-                        .buttonStyle(HapticButtonStyle(cue: .selection))
+        Section("相处状态") {
+            FlowLayout(spacing: 8, lineSpacing: 8) {
+                ForEach(RelationStage.allCases) { stage in
+                    GlassChip(title: stage.label, systemImage: stage.symbolName, isOn: draft.stage == stage) {
+                        draft.stage = stage
                     }
                 }
-                .padding(.vertical, 4)
-            }
-            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+            }.padding(.vertical, 4)
         }
     }
 

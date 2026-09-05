@@ -19,7 +19,7 @@ struct FlowLayout: Layout {
         var current = Row()
 
         for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
+            let size = subviews[index].sizeThatFits(maxWidth.isFinite ? ProposedViewSize(width: maxWidth, height: nil) : .unspecified)
             let projected = current.indices.isEmpty ? size.width : current.width + spacing + size.width
 
             if projected > maxWidth, !current.indices.isEmpty {
@@ -51,7 +51,7 @@ struct FlowLayout: Layout {
         for row in rows {
             var x = bounds.minX
             for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
+                let size = subviews[index].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
                 subviews[index].place(
                     at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
                     proposal: ProposedViewSize(size)
@@ -82,15 +82,6 @@ struct AvatarView: View {
         ZStack {
             Circle().fill(Palette.avatarGradient(paletteIndex))
 
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [.white.opacity(0.42), .white.opacity(0.0)],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-
             if let photo {
                 Image(uiImage: photo)
                     .resizable()
@@ -99,7 +90,7 @@ struct AvatarView: View {
                     .clipShape(Circle())
             } else {
                 Text(text)
-                    .font(.system(size: size * 0.40, weight: .semibold, design: .rounded))
+                    .font(.system(size: size * 0.40, weight: .semibold, design: .serif))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
                     .minimumScaleFactor(0.6)
@@ -120,7 +111,7 @@ struct AvatarView: View {
                     .padding(-max(2.4, size * 0.06))
             }
         }
-        .shadow(color: .black.opacity(0.14), radius: size * 0.12, y: size * 0.05)
+
         .blur(radius: shouldObscure ? 8 : 0)
         .accessibilityHidden(true)
         .task(id: photoID) {
@@ -129,7 +120,7 @@ struct AvatarView: View {
     }
 
     private var shouldObscure: Bool {
-        !ignorePrivacyMask && !app.namesRevealed && photoID != nil
+        !ignorePrivacyMask && !app.namesRevealed
     }
 }
 
@@ -179,17 +170,16 @@ struct GlassChip: View {
                 .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
         }
         .padding(.horizontal, compact ? 10 : 14)
-        .padding(.vertical, compact ? 6 : 9)
+        .frame(minHeight: 44)
 
         if isOn {
             base
-                .foregroundStyle(.white)
-                .background { Capsule(style: .continuous).fill(tint.gradient) }
-                .shadow(color: tint.opacity(0.35), radius: 8, y: 3)
+                .foregroundStyle(Palette.background)
+                .background { Capsule(style: .continuous).fill(Palette.ink) }
         } else {
             base
                 .foregroundStyle(Color.primary)
-                .glassCapsule(interactive: true, shadowRadius: 8)
+                .background(Palette.surfaceSecondary.opacity(0.65), in: Capsule())
         }
     }
 }
@@ -208,12 +198,12 @@ struct TagLabel: View {
             }
             Text(title).font(.caption.weight(.medium))
         }
-        .foregroundStyle(filled ? .white : tint)
+        .foregroundStyle(filled ? Palette.background : tint)
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
         .background {
             Capsule(style: .continuous)
-                .fill(filled ? AnyShapeStyle(tint.gradient) : AnyShapeStyle(tint.opacity(0.14)))
+                .fill(filled ? AnyShapeStyle(Palette.ink) : AnyShapeStyle(tint.opacity(0.09)))
         }
     }
 }
@@ -229,14 +219,14 @@ struct StageBadge: View {
 
 // MARK: - Hero 面板（首页 / 图鉴 / 成就册 / 排行共用）
 
-/// 渐变底 + 白字 + 右上角装饰的大卡。所有页面的「封面」都用它，保证同一套气质。
+/// Dark mineral covers with an engraved edge; the content carries the hierarchy.
 struct HeroPanel<Content: View>: View {
     var gradient: LinearGradient = Palette.heroGradient
-    var cornerRadius: CGFloat = 30
+    var cornerRadius: CGFloat = AstraLayout.cornerRadius
     var glow: Color = Palette.accentDeep
     /// 传 SF Symbol 名就画成右上角水印，不传就用一枚柔光圆。
     var watermark: String? = nil
-    var padding: CGFloat = 20
+    var padding: CGFloat = 24
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -245,29 +235,16 @@ struct HeroPanel<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(padding)
             .background(gradient, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(alignment: .topTrailing) { decoration }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(.white.opacity(0.14), lineWidth: 0.7)
+                    .allowsHitTesting(false)
+            }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: glow.opacity(0.28), radius: 22, y: 12)
+            .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
             .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder
-    private var decoration: some View {
-        if let watermark {
-            Image(systemName: watermark)
-                .font(.system(size: 94, weight: .black))
-                .foregroundStyle(.white.opacity(0.055))
-                .offset(x: 14, y: -12)
-                .allowsHitTesting(false)
-        } else {
-            Circle()
-                .fill(.white.opacity(0.09))
-                .frame(width: 170, height: 170)
-                .blur(radius: 2)
-                .offset(x: 70, y: -92)
-                .allowsHitTesting(false)
-        }
-    }
 }
 
 /// hero 里的一格数字
@@ -278,18 +255,18 @@ struct HeroMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(.title2.bold())
+                .font(.system(.title2, design: .serif).weight(.medium))
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.68))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.72))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(11)
-        .background(.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -300,10 +277,8 @@ struct HeroBadge: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.white.opacity(0.14), in: Capsule())
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.white.opacity(0.75))
     }
 }
 
@@ -331,14 +306,15 @@ struct HeroButtonLabel: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.subheadline.weight(.bold))
-            .lineLimit(1)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
             .minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .frame(minHeight: 48)
+            .padding(.horizontal, 8)
             .background {
                 if prominent {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Palette.gold)
                 } else {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(.white.opacity(0.13))
@@ -348,7 +324,7 @@ struct HeroButtonLabel: View {
                         }
                 }
             }
-            .foregroundStyle(prominent ? Palette.accentDeep : .white)
+            .foregroundStyle(prominent ? Palette.midnight : .white)
     }
 }
 
@@ -379,22 +355,32 @@ struct SectionCard<Content: View, Trailing: View>: View {
         self.content = content
     }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                Label(title, systemImage: systemImage)
-                    .font(.headline)
-                    .foregroundStyle(tint)
-                Spacer()
+        VStack(alignment: .leading, spacing: 14) {
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+            layout {
+                Label {
+                    Text(title).foregroundStyle(Palette.ink)
+                } icon: {
+                    Image(systemName: systemImage).foregroundStyle(tint)
+                }
+                .font(.subheadline.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
+                if !typeSize.isAccessibilitySize { Spacer() }
                 trailing()
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(Palette.secondaryInk)
             }
-            content()
+            VStack(alignment: .leading, spacing: 12) { content() }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18)
+                .astraSurface(cornerRadius: cornerRadius)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .glassCard(cornerRadius: cornerRadius, shadowRadius: 10)
     }
 }
 
@@ -425,31 +411,32 @@ struct EntryTile: View {
     var tint: Color = Palette.accent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(tint.opacity(0.14))
-                    .frame(width: 40, height: 40)
+        VStack(alignment: .leading, spacing: 22) {
+            HStack {
                 Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.title3.weight(.regular))
                     .foregroundStyle(tint)
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.caption)
+                    .foregroundStyle(Palette.secondaryInk)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.primary)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
                 Text(subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .font(.caption)
+                    .foregroundStyle(Palette.secondaryInk)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
+        .padding(18)
+        .astraSurface(cornerRadius: 20)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -483,8 +470,8 @@ struct InsightBarRow: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(tint.opacity(0.12))
                     Capsule()
-                        .fill(tint.gradient)
-                        .frame(width: max(6, proxy.size.width * CGFloat(count) / CGFloat(max(peak, 1))))
+                        .fill(tint)
+                        .frame(width: proxy.size.width * min(1, max(0, CGFloat(count) / CGFloat(max(peak, 1)))))
                 }
             }
             .frame(height: 7)
@@ -513,15 +500,15 @@ struct StatTile: View {
             .foregroundStyle(.secondary)
 
             Text(value)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(tint)
+                .font(.system(.title2, design: .serif).weight(.medium))
+                .foregroundStyle(Palette.ink)
                 .contentTransition(.numericText())
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .glassCard(cornerRadius: 20, shadowRadius: 10)
+        .astraSurface(cornerRadius: 20)
     }
 }
 
@@ -544,21 +531,23 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.system(size: 42, weight: .light))
-                .foregroundStyle(Palette.accent.opacity(0.55))
-            Text(title).font(.headline)
+                .font(.system(size: 32, weight: .ultraLight))
+                .foregroundStyle(Palette.accent)
+                .frame(width: 80, height: 80)
+                .background(Palette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 26))
+                .padding(.bottom, 8)
+                .accessibilityHidden(true)
+            Text(title).font(.system(.title2, design: .serif))
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             if let actionTitle, let action {
-                Button(actionTitle) {
-                    Haptics.shared.play(.lightTap)
-                    action()
+                Button(action: action) {
+                    PrimaryActionLabel(title: actionTitle)
                 }
-                .glassActionStyle(prominent: true)
-                .tint(Palette.accent)
+                .buttonStyle(HapticButtonStyle())
                 .padding(.top, 4)
             }
         }

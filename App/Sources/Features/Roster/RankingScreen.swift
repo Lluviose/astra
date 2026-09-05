@@ -31,11 +31,11 @@ enum CompanionRankingMetric: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
-        case .overall: Color(red: 0.96, green: 0.66, blue: 0.22)
+        case .overall: Palette.accent
         case .desire: Palette.coral
-        case .chemistry: Color(red: 0.80, green: 0.24, blue: 0.62)
+        case .chemistry: Palette.coral
         case .afterglow: Palette.accent
-        case .hookups: Color(red: 0.95, green: 0.48, blue: 0.28)
+        case .hookups: Palette.warning
         }
     }
 
@@ -64,6 +64,7 @@ enum CompanionRankingMetric: String, CaseIterable, Identifiable {
 struct RankingScreen: View {
     @Environment(AppState.self) private var app
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var metric: CompanionRankingMetric = .overall
     @State private var includeArchived = false
 
@@ -97,7 +98,8 @@ struct RankingScreen: View {
                     rankingList
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -132,14 +134,14 @@ struct RankingScreen: View {
                         .fill(.white.opacity(0.13))
                         .frame(width: 72, height: 72)
                     Image(systemName: "crown.fill")
-                        .font(.system(size: 30, weight: .bold))
+                        .font(.system(.largeTitle, design: .serif).weight(.regular))
                         .foregroundStyle(Palette.gold)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("你的私密榜单")
                         .font(.title2.weight(.bold))
-                    Text("只按你留下的分数和次数在本机排，(ranked.count) 人上榜。")
+                    Text("只按你留下的分数和次数在本机排，\(ranked.count) 人上榜。")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.72))
                 }
@@ -158,25 +160,11 @@ struct RankingScreen: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(CompanionRankingMetric.allCases) { item in
-                    Button {
+                    GlassChip(title: item.label, systemImage: item.symbolName, isOn: metric == item, compact: true) {
                         metric = item
-                    } label: {
-                        Label(item.label, systemImage: item.symbolName)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(metric == item ? .white : Color.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background {
-                                if metric == item {
-                                    Capsule().fill(item.tint.gradient)
-                                }
-                            }
-                            .glassCapsule(interactive: true, shadowRadius: 6)
                     }
-                    .buttonStyle(HapticButtonStyle(cue: .selection, scale: 0.96))
                 }
             }
-            .padding(.vertical, 2)
         }
     }
 
@@ -192,7 +180,8 @@ struct RankingScreen: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(alignment: .top, spacing: 10) {
+            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+            layout {
                 ForEach(Array(ranked.prefix(3).enumerated()), id: \.element.id) { index, companion in
                     NavigationLink(value: companion.id) {
                         podiumCard(companion, rank: index + 1)
@@ -230,7 +219,7 @@ struct RankingScreen: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, rank == 1 ? 16 : 13)
         .padding(.horizontal, 6)
-        .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+        .astraSurface(cornerRadius: 20)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
@@ -257,7 +246,7 @@ struct RankingScreen: View {
                 }
             }
             .padding(.horizontal, 14)
-            .glassCard(cornerRadius: 22, shadowRadius: 9)
+            .astraSurface(cornerRadius: 22)
         }
     }
 

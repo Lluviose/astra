@@ -3,175 +3,177 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
-enum RoyalRoute: Hashable {
-    case hall
-}
-
 struct RoyalHallScreen: View {
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var showsIdentity = false
+    @State private var showsMap = false
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
-                throne
-                customization
-                entranceGrid
+            LazyVStack(alignment: .leading, spacing: 28) {
+                PageMasthead(eyebrow: "THE HALL OF DISTINCTION", title: "属于你的殿堂", subtitle: "收藏有分量，战绩有来处。")
+                identityCard
                 records
+                destinations
             }
-            .padding(16)
-            .padding(.bottom, 28)
+            .padding(AstraLayout.gutter).padding(.bottom, 20).astraContentMargins()
         }
-        .background(Palette.screenGradient.ignoresSafeArea())
-        .navigationTitle("王者殿堂")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(Palette.background.ignoresSafeArea())
+        .navigationTitle("殿堂").navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) { SettingsButton() }
+            ToolbarItem(placement: .topBarTrailing) { PrivacyButton() }
+        }
+        .navigationDestination(for: UUID.self) { CompanionDetailView(companionID: $0) }
+        .sheet(isPresented: $showsIdentity) { identityEditor }
+        .sheet(isPresented: $showsMap) { MapScreen() }
+        .onAppear { app.dismissRewards(); app.markAllUnlockedSeen() }
     }
 
-    private var throne: some View {
-        HeroPanel(
-            gradient: app.royalProfile.bannerStyle.gradient,
-            glow: Palette.goldDeep,
-            watermark: "crown.fill"
-        ) {
-            VStack(alignment: .leading, spacing: 17) {
-                HStack {
-                    HeroBadge(title: "私人王国", systemImage: app.royalProfile.bannerStyle.symbolName)
-                    Spacer()
-                    Label("Lv.\(app.royalRank.level)", systemImage: "crown.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Palette.gold)
-                }
-
-                VStack(alignment: .leading, spacing: 5) {
+    private var identityCard: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("VOL. \(String(format: "%02d", app.royalRank.level))")
+                        .font(.caption.monospaced()).tracking(3).foregroundStyle(Palette.gold)
                     Text(app.selectedRoyalTitle)
-                        .font(.system(size: 31, weight: .black, design: .rounded))
-                    if let capital = app.capitalTerritory {
-                        Text("王都 · \(app.locationName(id: capital.locationID)) · \(capital.tier.label)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.78))
-                    } else {
-                        Text("册封一处战绩地为王都，让版图真正属于你。")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.74))
-                    }
+                        .font(.system(.largeTitle, design: .serif)).foregroundStyle(.white)
                 }
-
-                HStack(spacing: 8) {
-                    HeroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
-                    HeroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
-                    HeroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
-                    HeroMetric(value: "\(app.conquestLocationCount)", label: "领地")
+                Spacer(minLength: 8)
+                Image(systemName: "crown")
+                    .font(.system(size: 34, weight: .ultraLight)).foregroundStyle(Palette.gold)
+                    .frame(width: 64, height: 64)
+                    .overlay { Circle().stroke(Palette.gold.opacity(0.45), lineWidth: 0.7) }
+            }
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 16))
+            layout {
+                QuietMetric(value: "\(app.conqueredCompanions.count)", label: "后宫人物", onDark: true)
+                QuietMetric(value: "\(app.stats.totalIntimacyCount)", label: "亲密战绩", onDark: true)
+                QuietMetric(value: "\(app.conquestLocationCount)", label: "领地", onDark: true)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                ProgressView(value: app.royalRank.progressInBand).tint(Palette.gold)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(app.royalRank.nextRankText).font(.caption).foregroundStyle(.white.opacity(0.72))
+                    Spacer()
+                    Button("定制身份") { showsIdentity = true }
+                        .font(.caption.weight(.semibold)).foregroundStyle(Palette.gold)
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("customize-hall")
                 }
-
-                if let best = app.royalDashboard.bestMonth {
-                    Label("巅峰月份 \(monthText(best.periodStart)) · \(best.hookupCount) 次", systemImage: "trophy.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Palette.gold)
-                }
+            }
+            if let capital = app.capitalTerritory {
+                Label("王都 · \(app.locationName(id: capital.locationID))", systemImage: "flag")
+                    .font(.caption).foregroundStyle(Palette.gold)
             }
         }
-    }
-
-    private var customization: some View {
-        SectionCard("王者身份", systemImage: "person.crop.circle.badge.checkmark", tint: Palette.goldDeep) {
-            VStack(spacing: 12) {
-                Picker("当前封号", selection: app.royalProfileBinding(\.selectedTitleIndex)) {
-                    Text("当前最高 · \(app.royalRank.title)").tag(Int?.none)
-                    ForEach(0...app.royalRank.index, id: \.self) { index in
-                        Text(RoyalRank.titles[index]).tag(Optional(index))
-                    }
-                }
-
-                Picker("王旗", selection: app.royalProfileBinding(\.bannerStyle)) {
-                    ForEach(RoyalBannerStyle.allCases) { style in
-                        Label(style.label, systemImage: style.symbolName).tag(style)
-                    }
-                }
-
-                Picker("王都", selection: app.royalProfileBinding(\.capitalLocationID)) {
-                    Text("尚未册封").tag(String?.none)
-                    ForEach(app.royalDashboard.territories) { territory in
-                        Text("\(app.locationName(id: territory.locationID)) · \(territory.tier.label)")
-                            .tag(Optional(territory.locationID))
-                    }
-                }
-                .disabled(app.royalDashboard.territories.isEmpty)
-            }
-        }
-    }
-
-    private var entranceGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            NavigationLink { LegendHallScreen() } label: {
-                EntryTile(
-                    title: "传奇后宫",
-                    subtitle: "\(app.royalDashboard.legends.count) 张卡 · 传奇 \(legendaryCount)",
-                    systemImage: "crown.fill",
-                    tint: Palette.coral
-                )
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink { TerritoryHallScreen() } label: {
-                EntryTile(
-                    title: "领地版图",
-                    subtitle: "\(app.royalDashboard.territories.count) 处 · 王城 \(royalCityCount)",
-                    systemImage: "flag.fill",
-                    tint: Palette.accent
-                )
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink { CampaignChronicleScreen() } label: {
-                EntryTile(
-                    title: "征服编年史",
-                    subtitle: "\(app.royalDashboard.monthlyCampaigns.count) 月战报 · \(app.royalDashboard.personalRecords.count) 项纪录",
-                    systemImage: "book.closed.fill",
-                    tint: Palette.goldDeep
-                )
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink { RoyalShareScreen() } label: {
-                EntryTile(
-                    title: "匿名战绩卡",
-                    subtitle: "只晒封号和数字，不带任何人或地点",
-                    systemImage: "square.and.arrow.up.fill",
-                    tint: Palette.safe
-                )
-            }
-            .buttonStyle(.plain)
-        }
+        .padding(26)
+        .background(app.royalProfile.bannerStyle.gradient, in: RoundedRectangle(cornerRadius: 26))
+        .overlay { RoundedRectangle(cornerRadius: 26).strokeBorder(Palette.gold.opacity(0.4), lineWidth: 0.6) }
     }
 
     @ViewBuilder
     private var records: some View {
         if !app.royalDashboard.personalRecords.isEmpty {
-            SectionCard("王者纪录", systemImage: "trophy.fill", tint: Palette.goldDeep) {
-                VStack(spacing: 0) {
-                    ForEach(Array(app.royalDashboard.personalRecords.enumerated()), id: \.element.id) { index, record in
-                        if index > 0 { Divider().padding(.leading, 36) }
-                        HStack(spacing: 11) {
-                            Image(systemName: record.metric.symbolName)
-                                .foregroundStyle(Palette.goldDeep)
-                                .frame(width: 24)
-                            Text(record.metric.label)
-                                .font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Text("\(record.value)")
-                                .font(.headline.monospacedDigit())
-                            Text(recordDateText(record))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("个人巅峰").font(.headline)
+                    Spacer()
+                    NavigationLink { CampaignChronicleScreen() } label: {
+                        Label("编年史", systemImage: "arrow.up.right").font(.caption)
+                    }
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 260 : 150), spacing: 14)], spacing: 14) {
+                    ForEach(app.royalDashboard.personalRecords.prefix(4)) { record in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Image(systemName: record.metric.symbolName).foregroundStyle(Palette.accent)
+                            Text("\(record.value)").font(.system(.largeTitle, design: .serif)).foregroundStyle(Palette.ink)
+                            Text(record.metric.label).font(.subheadline)
+                            Text(recordDateText(record)).font(.caption).foregroundStyle(Palette.secondaryInk)
                         }
-                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(20).astraSurface(cornerRadius: 20)
                     }
                 }
             }
         }
     }
 
-    private var legendaryCount: Int { app.royalDashboard.legends.filter { $0.tier == .legendary }.count }
-    private var royalCityCount: Int { app.royalDashboard.territories.filter { $0.tier == .royalCity }.count }
+    private var destinations: some View {
+        VStack(spacing: 0) {
+            NavigationLink { AchievementsScreen() } label: {
+                hallRow("勋章陈列", detail: "\(app.unlockedAchievementCount) / \(app.achievements.count) 枚已点亮", symbol: "seal")
+            }
+            .accessibilityIdentifier("hall-achievements")
+            Divider().padding(.leading, 64)
+            NavigationLink { LegendHallScreen() } label: {
+                hallRow("传奇后宫", detail: "初猎、回头、王牌与传奇", symbol: "rectangle.portrait.on.rectangle.portrait")
+            }
+            Divider().padding(.leading, 64)
+            Button { showsMap = true } label: {
+                hallRow("领地版图", detail: "\(app.conquestLocationCount) 处留下战绩的地点", symbol: "map")
+            }
+            .accessibilityIdentifier("hall-map")
+            Divider().padding(.leading, 64)
+            NavigationLink { RankingScreen() } label: {
+                hallRow("私密排行", detail: "欲望、默契与回味，由你评定", symbol: "list.number")
+            }
+            .accessibilityIdentifier("hall-ranking")
+            Divider().padding(.leading, 64)
+            NavigationLink { ReviewScreen() } label: {
+                hallRow("战绩分析", detail: "按时间回看频率、照片与地点", symbol: "chart.xyaxis.line")
+            }
+            .accessibilityIdentifier("hall-review")
+            Divider().padding(.leading, 64)
+            NavigationLink { RoyalShareScreen() } label: {
+                hallRow("专属战绩卡", detail: "封号与数字，生成一张收藏", symbol: "rectangle.portrait")
+            }
+        }
+        .buttonStyle(.plain).astraSurface()
+    }
+
+    private func hallRow(_ title: String, detail: String, symbol: String) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: symbol).font(.title3).foregroundStyle(Palette.accent).frame(width: 28)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.ink)
+                Text(detail).font(.caption).foregroundStyle(Palette.secondaryInk)
+            }
+            Spacer()
+            ChevronHint()
+        }
+        .padding(20).frame(minHeight: 78).contentShape(Rectangle())
+    }
+
+    private var identityEditor: some View {
+        NavigationStack {
+            Form {
+                Section("封号") {
+                    Picker("当前封号", selection: app.royalProfileBinding(\.selectedTitleIndex)) {
+                        Text("当前最高 · \(app.royalRank.title)").tag(Int?.none)
+                        ForEach(0...app.royalRank.index, id: \.self) { Text(RoyalRank.titles[$0]).tag(Optional($0)) }
+                    }
+                }
+                Section("陈列风格") {
+                    Picker("风格", selection: app.royalProfileBinding(\.bannerStyle)) {
+                        ForEach(RoyalBannerStyle.allCases) { Text($0.label).tag($0) }
+                    }.pickerStyle(.inline)
+                }
+                Section("王都") {
+                    Picker("王都", selection: app.royalProfileBinding(\.capitalLocationID)) {
+                        Text("尚未册封").tag(String?.none)
+                        ForEach(app.royalDashboard.territories) { territory in
+                            Text("\(app.locationName(id: territory.locationID)) · \(territory.tier.label)").tag(Optional(territory.locationID))
+                        }
+                    }
+                }
+            }
+            .astraListStyle().navigationTitle("定制身份").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showsIdentity = false } } }
+        }
+    }
 }
 
 struct LegendHallScreen: View {
@@ -184,7 +186,7 @@ struct LegendHallScreen: View {
                     VStack(alignment: .leading, spacing: 7) {
                         HeroBadge(title: "战绩升阶", systemImage: "sparkles")
                         Text("传奇后宫")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
+                            .font(.system(.largeTitle, design: .serif).weight(.regular))
                         Text("一次初猎，三次回头，五次王牌，十次封为传奇。")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.74))
@@ -205,7 +207,8 @@ struct LegendHallScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -241,7 +244,7 @@ struct LegendHallScreen: View {
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 8)
+        .astraSurface(cornerRadius: 22)
     }
 }
 
@@ -255,7 +258,7 @@ struct TerritoryHallScreen: View {
                 HeroPanel(watermark: "map.fill") {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("领地版图")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
+                            .font(.system(.largeTitle, design: .serif).weight(.regular))
                         Text("每一次当地战绩都在筑城：1 初征 · 3 据点 · 8 主场 · 15 王城。")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.74))
@@ -272,7 +275,8 @@ struct TerritoryHallScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -311,7 +315,7 @@ struct TerritoryHallScreen: View {
             }
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .astraSurface(cornerRadius: 22)
     }
 }
 
@@ -341,7 +345,8 @@ struct CampaignChronicleScreen: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -603,6 +608,10 @@ private func periodText(_ campaign: CampaignSummary) -> String {
 private func recordDateText(_ record: PersonalRecord) -> String {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "zh_CN")
-    formatter.dateFormat = record.metric == .singleDay ? "yyyy/M/d" : "yyyy/M"
+    switch record.metric {
+    case .singleDay: formatter.dateFormat = "yyyy/M/d"
+    case .yearHookups: formatter.dateFormat = "yyyy 年"
+    case .monthHookups, .monthNewConquests, .monthNewTerritories: formatter.dateFormat = "yyyy/M"
+    }
     return formatter.string(from: record.achievedAt)
 }

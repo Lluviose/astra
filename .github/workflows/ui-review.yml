@@ -1,0 +1,68 @@
+name: Native UI review
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ui-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-review:
+    name: iOS review (${{ matrix.device }})
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone, iPad]
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          XCODE_APP=$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -1)
+          if [ -n "$XCODE_APP" ]; then sudo xcode-select -s "$XCODE_APP"; fi
+          xcodebuild -version
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Run unit and UI tests
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID=$(python3 - <<'PY'
+          import json, subprocess
+          devices = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
+          phones = [(runtime, device) for runtime, items in devices["devices"].items() if "iOS" in runtime for device in items if device["name"].startswith("${{ matrix.device }}")]
+          phones.sort(key=lambda item: (item[0], item[1]["name"]), reverse=True)
+          print(phones[0][1]["udid"])
+          PY
+          )
+          REVIEW_ARGS=(-project Astra.xcodeproj -scheme Astra-UIReview)
+          if [ "${{ matrix.device }}" = "iPad" ]; then
+            REVIEW_ARGS+=("-only-testing:AstraUITests/NativeRedesignUITests/testLightAppearanceAndDestinations")
+          fi
+          xcodebuild test "${REVIEW_ARGS[@]}" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath DerivedData -resultBundlePath UIReview.xcresult \
+            -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO > ui-review.log 2>&1 || {
+              grep -n -E "error:|Testing failed|failed|TEST FAILED" ui-review.log | head -60 || true
+              tail -60 ui-review.log
+              exit 1
+            }
+      - name: Export native screenshots
+        if: always()
+        run: |
+          if [ -d UIReview.xcresult ]; then
+            xcrun xcresulttool export attachments --path UIReview.xcresult --output-path ui-screenshots || true
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: astra-native-ui-review-${{ matrix.device }}
+          path: |
+            ui-screenshots
+            ui-review.log
+          retention-days: 14

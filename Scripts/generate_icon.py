@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""星图 App 图标生成器 —— 私密、抽象的双轨相遇符号。
+"""星图 App 图标生成器 —— 与原生界面共用的墨色、香槟金轨道符号。
 
 用法（在 Astra 目录下）：
     python Scripts/generate_icon.py
@@ -42,9 +42,9 @@ def make_canvas(size):
 def put_pixel(buf, size, x, y, r, g, b, a=255):
     if 0 <= x < size and 0 <= y < size:
         i = (y * size + x) * 4
-        buf[i] = min(255, buf[i] + int(r * a / 255))
-        buf[i + 1] = min(255, buf[i + 1] + int(g * a / 255))
-        buf[i + 2] = min(255, buf[i + 2] + int(b * a / 255))
+        # Conventional source-over blending preserves the mineral background.
+        for offset, channel in enumerate((r, g, b)):
+            buf[i + offset] = round((buf[i + offset] * (255 - a) + channel * a) / 255)
 
 # ---------------------------------------------------------------- 画布转 8 位缓冲
 
@@ -124,57 +124,39 @@ def rng(seed):
 
 def render_icon(size):
     buf = make_canvas(size)
-
-    # 夜色渐变：左上午夜紫 → 右下酒红
     for y in range(size):
-        t = y / size
         for x in range(size):
-            tt = (t + x / size) / 2
-            r = int(12 + 24 * tt)
-            g = int(8 + 2 * tt)
-            b = int(34 + 12 * (1 - tt))
+            t = (x + y) / (2 * size)
             i = (y * size + x) * 4
-            buf[i] = r
-            buf[i + 1] = g
-            buf[i + 2] = b
-            buf[i + 3] = 255
+            buf[i:i + 4] = bytes((int(20 + 16 * t), int(31 + 14 * t), int(29 + 12 * t), 255))
 
-    # 星点
-    gen = rng(0xA57A)
-    for _ in range(76):
-        x = next(gen) * size
-        y = next(gen) * size
-        radius = 0.7 + next(gen) * 1.8
-        alpha = int(45 + next(gen) * 120)
-        fill_disc(buf, size, x, y, radius, (255, 255, 255, alpha))
-
-    # 交会光晕：紫与莓红各自成团，但在中心叠加。
-    glow_r = size * 0.42
-    fill_disc(buf, size, size * 0.39, size * 0.56, glow_r, (121, 56, 236, 34))
-    fill_disc(buf, size, size * 0.66, size * 0.43, glow_r, (245, 64, 126, 34))
-
-    # 两条轨道与两个相遇点。符号保持抽象，桌面上不暴露 App 用途。
     cx, cy = size * 0.5, size * 0.5
-    outer_r = size * 0.245
-    inner_r = size * 0.138
-    fill_ring(buf, size, cx, cy, outer_r, size * 0.047, (255, 255, 255, 226))
-    fill_ring(buf, size, cx, cy, inner_r, size * 0.024, (202, 158, 255, 178))
+    brass = (221, 195, 154, 255)
+    radius = size * 0.275
+    fill_ring(buf, size, cx, cy, radius, size * 0.012, brass)
 
-    angle_a = -0.66
-    angle_b = math.pi - 0.66
-    ax = cx + math.cos(angle_a) * outer_r
-    ay = cy + math.sin(angle_a) * outer_r
-    bx = cx + math.cos(angle_b) * outer_r
-    by = cy + math.sin(angle_b) * outer_r
+    # A tilted orbit matches AstraMark, without bitmap assets or external fonts.
+    angle = math.radians(35)
+    cs, sn = math.cos(angle), math.sin(angle)
+    rx, ry = size * 0.135, radius
+    thickness = size * 0.008
+    for y in range(int(size * 0.2), int(size * 0.8)):
+        for x in range(int(size * 0.2), int(size * 0.8)):
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            u, v = dx * cs + dy * sn, -dx * sn + dy * cs
+            f = (u / rx) ** 2 + (v / ry) ** 2 - 1
+            gradient = math.hypot(2 * u / rx ** 2, 2 * v / ry ** 2)
+            distance = abs(f) / gradient if gradient else size
+            cover = max(0, min(1, thickness / 2 + 0.5 - distance))
+            if cover: put_pixel(buf, size, x, y, *brass[:3], round(190 * cover))
 
-    fill_disc(buf, size, ax, ay, size * 0.065, (247, 68, 127, 255))
-    fill_disc(buf, size, ax - size * 0.015, ay - size * 0.020, size * 0.021, (255, 221, 232, 150))
-    fill_disc(buf, size, bx, by, size * 0.050, (151, 88, 246, 255))
-    fill_disc(buf, size, bx - size * 0.011, by - size * 0.015, size * 0.016, (232, 215, 255, 140))
-
-    # 中心的低调实心点让图标在小尺寸下仍有清晰焦点。
-    fill_disc(buf, size, cx, cy, size * 0.042, (255, 255, 255, 220))
-
+    # Four-point astroid, a precise geometric counterpart to the native sparkle.
+    extent = size * 0.126
+    for y in range(int(cy - extent - 1), int(cy + extent + 2)):
+        for x in range(int(cx - extent - 1), int(cx + extent + 2)):
+            value = abs((x + 0.5 - cx) / extent) ** (2 / 3) + abs((y + 0.5 - cy) / extent) ** (2 / 3)
+            cover = max(0, min(1, (1 - value) * extent * 0.5 + 0.5))
+            if cover: put_pixel(buf, size, x, y, *brass[:3], round(255 * cover))
     return to_rgba(buf, size)
 
 # ---------------------------------------------------------------- 入口

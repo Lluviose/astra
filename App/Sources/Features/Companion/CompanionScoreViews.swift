@@ -17,7 +17,7 @@ struct ScoreRing: View {
                 .trim(from: 0, to: progress)
                 .stroke(
                     LinearGradient(
-                        colors: [Color.white, Color(red: 1, green: 0.58, blue: 0.72)],
+                        colors: [Palette.gold, .white],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -58,10 +58,10 @@ struct CompanionScoreBadge: View {
             }
         }
         .font(compact ? .caption2.weight(.bold) : .caption.weight(.bold))
-        .foregroundStyle(.white)
+        .foregroundStyle(Palette.ink)
         .padding(.horizontal, compact ? 7 : 9)
         .padding(.vertical, compact ? 4 : 5)
-        .background((score > 0 ? Palette.coral : Color.secondary).gradient, in: Capsule())
+        .background(Palette.surfaceSecondary, in: Capsule())
         .accessibilityLabel(score > 0 ? "综合评分 \(score) 分" : "尚未评分")
     }
 }
@@ -102,10 +102,10 @@ struct ScorecardEditorLink: View {
 struct CompanionScoreSummaryView: View {
     let scorecard: CompanionScorecard
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 240 : 130), spacing: 12)]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -195,7 +195,8 @@ struct CompanionScoreEditor: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
             }
-            .padding(16)
+            .padding(AstraLayout.gutter)
+            .astraContentMargins()
             .padding(.bottom, 24)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -233,7 +234,7 @@ struct CompanionScoreEditor: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .astraSurface(cornerRadius: 22)
     }
 
     private func presetButton(_ title: String, symbol: String, value: ScorePreset) -> some View {
@@ -246,10 +247,10 @@ struct CompanionScoreEditor: View {
                 Text(title)
                     .font(.caption.weight(.bold))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(value.tint)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(value.tint.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(value.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(HapticButtonStyle(cue: .mediumTap, scale: 0.95))
     }
@@ -283,6 +284,8 @@ private struct ScoreDimensionControl: View {
             )
             .tint(dimension.tint)
             .haptic(.selection, trigger: value)
+            .accessibilityLabel(dimension.label)
+            .accessibilityValue(value == 0 ? "未评分" : "\(value) 分，共 10 分")
 
             HStack {
                 Text("留白")
@@ -295,7 +298,7 @@ private struct ScoreDimensionControl: View {
             .foregroundStyle(.secondary)
         }
         .padding(16)
-        .glassCard(cornerRadius: 20, shadowRadius: 7)
+        .astraSurface(cornerRadius: 20)
     }
 
     private var feelingText: String {
@@ -318,7 +321,7 @@ private enum ScorePreset {
         switch self {
         case .feeling: Palette.accent
         case .heated: Palette.coral
-        case .obsessed: Color(red: 0.80, green: 0.20, blue: 0.42)
+        case .obsessed: Palette.safe
         }
     }
 

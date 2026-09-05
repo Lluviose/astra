@@ -1,199 +1,56 @@
 import SwiftUI
 
-/// 点击地图气泡后弹出的地点面板。
+/// A place is an index into memories, without territory levels or rankings.
 struct CityDetailSheet: View {
-
     let bucket: CityBucket
     var onAdd: (Companion) -> Void
-
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
-
-    private var stageCounts: [(RelationStage, Int)] {
-        var counts: [RelationStage: Int] = [:]
-        for companion in bucket.companions { counts[companion.stage, default: 0] += 1 }
-        return RelationStage.allCases
-            .sorted { $0.weight > $1.weight }
-            .compactMap { stage in counts[stage].map { (stage, $0) } }
-    }
-
-    private var hookupCompanionIDs: Set<UUID> {
-        Set(bucket.encounters.filter { $0.kind.isIntimate }.map(\.companionID))
-    }
-
-    private var hookupCompanions: [Companion] {
-        bucket.companions
-            .filter { hookupCompanionIDs.contains($0.id) }
-            .sorted { app.hookupCount(for: $0.id) > app.hookupCount(for: $1.id) }
-    }
-
-    private var otherCompanions: [Companion] {
-        bucket.companions.filter { !hookupCompanionIDs.contains($0.id) }
-    }
-
-    private var conquestRank: Int? {
-        app.conquestBuckets.firstIndex { $0.id == bucket.id }.map { $0 + 1 }
-    }
-
-    private var placeWord: String { bucket.city.isCountry ? "这个国家" : "这座城" }
-    private var territoryTier: TerritoryTier { .resolve(hookupCount: bucket.hookupCount) }
+    @State private var editing: Encounter?
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    header
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
-
-                if !hookupCompanions.isEmpty {
-                    Section("\(placeWord)拿下的") {
-                        ForEach(hookupCompanions) { companion in
-                            NavigationLink(value: companion.id) {
-                                CompanionRow(companion: companion, showCity: false)
-                            }
-                        }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(bucket.city.name).font(.system(.title, design: .serif))
+                        Text("\(bucket.recordCount) 篇记录 · \(bucket.count) 位人物")
+                            .font(.subheadline).foregroundStyle(Palette.secondaryInk)
                     }
+                    .padding(.vertical, 12).listRowBackground(Color.clear)
                 }
-
                 if !bucket.encounters.isEmpty {
-                    Section("\(placeWord)的战绩时间线") {
-                        ForEach(Array(bucket.encounters.prefix(12))) { encounter in
-                            if app.companion(id: encounter.companionID) != nil {
-                                NavigationLink(value: encounter.companionID) {
-                                    EncounterRow(encounter: encounter)
-                                }
-                            }
+                    Section("在这里的片刻") {
+                        ForEach(bucket.encounters) { record in
+                            Button { editing = record } label: { EncounterRow(encounter: record) }
+                                .buttonStyle(.plain)
                         }
                     }
                 }
-
-                if !otherCompanions.isEmpty {
-                    Section("还在名册里") {
-                        ForEach(otherCompanions) { companion in
-                            NavigationLink(value: companion.id) {
-                                CompanionRow(companion: companion, showCity: false)
-                            }
+                if !bucket.companions.isEmpty {
+                    Section("相关人物") {
+                        ForEach(bucket.companions) { person in
+                            NavigationLink(value: person.id) { CompanionRow(companion: person, showCity: false) }
                         }
                     }
                 }
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle(bucket.city.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: UUID.self) { id in
-                CompanionDetailView(companionID: id)
-            }
+            .listStyle(.insetGrouped).astraListStyle()
+            .navigationTitle("地点记录").navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: UUID.self) { CompanionDetailView(companionID: $0) }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("完成") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Haptics.shared.play(.mediumTap)
                         onAdd(app.makeDraftCompanion(cityID: bucket.city.id))
                         dismiss()
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("在\(bucket.city.name)添加")
+                    } label: { Image(systemName: "person.badge.plus") }
+                    .accessibilityLabel("在这个地点新建人物")
                 }
             }
         }
-        .presentationDetents([.height(420), .large])
-        .presentationDragIndicator(.visible)
-        .presentationBackgroundInteraction(.enabled(upThrough: .height(420)))
-        .onAppear { Haptics.shared.play(.sheetRise) }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(bucket.mapTint)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(
-                        bucket.city.isCountry
-                            ? "\(bucket.city.province) · 只记到国家"
-                            : "\(bucket.city.shortProvince) · \(bucket.city.tier.label)"
-                    )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(
-                        bucket.hookupCount > 0
-                            ? "\(bucket.hookupCompanionCount) 个她 · 上床 \(bucket.hookupCount) 次"
-                            : "\(bucket.count) 个人 · 还没有战绩"
-                    )
-                        .font(.title3.weight(.bold))
-                }
-
-                Spacer()
-
-                if let conquestRank {
-                    Label("#\(conquestRank)", systemImage: conquestRank == 1 ? "crown.fill" : "medal.fill")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(conquestRank == 1 ? Palette.goldDeep : Palette.coral)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(bucket.mapTint.opacity(0.12), in: Capsule())
-                }
-            }
-
-            if bucket.hookupCount > 0 {
-                HStack(spacing: 8) {
-                    TagLabel(
-                        title: territoryTier.label,
-                        systemImage: territoryTier.symbolName,
-                        tint: territoryTier.tint,
-                        filled: true
-                    )
-                    if let next = territoryTier.next {
-                        ProgressView(value: Double(bucket.hookupCount), total: Double(next.threshold))
-                            .tint(territoryTier.tint)
-                        Text("再 \(max(0, next.threshold - bucket.hookupCount)) 次升\(next.label)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("王城已筑成")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(Palette.goldDeep)
-                    }
-                }
-            }
-
-            if !stageCounts.isEmpty {
-                FlowLayout(spacing: 6, lineSpacing: 6) {
-                    ForEach(stageCounts, id: \.0) { stage, count in
-                        TagLabel(
-                            title: "\(stage.label) \(count)",
-                            systemImage: stage.symbolName,
-                            tint: stage.tint
-                        )
-                    }
-                }
-            }
-
-            HStack(spacing: 8) {
-                Label("上床 \(bucket.hookupCount)", systemImage: "flame.fill")
-                    .foregroundStyle(EncounterKind.intimacy.tint)
-                Label("没上 \(bucket.missedCount)", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(EncounterKind.missed.tint)
-                if let rate = bucket.hookupRate {
-                    Text("上床率 \(rate.formatted(.percent.precision(.fractionLength(0))))")
-                        .foregroundStyle(.secondary)
-                }
-                if let date = bucket.lastRecordDate {
-                    Spacer()
-                    Text(Format.relativeDay(date))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .font(.caption.weight(.semibold))
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .sheet(item: $editing) { EncounterEditor(encounter: $0) }
+        .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
     }
 }
 
@@ -317,6 +174,7 @@ struct LocationPickerList: View {
             }
         }
         .listStyle(.insetGrouped)
+        .astraListStyle()
         .overlay {
             if !query.isEmpty, searchResults.isEmpty {
                 ContentUnavailableView.search(text: query)

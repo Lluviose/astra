@@ -11,8 +11,8 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: "全部"
-        case .hookedUp: "战绩"
-        case .missed: "没上"
+        case .hookedUp: "亲密"
+        case .missed: "未亲密"
         }
     }
 
@@ -27,7 +27,7 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
     func tint(for bucket: CityBucket) -> Color {
         switch self {
         case .all: bucket.mapTint
-        case .hookedUp: TerritoryTier.resolve(hookupCount: bucket.hookupCount).tint
+        case .hookedUp: Palette.coral
         case .missed: EncounterKind.missed.tint
         }
     }
@@ -37,6 +37,7 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
 /// 尺寸随该地点记录数变化，主色由当前结果图层决定。
 private struct CityBubble: View {
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let bucket: CityBucket
     let scope: MapRecordScope
     let isSelected: Bool
@@ -48,7 +49,7 @@ private struct CityBubble: View {
     private var displayCount: Int { scope.count(in: bucket) }
     private var symbolName: String {
         switch scope {
-        case .hookedUp: return TerritoryTier.resolve(hookupCount: bucket.hookupCount).symbolName
+        case .hookedUp: return "heart.fill"
         case .missed: return "xmark"
         case .all:
             if bucket.hookupCount > 0 { return "flame.fill" }
@@ -71,7 +72,7 @@ private struct CityBubble: View {
             }
             .background(alignment: .top) { glow }
             .scaleEffect(isSelected ? scale * 1.10 : scale, anchor: .bottom)
-            .animation(.spring(response: 0.34, dampingFraction: 0.68), value: isSelected)
+            .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.68), value: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityElement()
@@ -227,14 +228,18 @@ struct MapScreen: View {
         .onChange(of: scope) { _, _ in
             selectedCityID = nil
             cancelGlobeTour()
+            if !showsWorld { camera = .automatic }
         }
         .onChange(of: camera.positionedByUser) { _, positionedByUser in
             if positionedByUser { cancelGlobeTour() }
         }
         .onAppear {
-            guard app.hasCountryLocations else { return }
-            showsWorld = true
-            showWorldOverview(animated: false, allowsGlobeTour: false)
+            if app.hasCountryLocations {
+                showsWorld = true
+                showWorldOverview(animated: false, allowsGlobeTour: false)
+            } else if !overviewCoordinates.isEmpty {
+                camera = .automatic
+            }
         }
         .onChange(of: app.hasCountryLocations) { _, hasCountryLocations in
             cancelGlobeTour()
@@ -244,7 +249,7 @@ struct MapScreen: View {
             } else {
                 usesGlobeView = false
                 withAnimation(.easeInOut(duration: 0.7)) {
-                    camera = .region(ChinaRegion.overview)
+                    camera = .automatic
                 }
             }
         }
@@ -338,15 +343,15 @@ struct MapScreen: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
-                .accessibilityLabel("关闭猎场地图")
+                .accessibilityLabel("关闭足迹地图")
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("猎场版图")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text("足迹地图")
+                        .font(.headline.weight(.medium))
                     Text(summaryText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -359,7 +364,7 @@ struct MapScreen: View {
                 } label: {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 15, weight: .semibold))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.9))
@@ -375,19 +380,20 @@ struct MapScreen: View {
 
             if scope != .missed, conquestRoute.count >= 2 {
                 HStack(spacing: 6) {
-                    Label("战绩路线 \(conquestRoute.count) 个地点", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    Label("足迹路线 · \(conquestRoute.count) 站", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                     Spacer()
                     if let top = app.topConquestBucket {
-                        Text("头号猎场 · \(top.city.name)")
+                        Text("常去 · \(top.city.name)")
                     }
                 }
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
             }
         }
         .padding(10)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 14)
+        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .frame(maxWidth: 600)
         .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 8)
@@ -420,7 +426,7 @@ struct MapScreen: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("头号猎场 · \(bucket.city.name)")
+                    Text("常去 · \(bucket.city.name)")
                         .font(.caption.weight(.bold))
                     Text("\(bucket.hookupCompanionCount) 个她 · 上床 \(bucket.hookupCount) 次")
                         .font(.caption2)
@@ -574,8 +580,8 @@ struct MapScreen: View {
             showWorldOverview(animated: true, allowsGlobeTour: true)
         } else {
             usesGlobeView = false
-            withAnimation(.easeInOut(duration: 0.7)) {
-                camera = .region(ChinaRegion.overview)
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.7)) {
+                camera = overviewCoordinates.isEmpty ? .region(ChinaRegion.overview) : .automatic
             }
         }
     }
