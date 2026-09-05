@@ -22,10 +22,10 @@ export default function Record(){
       const selectedId=person==='new'?newId():person;
       const entry:Entry={id:existing?.id||newId(),personId:selectedId,date,kind,title,note,city,protection,followUp,completed:existing?.completed||false};
       await mutate(d=>{let next=d;if(person==='new'){const p:Person={id:selectedId,name:newName,city,note:'',tags:[],photo:null,album:[],favorite:false,archived:false,scores:[0,0,0,0,0,0],createdAt:localDate()};next=upsertPerson(next,p);}return upsertEntry(next,entry);});
-      notify('这个片刻，已记下。');router.back();
+      notify('这个片刻，已记下。');router.canGoBack()?router.back():router.replace('/journal');
     }catch(e){setError(e instanceof Error?e.message:'暂时无法保存，请重试');}finally{setBusy(false);}
   }
-  async function remove(){setBusy(true);try{await mutate(d=>({...d,entries:d.entries.filter(e=>e.id!==id)}));notify('记录已删除');router.back();}catch{setError('未能删除，请重试');setDeleting(false);}finally{setBusy(false);}}
+  async function remove(){setBusy(true);try{await mutate(d=>({...d,entries:d.entries.filter(e=>e.id!==id)}));notify('记录已删除');router.canGoBack()?router.back():router.replace('/journal');}catch{setError('未能删除，请重试');setDeleting(false);}finally{setBusy(false);}}
   if(id&&!existing)return <Screen back title="记录"><Empty title="记录不存在" description="这条记录可能已删除。"/></Screen>;
   if(hidden)return <Screen back title="记录"><Empty title="私人内容已隐藏" description="显示后即可选择人物、编辑记录。" action="显示并继续" onPress={()=>setHidden(false)} icon="eye-off"/></Screen>;
   return <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><Screen back title={existing?'编辑片刻':'新的片刻'}>

@@ -10,11 +10,11 @@ import Confirm from '../design/Confirm';
 
 export default function SettingsScreen(){
   const {data,mutate,notify,setHidden}=useApp();const [title,setTitle]=useState(data.settings.title),[error,setError]=useState(''),[busy,setBusy]=useState(false),[reset,setReset]=useState(false);
-  async function update(patch:Partial<Settings>){setBusy(true);setError('');try{await mutate(d=>({...d,settings:{...d.settings,...patch}}));}catch{setError('设置未能保存，请重试');}finally{setBusy(false);}}
+  async function update(patch:Partial<Settings>){setBusy(true);setError('');try{await mutate(d=>({...d,settings:{...d.settings,...patch}}));return true;}catch{setError('设置未能保存，请重试');return false;}finally{setBusy(false);}}
   async function appLock(value:boolean){if(value){if(Platform.OS==='web'){setError('请在 iOS 应用中启用设备解锁。');return;}if(!await LocalAuthentication.isEnrolledAsync()){setError('请先在设备设置中配置面容 ID 或触控 ID。');return;}const result=await LocalAuthentication.authenticateAsync({promptMessage:'启用 Astra 解锁保护'});if(!result.success)return;useApp.setState({unlocked:true});}await update({appLock:value});}
   async function loadDemo(){setBusy(true);try{await mutate(()=>demoData());setHidden(false);notify('已载入虚构示例');router.replace('/');}catch{setError('示例未能载入');}finally{setBusy(false);}}
   async function clear(){setBusy(true);try{await mutate(()=>emptyData());setHidden(false);setReset(false);notify('已开始空白档案');router.replace('/');}catch{setError('未能清空，请重试');setReset(false);}finally{setBusy(false);}}
-  return <Screen back title="设置"><View style={{maxWidth:640,width:'100%',alignSelf:'center'}}><Text style={[s.title,{marginTop:13,marginBottom:28}]}>保持你的方式。</Text><ErrorNote message={error}/><Field label="殿堂寄语" value={title} onChangeText={setTitle} placeholder="写一句属于你的话"/><Button secondary onPress={()=>void update({title:title.trim()||'把心动，留给自己。'}).then(()=>notify('寄语已保存'))} disabled={busy}>保存寄语</Button>
+  return <Screen back title="设置"><View style={{maxWidth:640,width:'100%',alignSelf:'center'}}><Text style={[s.title,{marginTop:13,marginBottom:28}]}>保持你的方式。</Text><ErrorNote message={error}/><Field label="殿堂寄语" value={title} onChangeText={setTitle} placeholder="写一句属于你的话"/><Button secondary onPress={()=>void update({title:title.trim()||'把心动，留给自己。'}).then(success=>{if(success)notify('寄语已保存');})} disabled={busy}>保存寄语</Button>
     <Text style={[s.h2,{marginTop:34,marginBottom:12}]}>隐私与体验</Text>
     {[
       {label:'设备解锁',description:'打开应用时验证身份',value:data.settings.appLock,change:(value:boolean)=>void appLock(value)},

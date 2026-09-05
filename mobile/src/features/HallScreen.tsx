@@ -12,7 +12,7 @@ export default function HallScreen(){
   const milestones:[string,string,IconName,boolean][]=[['第一篇','故事的开始','feather',data.entries.length>0],['再一次','十次相处','repeat',data.entries.length>=10],['远方','三个城市','compass',stats.cities.length>=3],['长篇','三十次相处','book-open',data.entries.length>=30]];
   const max=Math.max(1,...stats.months.map(m=>m.count));
   return <Screen>
-    <View style={{marginTop:14,marginBottom:26}}><Text style={s.title}>属于你的轨迹。</Text><Text style={[s.muted,{marginTop:7}]}>{data.settings.title}</Text></View>
+    <View style={{marginTop:14,marginBottom:26}}><Text style={s.title}>属于你的轨迹。</Text><Text style={[s.muted,{marginTop:7}]}>{hidden?'私人内容已隐藏':data.settings.title}</Text></View>
     <View style={{backgroundColor:c.ink,borderRadius:20,padding:26,overflow:'hidden'}}>
       <Svg width="200" height="200" style={{position:'absolute',right:-50,top:-36}}><Circle cx="100" cy="100" r="72" fill="none" stroke="#39465F" strokeWidth="1"/><Circle cx="100" cy="100" r="47" fill="none" stroke="#39465F" strokeWidth="1"/><Path d="M24 128L144 26M36 175L184 53" stroke="#39465F" strokeWidth="1"/><Circle cx="64" cy="94" r="5" fill="#7C9EFF"/></Svg>
       <View style={[s.row,{gap:7}]}><View style={{width:6,height:6,backgroundColor:'#8AA7FF',borderRadius:3}}/><Text style={[s.tiny,{color:'#C7D1E3',letterSpacing:1}]}>你的私人殿堂</Text></View>

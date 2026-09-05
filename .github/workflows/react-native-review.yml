@@ -17,6 +17,7 @@ jobs:
     defaults:
       run:
         working-directory: mobile
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,6 +26,8 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Format source
+        run: npm run format
       - name: Prepare verification output
         run: mkdir -p verification
       - name: TypeScript
@@ -60,6 +63,11 @@ jobs:
             mobile/verification
             mobile/package.json
             mobile/package-lock.json
+            mobile/src
+            mobile/tests
+            mobile/app.json
+            mobile/tsconfig.json
+            mobile/babel.config.js
       - name: Require all checks
         if: steps.types.outcome != 'success' || steps.tests.outcome != 'success' || steps.versions.outcome != 'success' || steps.web.outcome != 'success' || steps.ios.outcome != 'success'
         run: exit 1
@@ -70,6 +78,7 @@ jobs:
     defaults:
       run:
         working-directory: mobile
+        shell: bash
     env:
       EXPO_PUBLIC_DEMO_MODE: '1'
       CI: '1'

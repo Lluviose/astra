@@ -35,7 +35,10 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/react": "~19.2.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "babel-preset-expo": "~55.0.0",
+    "@babel/core": "^7.25.2",
+    "prettier": "^3.6.2"
   },
   "main": "expo-router/entry",
   "name": "astra-mobile",
@@ -47,7 +50,9 @@
     "start": "expo start",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "format": "prettier --write src tests package.json tsconfig.json app.json babel.config.js",
+    "format:check": "prettier --check src tests package.json tsconfig.json app.json babel.config.js"
   },
   "version": "2.0.0"
 }
