@@ -51,12 +51,6 @@ struct CompanionRow: View {
                             .accessibilityLabel(Format.birthdayCountdown(days: days))
                     }
                     Spacer(minLength: 0)
-                    if companion.overallScore > 0, !typeSize.isAccessibilitySize {
-                        Text("\(companion.overallScore)")
-                            .font(.system(.subheadline, design: .serif).weight(.medium))
-                            .monospacedDigit().foregroundStyle(Palette.accent)
-                            .accessibilityLabel("综合评分 \(companion.overallScore)")
-                    }
                 }
                 FlowLayout(spacing: 8, lineSpacing: 5) {
                     Text(companion.stage.label).foregroundStyle(companion.stage.tint)
@@ -76,12 +70,8 @@ struct CompanionRow: View {
 
     private var intimacySummary: String {
         let all = app.encounters(for: companion.id)
-        let missed = all.filter { $0.kind.isMissed }.count
-        guard let latest = all.first else { return "还没记录" }
-        var parts: [String] = []
-        if !intimateEncounters.isEmpty { parts.append("上床 \(intimateEncounters.count)") }
-        if missed > 0 { parts.append("没上 \(missed)") }
-        parts.append(Format.relativeDay(latest.date))
-        return parts.joined(separator: " · ")
+        guard let latest = all.first else { return "还没有相处记录" }
+        return "\(all.count) 篇记录 · \(Format.relativeDay(latest.date))"
     }
+
 }

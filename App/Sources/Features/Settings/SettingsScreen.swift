@@ -25,6 +25,7 @@ struct BackupDocument: FileDocument {
 // MARK: - 设置页
 
 struct SettingsScreen: View {
+    @Environment(\.dismiss) private var dismiss
 
     @Environment(AppState.self) private var app
     @Environment(AppLock.self) private var lock
@@ -47,11 +48,15 @@ struct SettingsScreen: View {
                 appearanceSection
                 hapticsSection
                 dataSection
-                principlesSection
                 aboutSection
             }
             .astraListStyle()
             .navigationTitle("设置")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { dismiss() }.accessibilityIdentifier("close-settings")
+                    }
+                }
             .navigationBarTitleDisplayMode(.inline)
         }
         .fileExporter(
@@ -183,19 +188,6 @@ struct SettingsScreen: View {
             Text("隐私")
         } footer: {
             Text("星图不做账号云同步。档案、设置和全部照片只写进 App 沙盒，并允许进入设备的 iCloud Backup；代号打码时，照片也会糊掉。")
-        }
-    }
-
-    // MARK: 使用原则
-
-    private var principlesSection: some View {
-        Section {
-            Label("只记成年人之间你情我愿、随时能停的相处。", systemImage: "hand.raised.fill")
-            Label("她说过的规矩和有没有戴套，按她明确讲过的记，别替她脑补。", systemImage: "checkmark.shield.fill")
-        } header: {
-            Text("怎么用")
-        } footer: {
-            Text("星图帮你记得住，不替你下判断，更不替代医生。")
         }
     }
 
@@ -335,7 +327,7 @@ struct AboutView: View {
 
                     Text("星图")
                         .font(.title2.weight(.bold))
-                    Text("猎场 · 名册 · 图鉴 · 版图 · 成就册")
+                    Text("后宫 · 战绩 · 殿堂")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("版本 \(Bundle.main.appVersion)")
@@ -349,8 +341,8 @@ struct AboutView: View {
 
             Section("技术") {
                 LabeledContent("最低系统", value: "iOS 18")
-                LabeledContent("界面", value: "SwiftUI · 液态玻璃")
-                LabeledContent("猎场地图", value: "MapKit · 中国城市 / 境外国家")
+                LabeledContent("界面", value: "SwiftUI · 原生交互")
+                LabeledContent("足迹地图", value: "MapKit · 中国城市 / 境外国家")
                 LabeledContent("触感", value: "Core Haptics")
                 LabeledContent("存储", value: "本机沙盒 · 含照片")
             }
@@ -382,7 +374,7 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Palette.accent)
                 }
-                Text("头像、人物照、档案照片和艳照只复制进星图沙盒，不进系统相册；相册源文件不降采样、不重编码，允许随设备 iCloud Backup 恢复。从相册挑图用系统选择器，不必打开完整相册权限。")
+                Text("头像、人物照、档案照片和私密照片只复制进星图沙盒，不进系统相册；相册源文件不降采样、不重编码，允许随设备 iCloud Backup 恢复。从相册挑图用系统选择器，不必打开完整相册权限。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -394,7 +386,7 @@ struct PrivacyView: View {
                 } icon: {
                     Image(systemName: "icloud.and.arrow.up.fill").foregroundStyle(Palette.accent)
                 }
-                Text("对象、记录、设置、头像、人物照、档案照片和艳照都允许进入系统设备备份。它用于整机或 App 恢复，不等同于多设备实时同步。")
+                Text("对象、记录、设置、头像、人物照、档案照片和私密照片都允许进入系统设备备份。它用于整机或 App 恢复，不等同于多设备实时同步。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

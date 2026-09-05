@@ -1,367 +1,248 @@
 import SwiftUI
 
-/// 按天呈现「上床了 / 没上床」结果、地点与后续事项。
+/// The journal is the starting point: entries, precise filters and follow-up actions.
 struct TimelineScreen: View {
-
     @Environment(AppState.self) private var app
-
-    @State private var flow = RecordingFlow()
-    @State private var path = NavigationPath()
-    @State private var encounterTarget: Encounter?
-    @State private var scope: RecordScope = .all
-    @State private var query = ""
-    @State private var showTrends = false
-    @State private var pendingDeletion: Encounter?
     @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var flow = RecordingFlow()
+    @State private var filter = JournalFilter()
+    @State private var isSearching = false
+    @State private var showFilters = false
+    @State private var editing: Encounter?
+    @State private var deleting: Encounter?
+    @State private var completedFollowUp: Encounter?
 
-    private var normalizedQuery: String {
-        query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    private var records: [Encounter] {
+        filter.apply(to: app.encounters, companions: app.companions, locationName: { app.locationName(for: $0) })
     }
-
-    private var displayedEncounters: [Encounter] {
-        let base: [Encounter]
-        switch scope {
-        case .all:
-            base = app.timeline()
-        case .hookedUp:
-            base = app.timeline().filter { $0.kind.isIntimate }
-        case .missed:
-            base = app.timeline().filter { $0.kind.isMissed }
-        case .followUp:
-            base = app.pendingFollowUps
-        }
-        guard !normalizedQuery.isEmpty else { return base }
-        return base.filter(matchesQuery)
-    }
-
-    private func matchesQuery(_ encounter: Encounter) -> Bool {
-        let q = normalizedQuery
-        if encounter.place.lowercased().contains(q) { return true }
-        if encounter.note.lowercased().contains(q) { return true }
-        if encounter.followUpNote.lowercased().contains(q) { return true }
-        if app.locationName(for: encounter).lowercased().contains(q) { return true }
-        if let companion = app.companion(id: encounter.companionID),
-           companion.displayName.lowercased().contains(q) {
-            return true
-        }
-        if encounter.activities.contains(where: { $0.label.lowercased().contains(q) }) { return true }
-        if encounter.climaxDetails.contains(where: { $0.label.lowercased().contains(q) }) { return true }
-        return false
+    private var days: [Date] {
+        Array(Set(records.map { Calendar.current.startOfDay(for: $0.date) })).sorted(by: >)
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack {
             List {
-                if normalizedQuery.isEmpty {
+                if !isSearching, !filter.isActive {
                     Section {
-                        statsGrid
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
-                }
-
-                Section {
-                    Picker("显示范围", selection: $scope) {
-                        ForEach(RecordScope.allCases) { item in
-                            Text(item.label).tag(item)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(Date().formatted(.dateTime.year().month(.wide)))
+                                .font(.caption.monospaced()).tracking(2)
+                                .foregroundStyle(Palette.accent)
+                            Text("你的战绩")
+                                .font(.system(.largeTitle, design: .serif))
+                                .foregroundStyle(Palette.ink)
+                                .accessibilityAddTraits(.isHeader)
+                            Text(app.encounters.isEmpty ? "从一个代号，开始第一个片刻。" : "\(app.encounters.count) 篇记录，每个片刻，都值得回味。")
+                                .font(.subheadline).foregroundStyle(Palette.secondaryInk)
                         }
+                        .padding(.vertical, 8)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("timeline-scope")
                 }
 
-                if normalizedQuery.isEmpty, scope == .all, !app.pendingFollowUps.isEmpty {
+                if !app.encounters.isEmpty {
                     Section {
-                        ForEach(app.pendingFollowUps.prefix(3)) { encounter in
-                            Button {
-                                Haptics.shared.play(.selection)
-                                encounterTarget = encounter
-                            } label: {
-                                FollowUpRow(encounter: encounter)
-                                    .contentShape(Rectangle())
+                        Picker("记录范围", selection: $filter.scope) {
+                            ForEach(JournalScope.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("journal-scope")
+                    }
+                }
+
+                if filter.isActive {
+                    Section {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(records.count) 篇匹配").font(.subheadline.weight(.medium))
+                                Text(filterSummary).font(.caption).foregroundStyle(Palette.secondaryInk)
                             }
-                            .buttonStyle(.plain)
+                            Spacer()
+                            Button("重置") { resetFilters() }
+                                .frame(minHeight: 44)
+                                .accessibilityIdentifier("journal-reset")
                         }
-                    } header: {
-                        Label("接下来", systemImage: "checklist")
-                    } footer: {
-                        Text("点开记录就能改日期或勾完成。")
                     }
-                }
-
-                if normalizedQuery.isEmpty, (scope == .all || scope == .hookedUp), !app.encounters.isEmpty {
+                } else if !app.pendingFollowUps.isEmpty {
                     Section {
-                        DisclosureGroup("近 6 个月的节奏", isExpanded: $showTrends) {
-                            OutcomeMonthChart(points: EncounterInsights.monthSeries(encounters: app.encounters, monthCount: 6))
-                            NavigationLink { InsightsScreen() } label: {
-                                Label("查看完整统计", systemImage: "chart.xyaxis.line")
+                        Button { filter.scope = .pending } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "checklist").foregroundStyle(Palette.accent)
+                                Text("待跟进")
+                                Spacer()
+                                Text("\(app.pendingFollowUps.count) 项").foregroundStyle(Palette.secondaryInk)
+                                ChevronHint()
                             }
+                            .frame(minHeight: 44).contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("journal-follow-ups")
                     }
                 }
 
-                let sections = displayedSections
-                if sections.isEmpty {
+                if records.isEmpty {
                     Section {
-                        if normalizedQuery.isEmpty {
-                            EmptyStateView(
-                                symbol: scope.emptySymbol,
-                                title: scope.emptyTitle,
-                                message: scope.emptyMessage,
-                                actionTitle: scope == .followUp ? nil : "记一笔",
-                                action: scope == .followUp ? nil : { beginRecording() }
-                            )
+                        if filter.isActive {
+                            EmptyStateView(symbol: "text.magnifyingglass", title: "没有符合条件的记录",
+                                           message: "可以调整时间、人物或关键词。",
+                                           actionTitle: "清除条件", action: resetFilters)
                         } else {
-                            ContentUnavailableView.search(text: query)
+                            VStack(alignment: .leading, spacing: 24) {
+                                AstraMark(color: Palette.accent)
+                                Text("不用一次记完整。")
+                                    .font(.system(.title2, design: .serif))
+                                Text("先写下人物、时间和一段感受。照片、地点和其他细节，都可以以后补充。")
+                                    .font(.body).foregroundStyle(Palette.secondaryInk)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Button { beginRecording() } label: {
+                                    PrimaryActionLabel(title: "写第一篇", systemImage: "square.and.pencil")
+                                }
+                                .buttonStyle(HapticButtonStyle())
+                                .accessibilityIdentifier("first-record")
+                            }
+                            .padding(.vertical, 20)
                         }
                     }
                 } else {
-                    ForEach(sections) { section in
-                        Section(section.title) {
-                            ForEach(section.encounters) { encounter in
-                                if app.companion(id: encounter.companionID) != nil {
-                                    Button {
-                                        Haptics.shared.play(.selection)
-                                        encounterTarget = encounter
-                                    } label: {
-                                        EncounterRow(encounter: encounter, showTime: true)
-                                            .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            pendingDeletion = encounter
-                                        } label: {
-                                            Label("删除", systemImage: "trash")
-                                        }
-                                    }
-                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                        Button {
-                                            path.append(encounter.companionID)
-                                        } label: {
-                                            Label("档案", systemImage: "book.pages.fill")
-                                        }
-                                        .tint(Palette.accent)
-                                    }
-                                }
+                    ForEach(days, id: \.self) { day in
+                        Section(Format.timelineDay(day)) {
+                            ForEach(records.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }) { record in
+                                recordRow(record)
                             }
                         }
                     }
                 }
             }
-            .listStyle(.insetGrouped)
-        .astraListStyle()
-            .navigationTitle("时间线")
+            .listStyle(.insetGrouped).astraListStyle()
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("战绩")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: UUID.self) { id in
-                CompanionDetailView(companionID: id)
-            }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索人物、地点或记忆")
+            .searchable(text: $filter.query, isPresented: $isSearching,
+                        placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索人物、地点或片刻")
             .autocorrectionDisabled()
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) { SettingsButton() }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        beginRecording()
-                    } label: {
-                        Image(systemName: "square.and.pencil")
+                    Button { showFilters = true } label: {
+                        Image(systemName: filter.period != .all || filter.companionID != nil
+                              ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                     }
-                    .accessibilityLabel("记一笔")
+                    .accessibilityLabel("筛选时间与人物")
+                    .accessibilityIdentifier("journal-filter")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { beginRecording() } label: { Image(systemName: "square.and.pencil") }
+                        .accessibilityLabel("写一篇记录")
+                        .accessibilityIdentifier("new-record")
+                }
+            }
+            .navigationDestination(for: UUID.self) { CompanionDetailView(companionID: $0) }
+        }
+        .recordingFlowSheets(flow)
+        .sheet(item: $editing) { EncounterEditor(encounter: $0) }
+        .sheet(isPresented: $showFilters) { filterSheet }
+        .confirmationDialog("删除这篇记录？", isPresented: Binding(
+            get: { deleting != nil }, set: { if !$0 { deleting = nil } }
+        ), titleVisibility: .visible) {
+            Button("删除记录", role: .destructive) {
+                if let record = deleting { app.delete(encounterID: record.id) }
+                deleting = nil
+            }
+            Button("取消", role: .cancel) { deleting = nil }
+        } message: { Text("仅由这篇记录引用的照片也会删除。") }
+        .safeAreaInset(edge: .bottom) {
+            if let completed = completedFollowUp {
+                HStack {
+                    Label("跟进已完成", systemImage: "checkmark.circle")
+                    Spacer()
+                    Button("撤销") {
+                        app.setFollowUpDone(false, for: completed.id)
+                        completedFollowUp = nil
+                    }
+                    .accessibilityIdentifier("undo-follow-up")
+                }
+                .font(.subheadline).padding(16)
+                .background(Palette.surface)
+            }
+        }
+    }
+
+    private func recordRow(_ record: Encounter) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            if filter.scope == .pending {
+                Button {
+                    app.setFollowUpDone(true, for: record.id)
+                    completedFollowUp = record
+                } label: {
+                    Image(systemName: "circle").font(.title2)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("完成这条跟进")
+                .accessibilityIdentifier("complete-follow-up-\(record.id.uuidString)")
+            }
+            Button { editing = record } label: {
+                if filter.scope == .pending { FollowUpRow(encounter: record) }
+                else { EncounterRow(encounter: record, showTime: true) }
+            }
+            .buttonStyle(.plain)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) { deleting = record } label: { Label("删除", systemImage: "trash") }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if record.hasPendingFollowUp {
+                Button {
+                    app.setFollowUpDone(true, for: record.id)
+                    completedFollowUp = record
+                } label: { Label("完成跟进", systemImage: "checkmark") }
+                .tint(Palette.safe)
+            }
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    private var filterSummary: String {
+        var parts = [filter.period.label, filter.scope.label]
+        if let id = filter.companionID, let person = app.companion(id: id) {
+            parts.append(app.namesRevealed ? person.displayName : "已选人物")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var filterSheet: some View {
+        NavigationStack {
+            Form {
+                Section("时间") {
+                    Picker("时间范围", selection: $filter.period) {
+                        ForEach(RecordPeriod.allCases) { Text($0.label).tag($0) }
+                    }.pickerStyle(.inline)
+                }
+                Section("人物") {
+                    Picker("人物", selection: $filter.companionID) {
+                        Text("全部人物").tag(UUID?.none)
+                        ForEach(app.companions) { person in
+                            Text(app.namesRevealed ? person.displayName : "已隐藏人物")
+                                .tag(Optional(person.id))
+                        }
+                    }
+                }
+                Button("清除全部条件") { resetFilters(); showFilters = false }
+            }
+            .astraListStyle()
+            .navigationTitle("筛选记录").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { showFilters = false }.accessibilityIdentifier("journal-filter-done")
                 }
             }
         }
-        .confirmationDialog("删除这条记录？", isPresented: Binding(
-            get: { pendingDeletion != nil },
-            set: { if !$0 { pendingDeletion = nil } }
-        ), titleVisibility: .visible) {
-            Button("删除记录", role: .destructive) {
-                if let encounter = pendingDeletion { app.delete(encounterID: encounter.id) }
-                pendingDeletion = nil
-            }
-            Button("取消", role: .cancel) { pendingDeletion = nil }
-        } message: {
-            Text("这条记录与仅由它引用的照片将被删除。")
-        }
-        .recordingFlowSheets(flow)
-        .sheet(item: $encounterTarget) { encounter in
-            EncounterEditor(encounter: encounter)
-        }
     }
 
+    private func resetFilters() { filter = JournalFilter(); isSearching = false }
     private func beginRecording() {
-        flow.begin(kind: scope == .missed ? .missed : .intimacy, app: app)
-    }
-
-    // MARK: 统计
-
-    @ViewBuilder
-    private var statsGrid: some View {
-        switch scope {
-        case .followUp:
-            followUpStatsGrid
-        case .all, .hookedUp, .missed:
-            outcomeStatsGrid
-        }
-    }
-
-    private var outcomeStatsGrid: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("CHRONICLE")
-                    .font(.caption2.monospaced()).tracking(2)
-                    .foregroundStyle(Palette.accent)
-                Text("\(displayedEncounters.count) 篇相处记录")
-                    .font(.system(.title2, design: .serif))
-                    .foregroundStyle(Palette.ink)
-            }
-            Spacer(minLength: 0)
-            NavigationLink { InsightsScreen() } label: {
-                Image(systemName: "chart.xyaxis.line")
-                    .font(.title3)
-                    .frame(width: 48, height: 48)
-                    .background(Palette.surface, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("查看相处统计")
-        }
-        .padding(.vertical, 8)
-    }
-
-    private var hookupRateText: String {
-        guard let rate = app.insights.hookupRate else { return "—" }
-        return rate.formatted(.percent.precision(.fractionLength(0)))
-    }
-
-    private var followUpStatsGrid: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow {
-                StatTile(
-                    value: "\(app.pendingFollowUps.count)",
-                    caption: "全部待跟进",
-                    systemImage: "checklist",
-                    tint: Palette.warning
-                )
-                StatTile(
-                    value: "\(overdueFollowUpCount)",
-                    caption: "已超期",
-                    systemImage: "exclamationmark.circle.fill",
-                    tint: overdueFollowUpCount > 0 ? Palette.coral : Palette.safe
-                )
-            }
-            GridRow {
-                StatTile(
-                    value: "\(todayFollowUpCount)",
-                    caption: "今天",
-                    systemImage: "calendar.circle.fill",
-                    tint: Palette.accent
-                )
-                StatTile(
-                    value: "\(unscheduledFollowUpCount)",
-                    caption: "未设日期",
-                    systemImage: "calendar",
-                    tint: .secondary
-                )
-            }
-        }
-    }
-
-    private var overdueFollowUpCount: Int {
-        let today = Calendar.current.startOfDay(for: Date())
-        return app.pendingFollowUps.filter {
-            guard let due = $0.followUpDate else { return false }
-            return Calendar.current.startOfDay(for: due) < today
-        }.count
-    }
-
-    private var todayFollowUpCount: Int {
-        app.pendingFollowUps.filter {
-            guard let due = $0.followUpDate else { return false }
-            return Calendar.current.isDateInToday(due)
-        }.count
-    }
-
-    private var unscheduledFollowUpCount: Int {
-        app.pendingFollowUps.filter { $0.followUpDate == nil }.count
-    }
-
-    private var displayedSections: [RecordTimelineSection] {
-        if scope == .followUp {
-            return displayedEncounters.isEmpty
-                ? []
-                : [RecordTimelineSection(id: "follow-up", title: "待跟进", encounters: displayedEncounters)]
-        }
-
-        let calendar = Calendar.current
-        var order: [Date] = []
-        var grouped: [Date: [Encounter]] = [:]
-
-        for encounter in displayedEncounters {
-            let day = calendar.startOfDay(for: encounter.date)
-            if grouped[day] == nil {
-                grouped[day] = []
-                order.append(day)
-            }
-            grouped[day]?.append(encounter)
-        }
-
-        return order.map { day in
-            RecordTimelineSection(
-                id: String(day.timeIntervalSinceReferenceDate),
-                title: Format.timelineDay(day),
-                encounters: grouped[day] ?? []
-            )
-        }
-    }
-}
-
-private struct RecordTimelineSection: Identifiable {
-    let id: String
-    let title: String
-    let encounters: [Encounter]
-}
-
-private enum RecordScope: String, CaseIterable, Identifiable {
-    case all
-    case hookedUp
-    case missed
-    case followUp
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .all: "全部"
-        case .hookedUp: "上床"
-        case .missed: "没上"
-        case .followUp: "跟进"
-        }
-    }
-
-    var emptySymbol: String {
-        switch self {
-        case .all: "clock.arrow.circlepath"
-        case .hookedUp: "flame"
-        case .missed: "xmark.circle"
-        case .followUp: "checkmark.circle"
-        }
-    }
-
-    var emptyTitle: String {
-        switch self {
-        case .all: "时间线还是空的"
-        case .hookedUp: "还没上床过"
-        case .missed: "还没有没上床的记录"
-        case .followUp: "没有待办"
-        }
-    }
-
-    var emptyMessage: String {
-        switch self {
-        case .all: "每次上床或没上床，都按日期和地点排在这里。"
-        case .hookedUp: "做了什么、有没有戴套、爽不爽，以后都能翻到。"
-        case .missed: "没成也记下时间和地点，方便回看自己的猎场轨迹。"
-        case .followUp: "只有你自己勾过、还没做完的才会出现。"
-        }
+        flow.begin(kind: filter.scope == .other ? .missed : .intimacy, app: app)
     }
 }
 
@@ -428,6 +309,7 @@ struct FollowUpRow: View {
 struct CompanionPickerSheet: View {
 
     let onSelect: (Companion) -> Void
+    var onCreate: (() -> Void)? = nil
 
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -451,11 +333,23 @@ struct CompanionPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                if let onCreate {
+                    Section {
+                        Button {
+                            onCreate()
+                            dismiss()
+                        } label: {
+                            Label("新建人物并记录", systemImage: "person.badge.plus")
+                                .frame(minHeight: 44)
+                        }
+                        .accessibilityIdentifier("picker-new-person")
+                    }
+                }
                 if filtered.isEmpty {
                     EmptyStateView(
                         symbol: "person.crop.circle.badge.questionmark",
                         title: "没有匹配的人",
-                        message: "换一个代号或地点试试，或先把她加进名册。"
+                        message: "换个关键词，或新建一个人物继续记录。"
                     )
                 } else {
                     ForEach(filtered) { companion in
@@ -482,7 +376,7 @@ struct CompanionPickerSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
 }

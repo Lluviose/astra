@@ -12,15 +12,14 @@ struct RosterScreen: View {
     @State private var pendingDeletion: Companion?
 
     var body: some View {
-        NavigationStack {
-            Group {
+        Group {
                 if app.companions.isEmpty {
                     EmptyStateView(
                         symbol: "person.2",
-                        title: "名册还是空的",
-                        message: "记下她是谁、到哪一步、约过几次、留过什么照片。",
-                        actionTitle: "加个人",
-                        action: { flow.beginAddingCompanion() }
+                        title: "从一个代号开始",
+                        message: "把重要的人和相处细节放在一起，资料可以慢慢补充。",
+                        actionTitle: "新建人物",
+                        action: { flow.beginAddingCompanion(app: app) }
                     )
                 } else {
                     rosterList
@@ -36,7 +35,7 @@ struct RosterScreen: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker("排序", selection: app.settingsBinding(\.rosterSort)) {
-                            ForEach(RosterSort.allCases) { sort in
+                            ForEach([RosterSort.lastContact, .stage, .name, .city, .added]) { sort in
                                 Label(sort.label, systemImage: sort.symbolName).tag(sort)
                             }
                         }
@@ -72,11 +71,11 @@ struct RosterScreen: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        flow.beginAddingCompanion()
+                        flow.beginAddingCompanion(app: app)
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .accessibilityLabel("加进名册")
+                    .accessibilityLabel("新建人物")
                 }
             }
             .searchable(text: Binding(
@@ -84,7 +83,6 @@ struct RosterScreen: View {
                 set: { app.searchText = $0 }
             ), isPresented: $isSearching, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索代号、标签或地点")
             .autocorrectionDisabled()
-        }
         .recordingFlowSheets(flow)
         .sheet(isPresented: $showFilter) {
             RosterFilterSheet()
@@ -113,37 +111,16 @@ struct RosterScreen: View {
             if app.searchText.isEmpty, app.filter.isDefault, !isSearching {
                 Section {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("私人名册")
+                        Text("人物与关系")
                             .font(.system(.title2, design: .serif))
                             .foregroundStyle(Palette.ink)
                         Spacer()
-                        Text("\(app.stats.activeCount) 位在册")
+                        Text("\(app.stats.activeCount) 位人物")
                             .font(.caption).foregroundStyle(Palette.secondaryInk)
                     }
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                }
-                Section {
-                    let layout = typeSize.isAccessibilitySize
-                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-                        : AnyLayout(HStackLayout(spacing: 16))
-                    layout {
-                        NavigationLink { HaremGalleryScreen() } label: {
-                            Label("私人图鉴", systemImage: "rectangle.stack")
-                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        NavigationLink { RankingScreen() } label: {
-                            Label("私密排行", systemImage: "list.number")
-                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Palette.accent)
                 }
             }
             if app.filter.activeConditionCount > 0 || !app.searchText.isEmpty {
@@ -249,26 +226,7 @@ struct RosterScreen: View {
         isSearching = false
     }
 
-    private var rankingSubtitle: String {
-        let top = app.companions
-            .filter { !$0.isArchived && $0.overallScore > 0 }
-            .max { $0.overallScore < $1.overallScore }
-        guard let top else { return "打分后自动排榜" }
-        let name = app.namesRevealed ? top.displayName : "第一名"
-        return "\(name) 综合 \(top.overallScore) 分领先"
-    }
 
-    private func digestChip(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.headline.weight(.bold))
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
 }
 
 // MARK: - 筛选面板
@@ -297,28 +255,13 @@ struct RosterFilterSheet: View {
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("到哪一步")
+                    Text("关系状态")
                 }
 
                 Section("其他条件") {
                     Toggle("只看到了联系周期的", isOn: app.filterBinding(\.needsContactOnly))
                     Toggle("包含已归档", isOn: app.filterBinding(\.includeArchived))
 
-                    HStack {
-                        Text("综合评分 ≥")
-                        Spacer()
-                        Stepper(
-                            app.filter.minRating == 0 ? "不限" : "\(app.filter.minRating * 20) 分",
-                            value: Binding(
-                                get: { app.filter.minRating },
-                                set: { newValue in
-                                    app.mutateFilter { $0.minRating = min(max(newValue, 0), 5) }
-                                }
-                            ),
-                            in: 0...5,
-                            step: 1
-                        )
-                    }
                 }
 
                 Section {

@@ -76,106 +76,63 @@ struct AstraApp: App {
 }
 
 enum AppTab: Hashable {
-    case home
-    case roster
-    case timeline
-    case achievements
-    case settings
+    case collection, journal, hall
 }
 
 struct RootView: View {
-
     @Environment(AppState.self) private var app
     @Environment(AppLock.self) private var lock
-
-    @State private var selection: AppTab = .home
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selection: AppTab = .collection
+    @State private var showsSaved = false
 
     var body: some View {
         ZStack {
-            TabView(selection: tabSelection) {
-                Tab("星图", systemImage: "sparkle", value: AppTab.home) {
-                    HomeScreen()
+            TabView(selection: $selection) {
+                Tab("后宫", systemImage: "rectangle.stack", value: AppTab.collection) {
+                    HaremGalleryScreen()
                 }
-
-                Tab("名册", systemImage: "person.2", value: AppTab.roster) {
-                    RosterScreen()
-                }
-                .badge(app.needsAttention.count)
-
-                Tab("时间线", systemImage: "clock.arrow.circlepath", value: AppTab.timeline) {
+                Tab("战绩", systemImage: "book.closed", value: AppTab.journal) {
                     TimelineScreen()
                 }
-
-                Tab("成就册", systemImage: "seal", value: AppTab.achievements) {
-                    NavigationStack {
-                        AchievementsScreen()
-                    }
+                Tab("殿堂", systemImage: "crown", value: AppTab.hall) {
+                    NavigationStack { RoyalHallScreen() }
                 }
                 .badge(app.unseenUnlockCount)
-
-                Tab("设置", systemImage: "slider.horizontal.3", value: AppTab.settings) {
-                    SettingsScreen()
-                }
             }
             .toolbarBackground(Palette.surface, for: .tabBar)
-            .accessibilityHidden(!app.pendingUnlocks.isEmpty || !app.pendingRewards.isEmpty || lock.isLocked)
-            .allowsHitTesting(app.pendingUnlocks.isEmpty && app.pendingRewards.isEmpty && !lock.isLocked)
+            .accessibilityHidden(lock.isLocked)
+            .allowsHitTesting(!lock.isLocked)
 
-            if !lock.isConfigured {
-                PrivacyCurtain()
-                    .zIndex(2)
-            } else if lock.isObscured, !lock.isLocked {
-                PrivacyCurtain()
-                    .zIndex(1)
+            if !lock.isConfigured || (lock.isObscured && !lock.isLocked) {
+                PrivacyCurtain().zIndex(1)
             }
-
-            if !app.pendingUnlocks.isEmpty, app.pendingRewards.isEmpty, !lock.isLocked {
-                UnlockOverlay(
-                    achievements: app.pendingUnlocks,
-                    onKeep: { app.dismissUnlocks() },
-                    onOpenBook: {
-                        app.dismissUnlocks()
-                        selection = .achievements
-                    }
-                )
-                .zIndex(1.5)
-            }
-
-            if !app.pendingRewards.isEmpty, !lock.isLocked {
-                RewardOverlay(
-                    events: app.pendingRewards,
-                    onDismiss: { app.dismissRewards() },
-                    onOpenHall: {
-                        app.dismissRewards()
-                        selection = .home
-                        app.requestRoyalHall()
-                    }
-                )
-                .zIndex(1.7)
-            }
-
             if lock.isConfigured, lock.isLocked {
-                LockScreen()
-                    .transition(.opacity)
-                    .zIndex(2)
+                LockScreen().transition(.opacity).zIndex(2)
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: lock.isLocked)
-        .animation(.easeInOut(duration: 0.12), value: lock.isObscured)
-        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82), value: app.pendingUnlocks.isEmpty)
-        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82), value: app.pendingRewards.isEmpty)
-    }
-
-    /// 切换 Tab 时给一记轻反馈
-    private var tabSelection: Binding<AppTab> {
-        Binding(
-            get: { selection },
-            set: { newValue in
-                if newValue != selection { Haptics.shared.play(.selection) }
-                selection = newValue
+        .overlay(alignment: .top) {
+            if showsSaved, !lock.isLocked, !lock.isObscured {
+                Label(app.pendingRewards.isEmpty && app.pendingUnlocks.isEmpty ? "记录已保存" : "记录已保存 · 收藏有新进展", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Palette.background)
+                    .padding(.horizontal, 20).padding(.vertical, 12)
+                    .background(Palette.ink, in: Capsule())
+                    .padding(.top, 8)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("record-saved")
+                    .transition(.opacity)
             }
-        )
+        }
+        .task(id: app.recordSaveToken) {
+            guard app.recordSaveToken > 0 else { return }
+            showsSaved = true
+            do { try await Task.sleep(for: .seconds(2.5)) } catch { return }
+            showsSaved = false
+        }
+        .onChange(of: selection) { _, _ in Haptics.shared.play(.selection) }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsSaved)
+        .animation(.easeInOut(duration: 0.15), value: lock.isLocked)
     }
 }
 

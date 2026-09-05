@@ -4,12 +4,12 @@ import UIKit
 /// Mineral neutrals with a restrained brass accent. Every reading surface adapts
 /// to appearance; colors used on the dark covers intentionally remain fixed.
 enum Palette {
-    static let background = adaptive(0xF5F3EE, 0x111717)
-    static let surface = adaptive(0xFFFEFA, 0x1B2323)
-    static let surfaceSecondary = adaptive(0xEAE7E0, 0x26302E)
+    static let background = adaptive(0xF5F3EE, 0x171416)
+    static let surface = adaptive(0xFFFEFA, 0x231E21)
+    static let surfaceSecondary = adaptive(0xEAE7E0, 0x30282C)
     static let ink = adaptive(0x202928, 0xF0EDE6)
     static let secondaryInk = adaptive(0x626B67, 0xAEB8B2)
-    static let hairline = adaptive(0xDADDD6, 0x35403C)
+    static let hairline = adaptive(0xDADDD6, 0x44373C)
     static let accent = adaptive(0x7A5D35, 0xD5BA91)
     static let accentDeep = Color(hex: 0x50412D)
     static let coral = adaptive(0x97594F, 0xDBA396)
@@ -24,7 +24,7 @@ enum Palette {
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
     static let velvetGradient = LinearGradient(
-        colors: [Color(hex: 0x202C2D), Color(hex: 0x384341)],
+        colors: [Color(hex: 0x291A22), Color(hex: 0x50303D)],
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
     static let screenGradient = LinearGradient(

@@ -3,19 +3,17 @@ import XCTest
 final class NativeRedesignUITests: XCTestCase {
     private let app = XCUIApplication()
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
+    override func setUpWithError() throws { continueAfterFailure = false }
 
     private func launch(_ extra: [String] = []) {
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"] + extra
         app.launch()
-        XCTAssertTrue(app.buttons["home-record"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["collection-record"].waitForExistence(timeout: 15))
     }
 
     private func tab(_ title: String) {
-        let nativeTab = app.tabBars.buttons[title].firstMatch
-        let button = nativeTab.exists ? nativeTab : app.buttons[title].firstMatch
+        let native = app.tabBars.buttons[title].firstMatch
+        let button = native.exists ? native : app.buttons[title].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 5), "Missing tab: \(title)")
         button.tap()
         XCTAssertTrue(button.isSelected, "Tab did not become selected: \(title)")
@@ -29,117 +27,169 @@ final class NativeRedesignUITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement) {
-        for _ in 0..<8 {
+        for _ in 0..<10 {
             if element.isHittable { return }
             app.swipeUp()
         }
         XCTAssertTrue(element.isHittable)
     }
 
+    private func openRoster() {
+        let link = app.buttons["open-roster"]
+        reveal(link)
+        link.tap()
+        XCTAssertTrue(app.navigationBars["名册"].waitForExistence(timeout: 5))
+    }
+
     func testLightAppearanceAndDestinations() {
         launch()
-        capture("01-home-light")
-        tab("名册")
-        capture("02-roster-light")
-        let person = app.staticTexts["林间"].firstMatch
-        reveal(person)
-        person.tap()
+        capture("01-collection-light")
+        let featured = app.buttons["featured-dossier"]
+        reveal(featured)
+        featured.tap()
         XCTAssertTrue(app.navigationBars["林间"].waitForExistence(timeout: 5))
-        capture("03-dossier-light")
-        tab("时间线")
-        capture("04-timeline-light")
-        tab("成就册")
-        capture("05-achievements-light")
-        tab("设置")
-        capture("06-settings-light")
+        capture("02-dossier-records")
+        let sections = app.segmentedControls["dossier-section"]
+        reveal(sections)
+        sections.buttons["画像"].tap()
+        capture("03-dossier-profile")
+        sections.buttons["私藏"].tap()
+        capture("04-dossier-album")
+        tab("战绩")
+        capture("05-journal-light")
+        tab("殿堂")
+        capture("06-hall-light")
+        app.buttons["open-settings"].tap()
+        XCTAssertTrue(app.buttons["close-settings"].waitForExistence(timeout: 5))
+        capture("07-settings")
+        app.buttons["close-settings"].tap()
     }
 
     func testDarkAppearance() {
         launch(["--ui-dark"])
-        capture("07-home-dark")
-        tab("名册")
-        capture("08-roster-dark")
-        tab("时间线")
-        capture("09-timeline-dark")
+        capture("08-collection-dark")
+        tab("战绩")
+        capture("09-journal-dark")
+        tab("殿堂")
+        capture("10-hall-dark")
     }
 
-    func testAccessibilityTextAndEmptyState() {
+    func testAccessibilityTextAndFirstRecord() {
         launch(["--ui-large-type"])
-        capture("10-home-large-type")
-        reveal(app.buttons["home-record"])
-        XCTAssertTrue(app.buttons["home-record"].isHittable)
-        tab("名册")
-        capture("11-roster-large-type")
+        capture("11-collection-large-type")
+        tab("战绩")
+        XCTAssertTrue(app.buttons["new-record"].isHittable)
+        capture("12-journal-large-type")
         app.terminate()
         launch(["--ui-empty"])
-        capture("12-home-empty")
-        app.buttons["home-record"].tap()
-        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 5))
-        capture("13-first-record-location")
+        capture("13-collection-empty")
+        let first = app.buttons["first-record"]
+        reveal(first)
+        first.tap()
+        let name = app.textFields["companion-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        capture("14-first-person")
+        name.tap()
+        name.typeText("First Memory")
+        app.buttons["companion-save"].tap()
+        XCTAssertTrue(app.buttons["record-save"].waitForExistence(timeout: 5))
+        capture("15-first-record")
     }
 
     func testPrivacyAndSearchRecovery() {
         launch()
         app.buttons["privacy-toggle"].tap()
-        tab("名册")
         XCTAssertFalse(app.staticTexts["林间"].exists)
-        XCTAssertTrue(app.staticTexts["代号已隐藏"].firstMatch.exists)
-        capture("14-privacy-masked")
+        capture("16-collection-hidden")
+        openRoster()
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("no-such-person")
-        let clear = app.buttons["roster-reset"]
-        XCTAssertTrue(clear.waitForExistence(timeout: 5))
-        capture("14b-search-empty")
-        reveal(clear)
-        clear.tap()
+        let reset = app.buttons["roster-reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        capture("17-search-empty")
+        reveal(reset)
+        reset.tap()
         XCTAssertFalse(app.staticTexts["没有符合条件的人"].exists)
+        XCTAssertFalse(app.staticTexts["林间"].exists)
+        capture("18-roster-hidden")
     }
 
     func testRecordCanBeSavedWithoutOptionalDetails() {
         launch()
-        app.buttons["home-record"].tap()
+        tab("战绩")
+        app.buttons["new-record"].tap()
         let person = app.staticTexts["林间"].firstMatch
         XCTAssertTrue(person.waitForExistence(timeout: 5))
         person.tap()
         XCTAssertTrue(app.buttons["record-save"].waitForExistence(timeout: 5))
-        capture("15-record-essential")
+        capture("19-record-essential")
         let note = app.descendants(matching: .any).matching(identifier: "record-note").firstMatch
         reveal(note)
         note.tap()
         note.typeText("UI review saved memory")
         app.buttons["record-save"].tap()
-        for identifier in ["dismiss-rewards", "dismiss-unlocks"] {
-            let dismiss = app.buttons[identifier]
-            if dismiss.waitForExistence(timeout: 5) {
-                dismiss.tap()
-                let gone = NSPredicate(format: "exists == false")
-                expectation(for: gone, evaluatedWith: dismiss)
-                waitForExpectations(timeout: 5)
-            }
-        }
-        tab("时间线")
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("UI review saved memory")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "UI review saved memory")).firstMatch.waitForExistence(timeout: 5))
-        capture("16-record-saved")
+        capture("20-record-saved")
     }
 
-    func testMapAndCollectionRemainReachable() {
+    func testMapCollectionAndAchievementsRemainReachable() {
         launch()
-        let map = app.buttons["home-map"]
+        tab("殿堂")
+        let map = app.buttons["hall-map"]
         reveal(map)
         map.tap()
         let close = app.buttons["关闭足迹地图"]
         XCTAssertTrue(close.waitForExistence(timeout: 8))
-        capture("17-map")
+        capture("21-map")
         close.tap()
-        tab("名册")
-        app.staticTexts["私人图鉴"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["私人图鉴"].waitForExistence(timeout: 5))
-        capture("18-collection")
+        let achievements = app.buttons["hall-achievements"]
+        reveal(achievements)
+        achievements.tap()
+        capture("22-achievements")
+        tab("后宫")
+        let album = app.buttons["open-collection"]
+        reveal(album)
+        album.tap()
+        XCTAssertTrue(app.navigationBars["私藏相册"].waitForExistence(timeout: 5))
+        capture("23-photo-collection")
+    }
+
+    func testFollowUpCanBeCompletedAndUndone() {
+        launch(["--ui-follow-up"])
+        tab("战绩")
+        app.buttons["journal-follow-ups"].tap()
+        let complete = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "complete-follow-up-")).firstMatch
+        XCTAssertTrue(complete.waitForExistence(timeout: 5))
+        complete.tap()
+        let undo = app.buttons["undo-follow-up"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5))
+        capture("24-follow-up-completed")
+        undo.tap()
+        XCTAssertTrue(complete.waitForExistence(timeout: 5))
+        capture("25-follow-up-restored")
+    }
+
+    func testSinglePersonSkipsPickerAndFiltersReset() {
+        launch(["--ui-single-person"])
+        tab("战绩")
+        app.buttons["new-record"].tap()
+        XCTAssertTrue(app.buttons["record-save"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["picker-new-person"].exists)
+        app.buttons["record-cancel"].tap()
+        app.buttons["journal-filter"].tap()
+        XCTAssertTrue(app.navigationBars["筛选记录"].waitForExistence(timeout: 5))
+        app.buttons["本月"].firstMatch.tap()
+        app.buttons["journal-filter-done"].tap()
+        let reset = app.buttons["journal-reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        capture("26-journal-filtered")
+        reset.tap()
+        XCTAssertFalse(reset.exists)
     }
 }

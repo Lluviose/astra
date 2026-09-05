@@ -74,6 +74,9 @@ final class AppState {
     private(set) var pendingUnlocks: [Achievement] = []
     private(set) var pendingRewards: [RewardEvent] = []
 
+    /// Transient save feedback, never persisted.
+    private(set) var recordSaveToken = 0
+
     /// 搜索词是临时状态，不落盘
     var searchText: String = ""
     /// RootView 的结算浮层借此请求首页打开王者殿堂。
@@ -188,17 +191,17 @@ final class AppState {
     func location(for companion: Companion) -> City? { catalog.location(id: companion.cityID) }
 
     func locationName(for companion: Companion) -> String {
-        catalog.location(id: companion.cityID)?.name ?? "未知地点"
+        catalog.location(id: companion.cityID)?.name ?? "未填写地点"
     }
 
     func locationName(id: String) -> String {
-        catalog.location(id: id)?.name ?? "未知地点"
+        catalog.location(id: id)?.name ?? "未填写地点"
     }
 
     /// 记录自己填的地点优先，没填就沿用她的常驻地。
     func locationName(for encounter: Encounter) -> String {
         if let id = encounter.cityID, let location = catalog.location(id: id) { return location.name }
-        return companion(id: encounter.companionID).map { locationName(for: $0) } ?? "未知地点"
+        return companion(id: encounter.companionID).map { locationName(for: $0) } ?? "未填写地点"
     }
 
     var hasCountryLocations: Bool { buckets.contains { $0.city.isCountry } }
@@ -630,7 +633,7 @@ final class AppState {
                 .map { cityID, members -> RosterSection in
                     RosterSection(
                         id: cityID,
-                        title: catalog.location(id: cityID)?.name ?? "未知地点",
+                        title: catalog.location(id: cityID)?.name ?? "未填写地点",
                         symbolName: "mappin.circle.fill",
                         stage: nil,
                         companions: members
@@ -681,7 +684,7 @@ final class AppState {
     func makeDraftCompanion(cityID: String? = nil) -> Companion {
         Companion(
             paletteIndex: (companions.count + 1) % Palette.avatarGradients.count,
-            cityID: cityID ?? companions.last?.cityID ?? "310000",
+            cityID: cityID ?? "",
             rating: 0,
             scorecard: .empty
         )
@@ -787,8 +790,18 @@ final class AppState {
         }
         persistEncounters()
         captureRoyalRewards(from: previousSnapshot)
+        recordSaveToken &+= 1
         deleteUnreferencedMedia(mediaCandidates)
         Haptics.shared.play(.waveSent)
+    }
+
+    /// Completing a follow-up preserves the encounter's original content.
+    func setFollowUpDone(_ done: Bool, for encounterID: UUID) {
+        guard let index = encounters.firstIndex(where: { $0.id == encounterID }),
+              !encounters[index].followUpKinds.isEmpty else { return }
+        encounters[index].isFollowUpDone = done
+        persistEncounters()
+        Haptics.shared.play(done ? .success : .selection)
     }
 
     func delete(encounterID: UUID) {

@@ -11,8 +11,8 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: "全部"
-        case .hookedUp: "战绩"
-        case .missed: "没上"
+        case .hookedUp: "亲密"
+        case .missed: "未亲密"
         }
     }
 
@@ -27,7 +27,7 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
     func tint(for bucket: CityBucket) -> Color {
         switch self {
         case .all: bucket.mapTint
-        case .hookedUp: TerritoryTier.resolve(hookupCount: bucket.hookupCount).tint
+        case .hookedUp: Palette.coral
         case .missed: EncounterKind.missed.tint
         }
     }
@@ -37,6 +37,7 @@ private enum MapRecordScope: String, CaseIterable, Identifiable {
 /// 尺寸随该地点记录数变化，主色由当前结果图层决定。
 private struct CityBubble: View {
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let bucket: CityBucket
     let scope: MapRecordScope
     let isSelected: Bool
@@ -48,7 +49,7 @@ private struct CityBubble: View {
     private var displayCount: Int { scope.count(in: bucket) }
     private var symbolName: String {
         switch scope {
-        case .hookedUp: return TerritoryTier.resolve(hookupCount: bucket.hookupCount).symbolName
+        case .hookedUp: return "heart.fill"
         case .missed: return "xmark"
         case .all:
             if bucket.hookupCount > 0 { return "flame.fill" }
@@ -71,7 +72,7 @@ private struct CityBubble: View {
             }
             .background(alignment: .top) { glow }
             .scaleEffect(isSelected ? scale * 1.10 : scale, anchor: .bottom)
-            .animation(.spring(response: 0.34, dampingFraction: 0.68), value: isSelected)
+            .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.68), value: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityElement()

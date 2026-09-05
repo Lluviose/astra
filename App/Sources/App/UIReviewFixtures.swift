@@ -38,6 +38,14 @@ enum UIReviewFixtures {
                 ))
             }
         }
+        if arguments.contains("--ui-follow-up"), !records.isEmpty {
+            records[0].followUpKinds = [.message]
+            records[0].followUpNote = "明晚联系"
+        }
+        if arguments.contains("--ui-single-person"), let person = people.first {
+            people = [person]
+            records = records.filter { $0.companionID == person.id }
+        }
         store.save(people, for: .companions)
         store.save(records, for: .encounters)
         return AppState(store: store, performsMediaMaintenance: false)

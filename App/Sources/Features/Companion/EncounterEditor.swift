@@ -271,7 +271,7 @@ struct EncounterEditor: View {
         } header: {
             Text("这次结果")
         } footer: {
-            Text("时间、地点与结果确认后即可保存，其他内容可以稍后补充。")
+            Text("先确认结果与时间，地点和其他细节可以稍后补充。")
         }
     }
 
