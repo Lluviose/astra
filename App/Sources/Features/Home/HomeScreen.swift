@@ -72,13 +72,6 @@ struct HomeScreen: View {
             }
             .navigationDestination(for: RoyalRoute.self) { _ in RoyalHallScreen() }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("ASTRA")
-                        .font(.caption.weight(.semibold).monospaced())
-                        .tracking(3)
-                        .foregroundStyle(Palette.accent)
-                        .accessibilityHidden(true)
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { app.toggleNamesRevealed() } label: {
                         Image(systemName: app.namesRevealed ? "eye.slash" : "eye")
@@ -123,8 +116,8 @@ struct HomeScreen: View {
         HStack(alignment: .center, spacing: 16) {
             PageMasthead(
                 eyebrow: Date().formatted(.dateTime.month(.wide).day().weekday(.wide)),
-                title: "留住，属于你的片刻。",
-                subtitle: app.isEmpty ? "从一个名字，开始你的私人记忆。" : "人物、相处与足迹，在这里慢慢珍藏。"
+                title: typeSize.isAccessibilitySize ? "私人记忆" : "留住，属于你的片刻。",
+                subtitle: typeSize.isAccessibilitySize ? "" : (app.isEmpty ? "从一个名字，开始你的私人记忆。" : "人物、相处与足迹，在这里慢慢珍藏。")
             )
         }
     }
@@ -134,7 +127,7 @@ struct HomeScreen: View {
             VStack(alignment: .leading, spacing: 24) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("PERSONAL JOURNAL")
+                        Text(typeSize.isAccessibilitySize ? "近况" : "PERSONAL JOURNAL")
                             .font(.caption2.monospaced())
                             .tracking(2)
                             .foregroundStyle(Palette.gold)
@@ -144,6 +137,8 @@ struct HomeScreen: View {
                     Spacer(minLength: 10)
                     AstraMark()
                 }
+
+                if typeSize.isAccessibilitySize { recordAction }
 
                 if !app.isEmpty {
                     let layout = typeSize.isAccessibilitySize
@@ -161,13 +156,7 @@ struct HomeScreen: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Button {
-                    flow.begin(kind: .intimacy, app: app)
-                } label: {
-                    PrimaryActionLabel(title: app.isEmpty ? "开始第一篇记录" : "记一笔", systemImage: "square.and.pencil", onDark: true)
-                }
-                .buttonStyle(HapticButtonStyle())
-                .accessibilityIdentifier("home-record")
+                if !typeSize.isAccessibilitySize { recordAction }
 
                 NavigationLink {
                     RoyalHallScreen()
@@ -187,6 +176,16 @@ struct HomeScreen: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private var recordAction: some View {
+        Button {
+            flow.begin(kind: .intimacy, app: app)
+        } label: {
+            PrimaryActionLabel(title: app.isEmpty ? "开始第一篇记录" : "记一笔", systemImage: "square.and.pencil", onDark: true)
+        }
+        .buttonStyle(HapticButtonStyle())
+        .accessibilityIdentifier("home-record")
     }
 
     private var quickLogStrip: some View {

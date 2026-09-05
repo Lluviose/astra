@@ -10,7 +10,11 @@ concurrency:
   cancel-in-progress: true
 jobs:
   native-review:
-    name: iOS tests and screenshots
+    name: iOS review (${{ matrix.device }})
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone, iPad]
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -31,12 +35,16 @@ jobs:
           SIMULATOR_ID=$(python3 - <<'PY'
           import json, subprocess
           devices = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
-          phones = [(runtime, device) for runtime, items in devices["devices"].items() if "iOS" in runtime for device in items if device["name"].startswith("iPhone")]
+          phones = [(runtime, device) for runtime, items in devices["devices"].items() if "iOS" in runtime for device in items if device["name"].startswith("${{ matrix.device }}")]
           phones.sort(key=lambda item: (item[0], item[1]["name"]), reverse=True)
           print(phones[0][1]["udid"])
           PY
           )
-          xcodebuild test -project Astra.xcodeproj -scheme Astra-UIReview \
+          REVIEW_TESTS=()
+          if [ "${{ matrix.device }}" = "iPad" ]; then
+            REVIEW_TESTS=("-only-testing:AstraUITests/NativeRedesignUITests/testLightAppearanceAndDestinations")
+          fi
+          xcodebuild test -project Astra.xcodeproj -scheme Astra-UIReview "${REVIEW_TESTS[@]}" \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath DerivedData -resultBundlePath UIReview.xcresult \
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO > ui-review.log 2>&1 || {
@@ -53,7 +61,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: astra-native-ui-review
+          name: astra-native-ui-review-${{ matrix.device }}
           path: |
             ui-screenshots
             ui-review.log

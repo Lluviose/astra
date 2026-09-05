@@ -52,18 +52,25 @@ struct UnlockOverlay: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button("收下", action: onKeep)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .astraSurface(cornerRadius: 14)
+                    Button(action: onKeep) {
+                        Text("收下")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(HapticButtonStyle())
+                    .astraSurface(cornerRadius: 14)
+                    .accessibilityIdentifier("dismiss-unlocks")
 
-                    Button("去成就册", action: onOpenBook)
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Palette.ink, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .foregroundStyle(Palette.background)
+                    Button(action: onOpenBook) {
+                        Text("去成就册")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .foregroundStyle(Palette.background)
+                            .background(Palette.ink, in: RoundedRectangle(cornerRadius: 14))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(HapticButtonStyle())
                 }
             }
             .padding(20)

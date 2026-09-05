@@ -18,6 +18,7 @@ final class NativeRedesignUITests: XCTestCase {
         let button = nativeTab.exists ? nativeTab : app.buttons[title].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 5), "Missing tab: \(title)")
         button.tap()
+        XCTAssertTrue(button.isSelected, "Tab did not become selected: \(title)")
     }
 
     private func capture(_ name: String) {
@@ -88,7 +89,9 @@ final class NativeRedesignUITests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("no-such-person")
-        let clear = app.buttons["清除搜索与筛选"].firstMatch
+        let clear = app.buttons["roster-reset"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        capture("14b-search-empty")
         reveal(clear)
         clear.tap()
         XCTAssertFalse(app.staticTexts["没有符合条件的人"].exists)
@@ -107,13 +110,18 @@ final class NativeRedesignUITests: XCTestCase {
         note.tap()
         note.typeText("UI review saved memory")
         app.buttons["record-save"].tap()
-        for _ in 0..<2 {
-            if app.buttons["收下"].firstMatch.waitForExistence(timeout: 2) {
-                app.buttons["收下"].firstMatch.tap()
+        for identifier in ["dismiss-rewards", "dismiss-unlocks"] {
+            let dismiss = app.buttons[identifier]
+            if dismiss.waitForExistence(timeout: 5) {
+                dismiss.tap()
+                let gone = NSPredicate(format: "exists == false")
+                expectation(for: gone, evaluatedWith: dismiss)
+                waitForExpectations(timeout: 5)
             }
         }
         tab("时间线")
         let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("UI review saved memory")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "UI review saved memory")).firstMatch.waitForExistence(timeout: 5))

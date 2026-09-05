@@ -119,6 +119,8 @@ struct RootView: View {
                 }
             }
             .toolbarBackground(Palette.surface, for: .tabBar)
+            .accessibilityHidden(!app.pendingUnlocks.isEmpty || !app.pendingRewards.isEmpty || lock.isLocked)
+            .allowsHitTesting(app.pendingUnlocks.isEmpty && app.pendingRewards.isEmpty && !lock.isLocked)
 
             if !lock.isConfigured {
                 PrivacyCurtain()
@@ -128,7 +130,7 @@ struct RootView: View {
                     .zIndex(1)
             }
 
-            if !app.pendingUnlocks.isEmpty, !lock.isLocked {
+            if !app.pendingUnlocks.isEmpty, app.pendingRewards.isEmpty, !lock.isLocked {
                 UnlockOverlay(
                     achievements: app.pendingUnlocks,
                     onKeep: { app.dismissUnlocks() },

@@ -599,27 +599,9 @@ struct EncounterEditor: View {
     }
 
     private func kindChip(_ kind: EncounterKind) -> some View {
-        Button {
+        GlassChip(title: kind.label, systemImage: kind.symbolName, isOn: draft.kind == kind) {
             draft.kind = kind
-        } label: {
-            HStack(spacing: 5) {
-                if draft.kind == kind {
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                }
-                Image(systemName: kind.symbolName).font(.system(size: 12, weight: .semibold))
-                Text(kind.label).font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(draft.kind == kind ? .white : Color.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background {
-                if draft.kind == kind {
-                    Capsule().fill(kind.tint.gradient)
-                }
-            }
-            .glassCapsule(interactive: true, shadowRadius: 8)
         }
-        .buttonStyle(HapticButtonStyle(cue: .selection))
     }
 
     private func experiencePicker(

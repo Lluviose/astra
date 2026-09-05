@@ -205,19 +205,26 @@ struct TimelineScreen: View {
     }
 
     private var outcomeStatsGrid: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            PageMasthead(eyebrow: "CHRONICLE", title: "片刻，自有回响。", subtitle: "\(app.encounters.count) 篇记录，按时间珍藏。")
-            let layout = typeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
-                : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
-            layout {
-                QuietMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
-                QuietMetric(value: "\(app.stats.missedCount)", label: "没上床")
-                QuietMetric(value: "\(app.stats.cityCount)", label: "地点")
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("CHRONICLE")
+                    .font(.caption2.monospaced()).tracking(2)
+                    .foregroundStyle(Palette.accent)
+                Text("\(displayedEncounters.count) 篇相处记录")
+                    .font(.system(.title2, design: .serif))
+                    .foregroundStyle(Palette.ink)
             }
-            .padding(18)
-            .astraSurface(cornerRadius: 20)
+            Spacer(minLength: 0)
+            NavigationLink { InsightsScreen() } label: {
+                Image(systemName: "chart.xyaxis.line")
+                    .font(.title3)
+                    .frame(width: 48, height: 48)
+                    .background(Palette.surface, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看相处统计")
         }
+        .padding(.vertical, 8)
     }
 
     private var hookupRateText: String {

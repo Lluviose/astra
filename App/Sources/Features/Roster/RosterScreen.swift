@@ -8,6 +8,7 @@ struct RosterScreen: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var flow = RecordingFlow()
     @State private var showFilter = false
+    @State private var isSearching = false
     @State private var pendingDeletion: Companion?
 
     var body: some View {
@@ -81,7 +82,7 @@ struct RosterScreen: View {
             .searchable(text: Binding(
                 get: { app.searchText },
                 set: { app.searchText = $0 }
-            ), placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索代号、标签或地点")
+            ), isPresented: $isSearching, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索代号、标签或地点")
             .autocorrectionDisabled()
         }
         .recordingFlowSheets(flow)
@@ -109,25 +110,40 @@ struct RosterScreen: View {
 
     private var rosterList: some View {
         List {
-            Section {
-                PageMasthead(eyebrow: "PEOPLE / PRIVATE INDEX", title: "记得每一个她。", subtitle: "\(app.stats.activeCount) 位在册 · \(app.stats.cityCount) 处足迹")
+            if app.searchText.isEmpty, app.filter.isDefault, !isSearching {
+                Section {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("私人名册")
+                            .font(.system(.title2, design: .serif))
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                        Text("\(app.stats.activeCount) 位在册")
+                            .font(.caption).foregroundStyle(Palette.secondaryInk)
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-            }
-            Section {
-                NavigationLink { HaremGalleryScreen() } label: {
-                    Label {
-                        HStack {
-                            Text("私人图鉴")
-                            Spacer()
-                            Text("\(app.conqueredCompanions.count)").monospacedDigit().foregroundStyle(Palette.secondaryInk)
-                        }
-                    } icon: {
-                        Image(systemName: "rectangle.stack").foregroundStyle(Palette.accent)
-                    }
                 }
-                NavigationLink { RankingScreen() } label: {
-                    Label("私密排行", systemImage: "list.number")
+                Section {
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                        : AnyLayout(HStackLayout(spacing: 16))
+                    layout {
+                        NavigationLink { HaremGalleryScreen() } label: {
+                            Label("私人图鉴", systemImage: "rectangle.stack")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        NavigationLink { RankingScreen() } label: {
+                            Label("私密排行", systemImage: "list.number")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Palette.accent)
                 }
             }
             if app.filter.activeConditionCount > 0 || !app.searchText.isEmpty {
@@ -137,10 +153,8 @@ struct RosterScreen: View {
                             .font(.caption)
                             .foregroundStyle(Palette.secondaryInk)
                         Spacer()
-                        Button("重置") {
-                            app.searchText = ""
-                            app.resetFilter()
-                        }
+                        Button("重置", action: resetSearchAndFilter)
+                            .accessibilityIdentifier("roster-reset")
                         .frame(minHeight: 44)
                     }
                 }
@@ -171,7 +185,7 @@ struct RosterScreen: View {
                         title: "没有符合条件的人",
                         message: "试试其他代号，或清除当前条件。",
                         actionTitle: "清除搜索与筛选",
-                        action: { app.searchText = ""; app.resetFilter() }
+                        action: resetSearchAndFilter
                     )
                 }
             } else {
@@ -224,8 +238,15 @@ struct RosterScreen: View {
         }
         .listStyle(.insetGrouped)
         .astraListStyle()
+        .scrollDismissesKeyboard(.interactively)
         .listRowSpacing(2)
         .haptic(.selection, trigger: app.filter.activeConditionCount)
+    }
+
+    private func resetSearchAndFilter() {
+        app.searchText = ""
+        app.resetFilter()
+        isSearching = false
     }
 
     private var rankingSubtitle: String {
