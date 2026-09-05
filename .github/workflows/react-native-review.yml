@@ -1,0 +1,101 @@
+name: React Native review
+on:
+  push:
+    branches: ['codex/astra-react-native-modern-*']
+    paths: ['mobile/**', '.github/workflows/react-native-review.yml']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/react-native-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rn-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Prepare verification output
+        run: mkdir -p verification
+      - name: TypeScript
+        id: types
+        continue-on-error: true
+        run: npm run typecheck 2>&1 | tee verification/typecheck.log
+      - name: Domain tests
+        id: tests
+        continue-on-error: true
+        run: npm test 2>&1 | tee verification/tests.log
+      - name: Expo dependency compatibility
+        id: versions
+        continue-on-error: true
+        run: npx expo install --check 2>&1 | tee verification/versions.log
+      - name: Export browser preview
+        id: web
+        continue-on-error: true
+        env:
+          EXPO_PUBLIC_DEMO_MODE: '1'
+        run: npm run export:web 2>&1 | tee verification/web.log
+      - name: Export iOS JavaScript bundle
+        id: ios
+        continue-on-error: true
+        env:
+          EXPO_PUBLIC_DEMO_MODE: '1'
+        run: npm run export:ios -- --output-dir ios-export 2>&1 | tee verification/ios-export.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: astra-rn-web-and-checks
+          path: |
+            mobile/dist
+            mobile/verification
+            mobile/package.json
+            mobile/package-lock.json
+      - name: Require all checks
+        if: steps.types.outcome != 'success' || steps.tests.outcome != 'success' || steps.versions.outcome != 'success' || steps.web.outcome != 'success' || steps.ios.outcome != 'success'
+        run: exit 1
+  ios:
+    needs: check
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_PUBLIC_DEMO_MODE: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Generate iOS project
+        run: |
+          if [ -d /Applications/Xcode_26.3.app ]; then sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer; fi
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+      - name: Build iOS simulator app
+        run: |
+          mkdir -p verification
+          xcodebuild -workspace ios/Astra.xcworkspace -scheme Astra -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO > verification/native-build.log 2>&1
+      - name: Capture native pages
+        run: bash scripts/native-review.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: astra-rn-ios-review
+          path: |
+            mobile/verification
+            mobile/build/Build/Products/Release-iphonesimulator/Astra.app
