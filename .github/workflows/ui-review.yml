@@ -40,11 +40,11 @@ jobs:
           print(phones[0][1]["udid"])
           PY
           )
-          REVIEW_TESTS=()
+          REVIEW_ARGS=(-project Astra.xcodeproj -scheme Astra-UIReview)
           if [ "${{ matrix.device }}" = "iPad" ]; then
-            REVIEW_TESTS=("-only-testing:AstraUITests/NativeRedesignUITests/testLightAppearanceAndDestinations")
+            REVIEW_ARGS+=("-only-testing:AstraUITests/NativeRedesignUITests/testLightAppearanceAndDestinations")
           fi
-          xcodebuild test -project Astra.xcodeproj -scheme Astra-UIReview "${REVIEW_TESTS[@]}" \
+          xcodebuild test "${REVIEW_ARGS[@]}" \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath DerivedData -resultBundlePath UIReview.xcresult \
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO > ui-review.log 2>&1 || {
