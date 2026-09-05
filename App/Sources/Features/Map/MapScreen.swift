@@ -228,14 +228,18 @@ struct MapScreen: View {
         .onChange(of: scope) { _, _ in
             selectedCityID = nil
             cancelGlobeTour()
+            if !showsWorld { camera = .automatic }
         }
         .onChange(of: camera.positionedByUser) { _, positionedByUser in
             if positionedByUser { cancelGlobeTour() }
         }
         .onAppear {
-            guard app.hasCountryLocations else { return }
-            showsWorld = true
-            showWorldOverview(animated: false, allowsGlobeTour: false)
+            if app.hasCountryLocations {
+                showsWorld = true
+                showWorldOverview(animated: false, allowsGlobeTour: false)
+            } else if !overviewCoordinates.isEmpty {
+                camera = .automatic
+            }
         }
         .onChange(of: app.hasCountryLocations) { _, hasCountryLocations in
             cancelGlobeTour()
@@ -245,7 +249,7 @@ struct MapScreen: View {
             } else {
                 usesGlobeView = false
                 withAnimation(.easeInOut(duration: 0.7)) {
-                    camera = .region(ChinaRegion.overview)
+                    camera = .automatic
                 }
             }
         }
@@ -376,7 +380,7 @@ struct MapScreen: View {
 
             if scope != .missed, conquestRoute.count >= 2 {
                 HStack(spacing: 6) {
-                    Label("足迹路线 \(conquestRoute.count) 个地点", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    Label("足迹路线 · \(conquestRoute.count) 站", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                     Spacer()
                     if let top = app.topConquestBucket {
                         Text("常去 · \(top.city.name)")
@@ -576,8 +580,8 @@ struct MapScreen: View {
             showWorldOverview(animated: true, allowsGlobeTour: true)
         } else {
             usesGlobeView = false
-            withAnimation(.easeInOut(duration: 0.7)) {
-                camera = .region(ChinaRegion.overview)
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.7)) {
+                camera = overviewCoordinates.isEmpty ? .region(ChinaRegion.overview) : .automatic
             }
         }
     }
