@@ -35,7 +35,7 @@ struct RosterScreen: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker("排序", selection: app.settingsBinding(\.rosterSort)) {
-                            ForEach([RosterSort.lastContact, .stage, .name, .city, .added]) { sort in
+                            ForEach(RosterSort.allCases) { sort in
                                 Label(sort.label, systemImage: sort.symbolName).tag(sort)
                             }
                         }
@@ -259,6 +259,12 @@ struct RosterFilterSheet: View {
                 }
 
                 Section("其他条件") {
+                    Picker("综合评分", selection: app.filterBinding(\.minRating)) {
+                        Text("不限").tag(0)
+                        ForEach(1...5, id: \.self) { threshold in
+                            Text("\(threshold * 20) 分及以上").tag(threshold)
+                        }
+                    }
                     Toggle("只看到了联系周期的", isOn: app.filterBinding(\.needsContactOnly))
                     Toggle("包含已归档", isOn: app.filterBinding(\.includeArchived))
 

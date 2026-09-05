@@ -92,7 +92,8 @@ final class JournalWorkflowTests: XCTestCase {
         withState { app, store in
             let person = Companion(name: "甲")
             app.upsert(person)
-            let record = Encounter(companionID: person.id, kind: .intimacy,
+            // LocalStore uses ISO-8601 second precision; keep this fixture at that precision.
+            let record = Encounter(companionID: person.id, date: date(2026, 9, 5), kind: .intimacy,
                                    followUpKinds: [.message], followUpDate: date(2026, 9, 6),
                                    followUpNote: "明晚联系", note: "原始记录")
             app.upsert(record)

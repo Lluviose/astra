@@ -80,7 +80,7 @@ struct HaremGalleryScreen: View {
                             }
                         }
                     }
-                    HStack(spacing: 12) {
+                    adaptiveControls {
                         NavigationLink { RosterScreen() } label: {
                             Label("全部名册", systemImage: "person.2").frame(maxWidth: .infinity, minHeight: 50)
                         }
@@ -116,6 +116,8 @@ struct HaremGalleryScreen: View {
     private var masthead: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("THE PRIVATE COLLECTION").font(.caption2.monospaced()).tracking(2.5).foregroundStyle(Palette.accent)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                .accessibilityHidden(true)
             HStack(alignment: .firstTextBaseline) {
                 Text("你的后宫")
                     .font(.system(.largeTitle, design: .serif)).foregroundStyle(Palette.ink)
@@ -131,13 +133,13 @@ struct HaremGalleryScreen: View {
     }
 
     private var controls: some View {
-        HStack {
+        adaptiveControls {
             Button { favoritesOnly.toggle() } label: {
                 Label(favoritesOnly ? "只看偏爱" : "全部收藏", systemImage: favoritesOnly ? "heart.fill" : "square.grid.2x2")
                     .font(.subheadline).frame(minHeight: 44)
             }
             .accessibilityAddTraits(favoritesOnly ? .isSelected : [])
-            Spacer()
+            if !typeSize.isAccessibilitySize { Spacer() }
             Menu {
                 Picker("收藏排序", selection: $sort) {
                     ForEach(CollectionSort.allCases) { Text($0.rawValue).tag($0) }
@@ -147,6 +149,12 @@ struct HaremGalleryScreen: View {
             }
         }
         .foregroundStyle(Palette.accent)
+    }
+
+    private var adaptiveControls: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
     }
 
     private func portraitCard(_ person: Companion, height: CGFloat, featured: Bool = false) -> some View {

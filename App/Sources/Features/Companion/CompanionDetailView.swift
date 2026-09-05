@@ -100,7 +100,10 @@ struct CompanionDetailView: View {
                     get: { scoreDraft ?? .empty }, set: { scoreDraft = $0 }
                 ))
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("取消") { scoreDraft = nil } }
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { scoreDraft = nil }
+                            .accessibilityIdentifier("cancel-person-score")
+                    }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("保存") {
                             if var person = companion, let score = scoreDraft {
@@ -354,6 +357,7 @@ struct CompanionDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
             .buttonStyle(.borderless)
+            .accessibilityIdentifier("edit-person-score")
             .font(.subheadline.weight(.semibold))
             .tint(Palette.coral)
         } header: {

@@ -608,6 +608,10 @@ private func periodText(_ campaign: CampaignSummary) -> String {
 private func recordDateText(_ record: PersonalRecord) -> String {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "zh_CN")
-    formatter.dateFormat = record.metric == .singleDay ? "yyyy/M/d" : "yyyy/M"
+    switch record.metric {
+    case .singleDay: formatter.dateFormat = "yyyy/M/d"
+    case .yearHookups: formatter.dateFormat = "yyyy 年"
+    case .monthHookups, .monthNewConquests, .monthNewTerritories: formatter.dateFormat = "yyyy/M"
+    }
     return formatter.string(from: record.achievedAt)
 }

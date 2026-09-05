@@ -192,4 +192,33 @@ final class NativeRedesignUITests: XCTestCase {
         reset.tap()
         XCTAssertFalse(reset.exists)
     }
+
+    func testPrivateScoreSaveAndCancelRemainSeparate() {
+        launch()
+        let featured = app.buttons["featured-dossier"]
+        reveal(featured)
+        featured.tap()
+        let sections = app.segmentedControls["dossier-section"]
+        reveal(sections)
+        sections.buttons["画像"].tap()
+        let edit = app.buttons["edit-person-score"]
+        reveal(edit)
+        edit.tap()
+        let looks = app.sliders["颜值"]
+        XCTAssertTrue(looks.waitForExistence(timeout: 5))
+        XCTAssertEqual(looks.value as? String, "6 分，共 10 分")
+        app.buttons["忘不掉"].tap()
+        capture("27-private-score")
+        app.buttons["save-person-score"].tap()
+        reveal(edit)
+        edit.tap()
+        XCTAssertTrue(looks.waitForExistence(timeout: 5))
+        XCTAssertEqual(looks.value as? String, "9 分，共 10 分")
+        app.buttons["有感觉"].tap()
+        app.buttons["cancel-person-score"].tap()
+        reveal(edit)
+        edit.tap()
+        XCTAssertTrue(looks.waitForExistence(timeout: 5))
+        XCTAssertEqual(looks.value as? String, "9 分，共 10 分")
+    }
 }
