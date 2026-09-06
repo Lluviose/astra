@@ -10,7 +10,7 @@ export default function HallScreen() {
   const { data, hidden } = useApp();
   const stats = summary(data);
   const max = Math.max(1, ...stats.months.map(m => m.count));
-  const points = stats.months.map((m, i) => ({ x: 10 + i * 60, y: 111 - m.count / max * 85 }));
+  const points = stats.months.map((m, i) => ({ x: 320 / 12 + i * 320 / 6, y: 111 - m.count / max * 85 }));
   const line = points.map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`).join(" ");
   const milestones: [string, string, IconName, boolean][] = [
     ["初见", "留下第一条记录", "feather", data.entries.length > 0],
@@ -28,13 +28,13 @@ export default function HallScreen() {
       </View>
       <View style={{ marginTop: 13 }}>
         <Svg width="100%" height={130} viewBox="0 0 320 130" accessible={false}>
-          <Line x1="10" x2="310" y1="111" y2="111" stroke={c.line} />
-          <Line x1="10" x2="310" y1="68" y2="68" stroke="#F0F1EE" strokeDasharray="3 5" />
-          <Path d={`${line} L310,111 L10,111 Z`} fill="#EFF2FF" />
+          <Line x1="26.67" x2="293.33" y1="111" y2="111" stroke={c.line} />
+          <Line x1="26.67" x2="293.33" y1="68" y2="68" stroke="#F0F1EE" strokeDasharray="3 5" />
+          <Path d={`${line} L293.33,111 L26.67,111 Z`} fill="#EFF2FF" />
           <Path d={line} stroke={c.blue} strokeWidth="2" strokeLinejoin="round" fill="none" />
           {points.map((p, i) => <Circle key={i} cx={p.x} cy={p.y} r={i === 5 ? 4 : 2.5} fill={c.blue} stroke="#fff" strokeWidth="1.5" />)}
         </Svg>
-        <View style={{ flexDirection: "row", marginHorizontal: -10 }}>{stats.months.map(m => <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.label}，${m.count}条记录`} onPress={() => router.push({ pathname: "/journal", params: { month: m.key } })} style={{ flex: 1, alignItems: "center", minHeight: 44, gap: 2 }}><Text style={[s.tiny, { color: c.ink }]}>{m.count}</Text><Text style={s.tiny}>{m.label}</Text></Pressable>)}</View>
+        <View style={{ flexDirection: "row" }}>{stats.months.map(m => <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.label}，${m.count}条记录`} onPress={() => router.push({ pathname: "/journal", params: { month: m.key } })} style={{ flex: 1, alignItems: "center", minHeight: 44, gap: 2 }}><Text style={[s.tiny, { color: c.ink }]}>{m.count}</Text><Text style={s.tiny}>{m.label}</Text></Pressable>)}</View>
       </View>
       <View style={{ flexDirection: "row", borderTopWidth: 1, borderColor: c.line, paddingTop: 20, marginTop: 14 }}>
         {[[stats.collectionCount, "收藏人物"], [stats.intimateCount, "亲密记录"], [stats.cities.length, "足迹城市"]].map(([n, label], i) => <View key={label} style={{ flex: 1, paddingLeft: i ? 18 : 0, borderLeftWidth: i ? 1 : 0, borderColor: c.line }}><Text style={{ fontSize: 25, lineHeight: 33, fontWeight: "400", color: c.ink }}>{n}</Text><Text style={[s.tiny, { marginTop: 4 }]}>{label}</Text></View>)}

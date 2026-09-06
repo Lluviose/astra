@@ -87,7 +87,7 @@ export default function PersonEditor() {
       };
       await mutate((d) => upsertPerson(d, person));
       notify("人物档案已保存");
-      if (id) router.back();
+      if (id) router.canGoBack() ? router.back() : router.replace({ pathname: "/person/[id]", params: { id } });
       else
         router.replace({ pathname: "/person/[id]", params: { id: person.id } });
     } catch (e) {

@@ -23,16 +23,16 @@ export default function CollectionScreen() {
     {searching && <View style={{ marginBottom: 22 }}><SearchField label="搜索收藏" value={search} onChangeText={setSearch} placeholder="代号、城市或标签" /></View>}
     {!featured ? <Empty title={search || filter === "favorite" ? "没有匹配的收藏" : "第一份收藏，等你写下"} description={search || filter === "favorite" ? "试试其他关键词或筛选条件。" : "建立人物档案，记下亲密相处，她就会出现在这里。"} action="新建人物" onPress={() => router.push("/person/edit")} /> : <>
       <Pressable accessibilityRole="button" accessibilityLabel="打开精选人物档案" testID="featured-person" onPress={() => openPerson(featured.id)} style={{ flexDirection: "row", gap: width > 700 ? 32 : 19 }}>
-        <Photo uri={featured.photo} name={featured.name} hidden={hidden} style={{ flex: 1.9, aspectRatio: width > 700 ? 1 : 0.7, borderRadius: 7 }} />
+        <Photo uri={featured.photo} name={featured.name} hidden={hidden} style={{ flex: 1.9, minHeight: width > 700 ? 390 : 330, borderRadius: 7 }} />
         <View style={{ flex: 1, paddingTop: 5, paddingBottom: 4 }}>
-          <View style={[s.between, { marginBottom: 19 }]}><Text style={[s.tiny, { letterSpacing: 1 }]}>精选档案</Text><Text style={[s.tiny, { color: c.ink }]}>01</Text></View>
-          <View style={{ width: 28, height: 1, backgroundColor: c.ink, marginBottom: 21 }} />
+          <View style={[s.between, { marginBottom: 12 }]}><Text style={[s.tiny, { letterSpacing: 1 }]}>精选档案</Text><Text style={[s.tiny, { color: c.ink }]}>01</Text></View>
+          <View style={{ width: 28, height: 1, backgroundColor: c.ink, marginBottom: 12 }} />
           <Name value={featured.name} style={{ fontSize: 30, lineHeight: 39, fontWeight: "500", letterSpacing: -1 }} />
           <Text style={[s.muted, { marginTop: 8 }]}>{hidden ? "已隐藏" : featured.city || "地点待补充"}</Text>
-          <View style={{ gap: 5, marginTop: 20 }}>{!hidden && featured.tags.slice(0, 3).map(tag => <Text key={tag} style={s.tiny}>{tag}</Text>)}</View>
-          <View style={{ flex: 1, minHeight: 20 }} />
+          <View style={{ gap: 5, marginTop: 13 }}>{!hidden && featured.tags.slice(0, 2).map(tag => <Text key={tag} style={s.tiny}>{tag}</Text>)}</View>
+          <View style={{ flex: 1, minHeight: 12 }} />
           <View style={[s.row, { gap: 5, alignItems: "baseline" }]}><Text style={{ fontSize: 29, lineHeight: 36, color: c.ink, fontWeight: "300" }}>{intimacyCount(data, featured.id)}</Text><Text style={s.tiny}>次亲密</Text></View>
-          <View style={[s.between, { marginTop: 16 }]}>
+          <View style={[s.between, { marginTop: 10 }]}>
             <Icon name={featured.favorite ? "heart" : "bookmark"} size={17} color={c.muted} />
             <View style={{ width: 44, height: 44, backgroundColor: c.ink, borderRadius: 22, alignItems: "center", justifyContent: "center" }}><Icon name="arrow-up-right" size={20} color="#fff" /></View>
           </View>

@@ -589,9 +589,10 @@ export function FormSection({ number, title, caption, children }: {
 export function SearchField({ label, value, onChangeText, placeholder }: {
   label: string; value: string; onChangeText: (value: string) => void; placeholder: string;
 }) {
+  const hidden = useApp(a => a.hidden);
   return <View style={[s.row, { backgroundColor: "#ECEEEA", borderRadius: 10, paddingLeft: 15, gap: 10 }]}>
     <Icon name="search" size={17} color={c.muted} />
-    <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={c.muted} style={[s.body, { flex: 1, fontSize: 14, minHeight: 48, paddingVertical: 12 }]} />
+    <TextInput accessibilityLabel={label} value={hidden ? "" : value} editable={!hidden} onChangeText={onChangeText} placeholder={hidden ? "内容已隐藏" : placeholder} placeholderTextColor={c.muted} style={[s.body, { flex: 1, fontSize: 14, minHeight: 48, paddingVertical: 12 }]} />
     {!!value && <IconButton name="x" label={`清空${label}`} onPress={() => onChangeText("")} />}
   </View>;
 }
