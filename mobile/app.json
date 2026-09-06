@@ -1,24 +1,35 @@
 {
   "expo": {
-    "name": "Astra",
+    "name": "Astra · 山河",
     "slug": "astra-modern",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "scheme": "astra-modern",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lluviose.astra.modern",
       "infoPlist": {
-        "CFBundleDisplayName": "Astra",
+        "CFBundleDisplayName": "星图",
         "UIFileSharingEnabled": false,
         "LSSupportsOpeningDocumentsInPlace": false
       }
     },
-    "web": { "bundler": "metro", "output": "single", "name": "Astra · 星图" },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Astra · 星图"
+    },
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      ["expo-build-properties", { "ios": { "deploymentTarget": "18.0" } }],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "18.0"
+          }
+        }
+      ],
       [
         "expo-image-picker",
         {
@@ -29,9 +40,16 @@
       ],
       [
         "expo-local-authentication",
-        { "faceIDPermission": "使用面容 ID 解锁你的私人档案。" }
+        {
+          "faceIDPermission": "使用面容 ID 解锁你的私人档案。"
+        }
       ],
-      ["expo-splash-screen", { "backgroundColor": "#F7F8FA" }]
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F7F8FA"
+        }
+      ]
     ]
   }
 }

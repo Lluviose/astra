@@ -3,7 +3,7 @@ import { demoData } from "../domain/demo";
 
 // Browser preview adapter. The iOS app uses database.ts and SQLite.
 const preview = process.env.EXPO_PUBLIC_DEMO_MODE === "1";
-const key = preview ? "astra-modern-demo-v1" : "astra-modern-v1";
+const key = preview ? "astra-atlas-demo-v1" : "astra-atlas-v1";
 export async function loadData(): Promise<Data> {
   const saved = localStorage.getItem(key);
   if (saved) return JSON.parse(saved);

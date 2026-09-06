@@ -1,1 +1,1 @@
-export { default } from "../../features/CollectionScreen";
+export { default } from "../../features/atlas/AtlasScreen";

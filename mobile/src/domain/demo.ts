@@ -80,10 +80,24 @@ export function demoData(now = new Date()): Data {
       i === 0
         ? "从咖啡店走到江边，聊了很多。普通的一天，也想好好记住。"
         : "值得留住的小小片刻。",
-    city: people[i % 3].city,
+    city: ["上海", "成都", "拉萨", "青岛", "三亚", "杭州"][i % 6],
+    details: {
+      venue: "示例地点",
+      positions: ["标签 A"],
+      playTags: ["标签 B"],
+      physiqueTags: ["个人偏好"],
+      bodyRating: 8,
+    },
     protection: "unspecified",
     followUp: i === 0,
     completed: false,
   }));
-  return { ...emptyData(), people, entries, demo: true };
+  const data = { ...emptyData(), people, entries, demo: true };
+  data.game.investments = [
+    { id: "demo-build-1", cityId: "310000", level: 1 },
+    { id: "demo-build-2", cityId: "310000", level: 2 },
+    { id: "demo-build-3", cityId: "510100", level: 1 },
+    { id: "demo-build-4", cityId: "540100", level: 1 },
+  ];
+  return data;
 }

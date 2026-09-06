@@ -8,9 +8,10 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 function Navigation({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const items: [string, string, IconName][] = [
-    ["index", "后宫", "grid"],
+    ["index", "山河", "globe"],
+    ["collection", "人物", "grid"],
     ["journal", "战绩", "align-left"],
-    ["hall", "殿堂", "hexagon"],
+    ["hall", "成就", "hexagon"],
   ];
   return (
     <View
@@ -60,7 +61,16 @@ function Navigation({ state, navigation }: BottomTabBarProps) {
                 gap: 5,
               }}
             >
-              <View style={{ width: 44, height: 29, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: active ? "#ECEEEA" : "transparent" }}>
+              <View
+                style={{
+                  width: 44,
+                  height: 29,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 10,
+                  backgroundColor: active ? "#ECEEEA" : "transparent",
+                }}
+              >
                 <Icon name={icon} size={19} color={active ? c.ink : c.muted} />
               </View>
               <Text
@@ -104,6 +114,7 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false, animation: "fade" }}
     >
       <Tabs.Screen name="index" />
+      <Tabs.Screen name="collection" />
       <Tabs.Screen name="journal" />
       <Tabs.Screen name="hall" />
     </Tabs>

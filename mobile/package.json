@@ -2,12 +2,15 @@
   "dependencies": {
     "@expo/metro-runtime": "~55.0.12",
     "@expo/vector-icons": "^15.0.2",
+    "@react-three/fiber": "9.5.0",
     "expo": "~55.0.0",
+    "expo-asset": "~55.0.20",
     "expo-build-properties": "~55.0.18",
     "expo-constants": "~55.0.17",
     "expo-dev-client": "~55.0.40",
     "expo-file-system": "~55.0.26",
     "expo-font": "~55.0.8",
+    "expo-gl": "55.0.18",
     "expo-haptics": "~55.0.18",
     "expo-image": "~55.0.11",
     "expo-image-picker": "~55.0.24",
@@ -30,15 +33,17 @@
     "react-native-svg": "15.15.3",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.7.4",
+    "three": "0.170.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@babel/core": "^7.25.2",
     "@types/node": "^24.0.0",
     "@types/react": "~19.2.0",
-    "typescript": "~5.9.2",
     "babel-preset-expo": "~55.0.0",
-    "@babel/core": "^7.25.2",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.2",
+    "@types/three": "0.170.0"
   },
   "main": "expo-router/entry",
   "name": "astra-mobile",
@@ -54,5 +59,5 @@
     "format": "prettier --write src tests package.json tsconfig.json app.json babel.config.js",
     "format:check": "prettier --check src tests package.json tsconfig.json app.json babel.config.js"
   },
-  "version": "2.0.0"
+  "version": "3.0.0"
 }

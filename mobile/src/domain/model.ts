@@ -1,3 +1,9 @@
+import {
+  emptyGame,
+  type GameData,
+  type IntimacyDetails,
+  validateDetails,
+} from "../game/types.ts";
 export const dimensions = [
   "外貌",
   "身材",
@@ -31,6 +37,7 @@ export type Entry = {
   protection: "yes" | "no" | "unspecified";
   followUp: boolean;
   completed: boolean;
+  details?: IntimacyDetails;
 };
 export type Settings = {
   appLock: boolean;
@@ -43,6 +50,7 @@ export type Data = {
   entries: Entry[];
   settings: Settings;
   demo: boolean;
+  game: GameData;
 };
 export const kindLabels = {
   date: "约会",
@@ -59,6 +67,7 @@ export const emptyData = (): Data => ({
     maskOnLaunch: false,
   },
   demo: false,
+  game: emptyGame(),
 });
 export const scoreAverage = (scores: Scores) =>
   scores.reduce((sum, score) => sum + score, 0) / scores.length;
@@ -105,6 +114,7 @@ export function upsertPerson(data: Data, person: Person): Data {
   };
 }
 export function upsertEntry(data: Data, entry: Entry): Data {
+  validateDetails(entry.details);
   if (!data.people.some((p) => p.id === entry.personId))
     throw new Error("请先选择人物");
   if (!validDate(entry.date))
@@ -144,6 +154,10 @@ export function filterEntries(
             e.title,
             e.note,
             e.city,
+            e.details?.venue || "",
+            ...(e.details?.positions || []),
+            ...(e.details?.playTags || []),
+            ...(e.details?.physiqueTags || []),
             data.people.find((p) => p.id === e.personId)?.name || "",
           ]
             .join(" ")

@@ -7,7 +7,7 @@ let opening: Promise<SQLite.SQLiteDatabase> | undefined;
 function database() {
   return (opening ??= (async () => {
     const db = await SQLite.openDatabaseAsync(
-      preview ? "astra-modern-demo.db" : "astra-modern.db",
+      preview ? "astra-atlas-demo-v1.db" : "astra-atlas-v1.db",
     );
     await db.execAsync(`PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;
       CREATE TABLE IF NOT EXISTS people (id TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL);
@@ -60,7 +60,7 @@ export async function saveData(data: Data): Promise<void> {
       );
     await txn.runAsync(
       "INSERT OR REPLACE INTO preferences(id,data) VALUES (1,?)",
-      JSON.stringify({ settings: data.settings, demo: data.demo }),
+      JSON.stringify({ settings: data.settings, demo: data.demo, game: data.game }),
     );
   });
 }

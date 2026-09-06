@@ -90,6 +90,7 @@ export default function Layout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="game-rules" options={{ gestureEnabled: false }} />
           <Stack.Screen name="record" options={{ presentation: "modal", gestureEnabled: false }} />
           <Stack.Screen
             name="person/edit"
