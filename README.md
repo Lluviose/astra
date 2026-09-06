@@ -1,6 +1,6 @@
 # Astra 3 · 山河
 
-当前开发入口是 **`mobile/`**：iOS 私人记录 + 内嵌 3D 城市策略沙盘。采用 React Native / TypeScript / SQLite / Three.js / Expo GL。
+当前开发入口是 **`mobile/`**：iOS 私人记录 + 内嵌 2D 城市策略沙盘。采用 React Native / TypeScript / SQLite / Skia / Reanimated。
 
 - 山河、人物、战绩、成就四个主入口；记录人物、城市、地点代号、私人标签、防护情况和主观评分。
 - 可配置积分、城市攻占、四级建筑、城市专属地标、角色成长与地区成就。
@@ -8,7 +8,7 @@
 
 [设计、计分与架构说明](Docs/atlas-game-architecture.md) · [运行与验证](mobile/README.md)
 
-当前是可审阅开发实现：地图为游戏示意，建筑为程序化模型；原生编译和真机图形验收尚未完成。下方为 SwiftUI 旧版说明，旧工程不作为本次开发入口。
+当前是可审阅开发实现：已引入 geoBoundaries 省级边界（2019）与等距矢量建筑，支持拖动缩放和城市升级；省域着色汇总城市进度。`main` 自动触发新版 IPA，真机交互与性能仍需验收。下方为 SwiftUI 旧版说明，旧工程不作为本次开发入口。
 
 ---
 
@@ -62,14 +62,14 @@ make test                    # 命令行跑单测
 
 ## CI：GitHub Actions 打 IPA
 
-推送到 `main` 即自动：装 xcodegen → 生成工程 → 模拟器跑单测 → 免签名 Archive → 打包 `Astra-unsigned.ipa` → 上传 Actions 产物（保留 14 天）。
+当前 `main` 自动流程：安装 `mobile/` 依赖 → 类型与业务检查 → Expo prebuild / CocoaPods → 免签名 Archive → 打包 `Astra-unsigned.ipa` → 上传 Actions 产物（保留 14 天）。
 
 ```bash
 git push origin main
 # 网页端 Actions → 最新一次运行 → Artifacts → Astra-ipa 下载
 ```
 
-- 手动跑：Actions → **iOS** → Run workflow，可选 `signed = on`、`publish_release = true`
+- 手动跑：Actions → **iOS IPA** → Run workflow，可选 `signed = on`、`publish_release = true`
 - **免签名 IPA 装不了普通 iPhone**。上真机有两条路：
   1. 自己用 Xcode 打开工程，用免费的 Apple ID 签名（7 天有效）；
   2. 付费开发者账号（$99/年），配置仓库 Secrets 让 CI 出正式签名 IPA：
@@ -82,7 +82,7 @@ git push origin main
 | `PROVISION_UUID` | 描述文件 UUID |
 | `DEVELOPMENT_TEAM` | Team ID |
 | `SIGNING_IDENTITY` | 证书名，如 `Apple Distribution: xxx` |
-| `BUNDLE_ID` | 与描述文件一致的 bundle id（默认 `com.lluviose.astra`） |
+| `BUNDLE_ID` | 与描述文件一致的 bundle id（新版默认 `com.lluviose.astra.modern`） |
 
 ## 工程结构
 

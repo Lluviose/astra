@@ -8,3 +8,6 @@ verification/
 
 # Local export verification
 ios-export/
+
+# Generated from the pinned CanvasKit dependency
+public/canvaskit.wasm

@@ -67,6 +67,8 @@ jobs:
 
       - name: 类型与业务检查
         run: |
+          npm run map:build
+          git diff --exit-code -- assets/map/china-provinces.json
           npm run typecheck
           npm test
 
