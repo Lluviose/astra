@@ -2,64 +2,116 @@ import XCTest
 
 final class ModernUITests: XCTestCase {
     private let app = XCUIApplication(bundleIdentifier: "com.lluviose.astra.modern")
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
+    override func setUpWithError() throws { continueAfterFailure = false }
 
     private func element(_ label: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
     }
-
+    private func top() {
+        let scroll = app.scrollViews.firstMatch
+        if scroll.exists { for _ in 0..<3 { scroll.swipeDown() } }
+    }
     private func tap(_ label: String) {
         let target = element(label)
-        XCTAssertTrue(target.waitForExistence(timeout: 20), "Missing control: \(label)")
+        for _ in 0..<7 {
+            if target.exists && target.isHittable { break }
+            if app.scrollViews.firstMatch.exists { app.scrollViews.firstMatch.swipeUp() }
+        }
+        XCTAssertTrue(target.waitForExistence(timeout: 10), "Missing control: \(label)")
+        XCTAssertTrue(target.isHittable, "Control is outside viewport: \(label)")
         target.tap()
     }
-
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
     }
-
-    func testPagesAndRecordSurvivesRestart() throws {
+    private func launch() {
         app.launch()
-        XCTAssertTrue(element("打开精选人物档案").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("新增记录").waitForExistence(timeout: 30))
+    }
+
+    func test01EveryScreenDesignReview() throws {
+        launch()
         capture("01-collection")
+        tap("隐藏私人内容")
+        capture("01b-collection-hidden")
+        tap("显示私人内容")
+        app.scrollViews.firstMatch.swipeUp()
+        capture("02-collection-detail")
+        top()
         tap("打开精选人物档案")
         XCTAssertTrue(element("编辑人物").waitForExistence(timeout: 10))
-        capture("02-person")
+        capture("03-person")
+        tap("画像")
+        app.scrollViews.firstMatch.swipeUp()
+        capture("04-person-profile")
+        top()
+        tap("私藏")
+        app.scrollViews.firstMatch.swipeUp()
+        capture("05-person-album")
+        tap("查看第1张私藏")
+        XCTAssertTrue(element("关闭相册").waitForExistence(timeout: 10))
+        capture("06-photo")
+        tap("关闭相册")
+        top()
+        tap("编辑人物")
+        capture("07-person-editor")
+        tap("六维评分")
+        app.scrollViews.firstMatch.swipeUp()
+        capture("08-score-editor")
         tap("返回")
-
+        tap("返回")
+        tap("人物名册")
+        capture("09-roster")
+        tap("新建人物")
+        capture("10-new-person")
+        tap("返回")
+        tap("返回")
         tap("战绩")
         XCTAssertTrue(app.textFields["搜索战绩"].waitForExistence(timeout: 10))
-        capture("03-journal")
+        capture("11-journal")
+        tap("筛选记录")
+        capture("12-journal-filters")
+        tap("筛选记录")
         tap("殿堂")
-        XCTAssertTrue(element("属于你的轨迹。").waitForExistence(timeout: 10))
-        capture("04-hall")
+        XCTAssertTrue(element("累计相处").waitForExistence(timeout: 10))
+        capture("13-hall")
+        app.scrollViews.firstMatch.swipeUp()
+        capture("14-milestones")
+        tap("偏爱排行")
+        capture("15-ranking")
+        tap("返回")
+        tap("城市足迹")
+        capture("16-footprints")
+        tap("返回")
+        top()
+        tap("设置")
+        capture("17-settings")
+        app.scrollViews.firstMatch.swipeUp()
+        capture("18-settings-detail")
+        tap("返回")
+        tap("新增记录")
+        capture("19-record")
+        tap("更多细节")
+        capture("20-record-details")
+    }
 
+    func test02RecordSurvivesRestart() throws {
+        launch()
         tap("新增记录")
         tap("选择林间")
         let title = app.textFields["片刻标题"]
+        for _ in 0..<3 { if title.isHittable { break }; app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(title.waitForExistence(timeout: 10))
         title.tap()
         title.typeText("Native review note")
         app.scrollViews.firstMatch.swipeUp()
-        let save = element("保存片刻")
-        for _ in 0..<4 {
-            if save.isHittable { break }
-            app.scrollViews.firstMatch.swipeUp()
-        }
-        XCTAssertTrue(save.isHittable)
-        capture("05-record")
-        save.tap()
+        tap("保存片刻")
         XCTAssertTrue(element("新增记录").waitForExistence(timeout: 10))
-
         app.terminate()
-        app.launch()
-        XCTAssertTrue(element("新增记录").waitForExistence(timeout: 30))
+        launch()
         tap("战绩")
         let search = app.textFields["搜索战绩"]
         XCTAssertTrue(search.waitForExistence(timeout: 10))
@@ -67,6 +119,25 @@ final class ModernUITests: XCTestCase {
         search.typeText("Native review note")
         XCTAssertTrue(element("编辑记录：Native review note").waitForExistence(timeout: 10))
         app.scrollViews.firstMatch.swipeUp()
-        capture("06-persisted-record")
+        capture("21-persisted-record")
+        tap("编辑记录：Native review note")
+        tap("删除这条记录")
+        capture("22-delete-confirmation")
+        tap("取消")
+    }
+    func test03EmptyStateDesignReview() throws {
+        launch()
+        tap("设置")
+        tap("清空并开始自己的档案")
+        tap("确认删除")
+        XCTAssertTrue(element("新增记录").waitForExistence(timeout: 10))
+        capture("23-empty-collection")
+        tap("战绩")
+        capture("24-empty-journal")
+        tap("殿堂")
+        capture("25-empty-hall")
+        tap("设置")
+        tap("载入示例内容")
+        XCTAssertTrue(element("打开精选人物档案").waitForExistence(timeout: 20))
     }
 }

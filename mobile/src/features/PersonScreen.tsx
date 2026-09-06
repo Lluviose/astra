@@ -28,6 +28,9 @@ import {
   c,
   s,
 } from "../design/ui";
+import { LinearGradient } from "expo-linear-gradient";
+import Radar from "../design/Radar";
+import { Segments } from "../design/ui";
 import { pickPhoto } from "../platform/media";
 
 export default function PersonScreen() {
@@ -82,111 +85,20 @@ export default function PersonScreen() {
       title="人物档案"
       right={<IconButton name="edit-3" label="编辑人物" onPress={edit} />}
     >
-      <View
-        style={{
-          flexDirection: width > 760 ? "row" : "column",
-          gap: width > 760 ? 35 : 0,
-        }}
-      >
-        <Photo
-          uri={person.photo}
-          name={person.name}
-          hidden={hidden}
-          style={{
-            width: width > 760 ? "48%" : "100%",
-            aspectRatio: 1.1,
-            borderRadius: 18,
-          }}
-        />
-        <View style={{ flex: 1, marginTop: width > 760 ? 10 : 22 }}>
-          <View style={s.between}>
-            <Name value={person.name} style={s.title} />
-            <IconButton
-              name="heart"
-              label={person.favorite ? "取消偏爱" : "设为偏爱"}
-              active={person.favorite}
-              onPress={() => void favorite()}
-            />
-          </View>
-          <View style={[s.row, { gap: 5, marginTop: 8 }]}>
-            <Icon name="map-pin" size={14} color={c.muted} />
-            <Text style={s.muted}>
-              {hidden ? "已隐藏" : person.city || "地点待补充"}
-            </Text>
-            {person.archived && <Text style={s.muted}> · 已归档</Text>}
-          </View>
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 9,
-              marginTop: 15,
-              flexWrap: "wrap",
-            }}
-          >
-            {!hidden &&
-              person.tags.map((tag) => (
-                <Text
-                  key={tag}
-                  style={[
-                    s.tiny,
-                    {
-                      backgroundColor: "#ECEFF4",
-                      paddingHorizontal: 11,
-                      paddingVertical: 6,
-                      borderRadius: 6,
-                    },
-                  ]}
-                >
-                  {tag}
-                </Text>
-              ))}
-          </View>
-          <View
-            style={{
-              flexDirection: "row",
-              marginTop: 25,
-              paddingVertical: 20,
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: c.line,
-            }}
-          >
-            {[
-              [entries.length, "相处片刻"],
-              [intimacyCount(data, id), "亲密记录"],
-              [scoreAverage(person.scores).toFixed(1), "综合评分"],
-            ].map(([n, label]) => (
-              <View key={label} style={{ flex: 1, gap: 5 }}>
-                <Text style={[s.h2, { fontSize: 25 }]}>{n}</Text>
-                <Text style={s.tiny}>{label}</Text>
-              </View>
-            ))}
-          </View>
-          <Button
-            icon="plus"
-            onPress={() =>
-              router.push({ pathname: "/record", params: { personId: id } })
-            }
-            style={{ marginTop: 20 }}
-          >
-            记下这次相处
-          </Button>
+      <View style={{ borderRadius: 12, overflow: "hidden" }}>
+        <Photo uri={person.photo} name={person.name} hidden={hidden} style={{ width: "100%", aspectRatio: width > 760 ? 2.2 : 1.5 }} />
+        <LinearGradient colors={["transparent", "rgba(12,20,16,0.78)"]} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 145 }} />
+        <View style={{ position: "absolute", bottom: 21, left: 21, right: 21 }}>
+          <Name value={person.name} style={{ color: "#fff", fontSize: 33, lineHeight: 44, fontWeight: "500" }} />
+          <Text style={[s.tiny, { color: "#E7ECE7", marginTop: 3 }]}>{hidden ? "已隐藏" : [person.city, ...person.tags.slice(0, 2)].filter(Boolean).join("  ·  ")}{person.archived ? "  ·  已归档" : ""}</Text>
         </View>
+        <IconButton name="heart" label={person.favorite ? "取消偏爱" : "设为偏爱"} active={person.favorite} onPress={() => void favorite()} style={{ position: "absolute", top: 13, right: 13, backgroundColor: "rgba(255,255,255,0.92)" }} />
       </View>
-      <View style={[s.row, { gap: 3, marginTop: 29, marginBottom: 23 }]}>
-        {[
-          ["story", "战绩"],
-          ["profile", "画像"],
-          ["album", "私藏"],
-        ].map(([key, label]) => (
-          <Chip
-            key={key}
-            label={label}
-            selected={tab === key}
-            onPress={() => setTab(key)}
-          />
-        ))}
+      <View style={{ flexDirection: "row", paddingVertical: 21 }}>
+        {[[entries.length, "相处片刻"], [intimacyCount(data, id), "亲密记录"], [scoreAverage(person.scores).toFixed(1), "综合评分"]].map(([n, label], i) => <View key={label} style={{ flex: 1, paddingLeft: i ? 20 : 0, borderLeftWidth: i ? 1 : 0, borderColor: c.line }}><Text style={{ fontSize: 25, lineHeight: 32, fontWeight: "400", color: c.ink }}>{n}</Text><Text style={[s.tiny, { marginTop: 3 }]}>{label}</Text></View>)}
       </View>
+      <Button icon="plus" onPress={() => router.push({ pathname: "/record", params: { personId: id } })}>记下这次相处</Button>
+      <View style={{ marginTop: 17, marginBottom: 9, borderBottomWidth: 1, borderColor: c.line }}><Segments items={[["story", "战绩"], ["profile", "画像"], ["album", "私藏"]]} value={tab} onChange={setTab} /></View>
       {tab === "story" &&
         (entries.length ? (
           entries.map((e) => (
@@ -219,46 +131,19 @@ export default function PersonScreen() {
         ) : (
           <Empty title="下一次，从这里开始" description="还没有相处记录。" />
         ))}
-      {tab === "profile" && (
-        <View>
-          <SectionHeading title="关于她" action="编辑" onPress={edit} />
-          <Text style={[s.body, { lineHeight: 27, marginBottom: 30 }]}>
-            {hidden ? "内容已隐藏" : person.note || "还没有写下关于她的印象。"}
-          </Text>
-          <SectionHeading
-            title="你的六维画像"
-            action="调整评分"
-            onPress={edit}
-          />
-          {dimensions.map((label, i) => (
-            <View key={label} style={[s.row, { gap: 18, marginBottom: 21 }]}>
-              <Text style={[s.muted, { width: 35 }]}>{label}</Text>
-              <View
-                style={{
-                  flex: 1,
-                  height: 5,
-                  borderRadius: 3,
-                  backgroundColor: "#E4E9F2",
-                }}
-              >
-                <View
-                  style={{
-                    width: `${person.scores[i] * 10}%`,
-                    height: 5,
-                    borderRadius: 3,
-                    backgroundColor: c.blue,
-                  }}
-                />
-              </View>
-              <Text style={[s.label, { width: 22 }]}>{person.scores[i]}</Text>
-            </View>
-          ))}
+      {tab === "profile" && <View style={{ paddingTop: 16 }}>
+        <SectionHeading title="关于她" action="编辑" onPress={edit} />
+        <Text style={[s.body, { lineHeight: 28, marginBottom: 28 }]}>{hidden ? "内容已隐藏" : person.note || "还没有写下关于她的印象。"}</Text>
+        <View style={{ backgroundColor: c.paper, borderRadius: 13, padding: 19 }}>
+          <View style={s.between}><Text style={s.label}>六维画像</Text><Pressable accessibilityRole="button" onPress={edit} style={{ minHeight: 44, justifyContent: "center" }}><Text style={[s.tiny, { color: c.blue }]}>调整评分 ↗</Text></Pressable></View>
+          <View style={[s.row, { gap: 2 }]}><View style={{ flex: 1.8 }}><Radar scores={hidden ? [0,0,0,0,0,0] : person.scores} /></View><View style={{ flex: 0.6, alignItems: "flex-end" }}><Text style={{ fontSize: 35, lineHeight: 44, color: c.ink, fontWeight: "300", letterSpacing: -1 }}>{hidden ? "—" : scoreAverage(person.scores).toFixed(1)}</Text><Text style={[s.tiny, { marginTop: 6 }]}>综合评分</Text><View style={{ width: 22, height: 1, backgroundColor: c.line, marginVertical: 17 }} /><Text style={s.tiny}>满分 10</Text></View></View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>{dimensions.map((label, i) => <View key={label} style={[s.between, { width: "50%", paddingVertical: 10, paddingRight: 13, borderTopWidth: 1, borderColor: c.line }]}><Text style={s.tiny}>{label}</Text><Text style={s.label}>{hidden ? "—" : person.scores[i] || "未评分"}</Text></View>)}</View>
         </View>
-      )}
+      </View>}
       {tab === "album" && (
         <View>
           <SectionHeading
-            title={`${person.album.length} 张私藏`}
+            title={`私藏 · ${person.album.length}`}
             action="添加照片"
             onPress={() => void addPhoto()}
           />
@@ -276,7 +161,7 @@ export default function PersonScreen() {
                       params: { id, index: String(i) },
                     })
                   }
-                  style={{ width: width > 760 ? "31%" : "47%" }}
+                  style={{ width: person.album.length === 1 ? "100%" : width > 760 ? "31%" : "47%" }}
                 >
                   <Photo
                     uri={photo}
@@ -284,8 +169,8 @@ export default function PersonScreen() {
                     hidden={hidden}
                     style={{
                       width: "100%",
-                      aspectRatio: 0.85,
-                      borderRadius: 12,
+                      aspectRatio: person.album.length === 1 ? 1.25 : 0.85,
+                      borderRadius: 7,
                     }}
                   />
                 </Pressable>

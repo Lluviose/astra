@@ -19,6 +19,9 @@ import {
 } from "../domain/model";
 import {
   Screen,
+  PageTitle,
+  FormSection,
+  Segments,
   Field,
   Button,
   Chip,
@@ -146,204 +149,32 @@ export default function Record() {
         />
       </Screen>
     );
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <Screen back title={existing ? "编辑片刻" : "新的片刻"}>
-        <View style={{ maxWidth: 640, width: "100%", alignSelf: "center" }}>
-          <Text style={[s.title, { marginTop: 10 }]}>把这一刻留下。</Text>
-          <Text style={[s.muted, { marginTop: 8, marginBottom: 29 }]}>
-            几句话，就够记住一次相处。
-          </Text>
-          <ErrorNote message={error} />
-          <Text style={[s.label, { marginBottom: 13 }]}>和谁一起</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 14, paddingBottom: 22 }}
-          >
-            {activePeople.map((p) => (
-              <Pressable
-                key={p.id}
-                accessibilityRole="button"
-                accessibilityLabel={`选择${p.name}`}
-                accessibilityState={{ selected: person === p.id }}
-                onPress={() => {
-                  setPerson(p.id);
-                  if (!city) setCity(p.city);
-                }}
-                style={{
-                  alignItems: "center",
-                  gap: 8,
-                  padding: 6,
-                  borderWidth: 2,
-                  borderColor: person === p.id ? c.blue : "transparent",
-                  borderRadius: 17,
-                }}
-              >
-                <Avatar uri={p.photo} name={p.name} size={46} />
-                <Text
-                  style={[s.tiny, { color: person === p.id ? c.blue : c.ink }]}
-                >
-                  {p.name}
-                </Text>
-              </Pressable>
-            ))}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="新人物"
-              onPress={() => setPerson("new")}
-              style={{
-                alignItems: "center",
-                gap: 8,
-                padding: 6,
-                borderWidth: 2,
-                borderColor: person === "new" ? c.blue : "transparent",
-                borderRadius: 17,
-              }}
-            >
-              <View
-                style={{
-                  width: 46,
-                  height: 46,
-                  backgroundColor: c.soft,
-                  borderRadius: 23,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Icon name="plus" />
-              </View>
-              <Text style={s.tiny}>新人物</Text>
-            </Pressable>
+  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <Screen back title="相处记录">
+      <View style={{ maxWidth: 640, width: "100%", alignSelf: "center" }}>
+        <PageTitle title={existing ? "编辑片刻" : "新的片刻"} subtitle="记下发生的事，留下想记住的细节" />
+        <ErrorNote message={error} />
+        <FormSection number="01" title="和谁一起">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 5 }}>
+            {activePeople.map(p => <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`选择${p.name}`} accessibilityState={{ selected: person === p.id }} onPress={() => { setPerson(p.id); if (!city) setCity(p.city); }} style={[s.row, { gap: 10, minHeight: 63, paddingHorizontal: 13, borderWidth: 1, borderColor: person === p.id ? c.ink : c.line, borderRadius: 10, backgroundColor: c.paper }]}><Avatar uri={p.photo} name={p.name} size={33} /><Text style={s.label}>{p.name}</Text>{person === p.id && <Icon name="check" size={14} />}</Pressable>)}
+            <Pressable accessibilityRole="button" accessibilityLabel="新人物" accessibilityState={{ selected: person === "new" }} onPress={() => setPerson("new")} style={{ minWidth: 72, minHeight: 63, borderWidth: 1, borderColor: person === "new" ? c.ink : c.line, borderRadius: 10, alignItems: "center", justifyContent: "center", gap: 3 }}><Icon name="plus" size={17} /><Text style={s.tiny}>新人物</Text></Pressable>
           </ScrollView>
-          {person === "new" && (
-            <Field
-              label="人物代号"
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="怎么称呼她？"
-            />
-          )}
-          <Text style={[s.label, { marginBottom: 10 }]}>这次相处</Text>
-          <View style={[s.row, { gap: 5, marginBottom: 23 }]}>
-            {[
-              ["intimacy", "亲密"],
-              ["date", "约会"],
-              ["missed", "未发生"],
-            ].map(([key, label]) => (
-              <Chip
-                key={key}
-                label={label}
-                selected={kind === key}
-                onPress={() => setKind(key as Entry["kind"])}
-              />
-            ))}
-          </View>
-          <Field
-            label="片刻标题"
-            value={title}
-            onChangeText={setTitle}
-            placeholder="例如：雨停之后，一起散步"
-          />
-          <View style={{ flexDirection: "row", gap: 14 }}>
-            <View style={{ flex: 1 }}>
-              <Field
-                label="日期"
-                value={date}
-                onChangeText={setDate}
-                placeholder="YYYY-MM-DD"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field
-                label="城市（可选）"
-                value={city}
-                onChangeText={setCity}
-                placeholder="留下足迹的地方"
-              />
-            </View>
-          </View>
-          <Field
-            label="想记住的事（可选）"
-            value={note}
-            onChangeText={setNote}
-            placeholder="那天的心情、聊过的话，或下次想一起做的事。"
-            multiline
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: details }}
-            onPress={() => setDetails(!details)}
-            style={[
-              s.between,
-              {
-                minHeight: 52,
-                borderTopWidth: 1,
-                borderBottomWidth: 1,
-                borderColor: c.line,
-                marginBottom: 20,
-              },
-            ]}
-          >
-            <Text style={s.muted}>更多细节</Text>
-            <Icon name={details ? "minus" : "plus"} size={17} color={c.muted} />
-          </Pressable>
-          {details && (
-            <View>
-              <Text style={[s.label, { marginBottom: 10 }]}>保护情况</Text>
-              <ScrollView
-                horizontal
-                contentContainerStyle={{ gap: 5, marginBottom: 18 }}
-              >
-                {[
-                  ["unspecified", "未记录"],
-                  ["yes", "有保护"],
-                  ["no", "无保护"],
-                ].map(([key, label]) => (
-                  <Chip
-                    key={key}
-                    label={label}
-                    selected={protection === key}
-                    onPress={() => setProtection(key as Entry["protection"])}
-                  />
-                ))}
-              </ScrollView>
-              <View style={[s.between, { marginBottom: 24 }]}>
-                <Text style={s.body}>加入待跟进</Text>
-                <Switch
-                  accessibilityLabel="加入待跟进"
-                  value={followUp}
-                  onValueChange={setFollowUp}
-                  trackColor={{ true: c.blue }}
-                />
-              </View>
-            </View>
-          )}
-          <Button icon="check" onPress={() => void save()} disabled={busy}>
-            {busy ? "正在保存…" : "保存片刻"}
-          </Button>
-          {existing && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setDeleting(true)}
-              style={{ alignItems: "center", padding: 20, minHeight: 52 }}
-            >
-              <Text style={[s.muted, { color: c.red }]}>删除这条记录</Text>
-            </Pressable>
-          )}
-          <Confirm
-            visible={deleting}
-            title="删除这个片刻？"
-            message="这条记录将从战绩和人物档案中移除。"
-            onCancel={() => setDeleting(false)}
-            onConfirm={() => void remove()}
-            busy={busy}
-          />
+          {person === "new" && <View style={{ marginTop: 17 }}><Field label="人物代号" value={newName} onChangeText={setNewName} placeholder="怎么称呼她？" /></View>}
+        </FormSection>
+        <FormSection number="02" title="这次相处">
+          <View style={{ marginTop: -7, marginBottom: 21, borderBottomWidth: 1, borderColor: c.line }}><Segments items={[["intimacy", "亲密"], ["date", "约会"], ["missed", "未发生"]]} value={kind} onChange={value => setKind(value as Entry["kind"])} /></View>
+          <Field label="片刻标题" value={title} onChangeText={setTitle} placeholder="例如：雨停之后，一起散步" />
+          <View style={{ flexDirection: "row", gap: 13 }}><View style={{ flex: 1 }}><Field label="日期" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" /></View><View style={{ flex: 1 }}><Field label="城市（可选）" value={city} onChangeText={setCity} placeholder="相处的城市" /></View></View>
+          <Field label="想记住的事（可选）" value={note} onChangeText={setNote} placeholder="那天聊过的话、心情，或者下次想做的事。" multiline />
+        </FormSection>
+        <View style={{ backgroundColor: c.paper, borderRadius: 12, paddingHorizontal: 17, marginTop: -14, marginBottom: 25 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="更多细节" accessibilityState={{ expanded: details }} onPress={() => setDetails(!details)} style={[s.between, { minHeight: 58 }]}><View><Text style={s.label}>更多细节</Text><Text style={s.tiny}>保护情况与后续跟进</Text></View><Icon name={details ? "minus" : "plus"} size={18} /></Pressable>
+          {details && <View style={{ paddingTop: 13, paddingBottom: 14, borderTopWidth: 1, borderColor: c.line }}><Text style={[s.label, { marginBottom: 10 }]}>保护情况</Text><View style={[s.row, { gap: 4, marginBottom: 15 }]}>{[["unspecified", "未记录"], ["yes", "有保护"], ["no", "无保护"]].map(([key, label]) => <Chip key={key} label={label} selected={protection === key} onPress={() => setProtection(key as Entry["protection"])} />)}</View><View style={[s.between, { minHeight: 50 }]}><Text style={s.body}>加入待跟进</Text><Switch accessibilityLabel="加入待跟进" value={followUp} onValueChange={setFollowUp} trackColor={{ true: c.ink }} /></View></View>}
         </View>
-      </Screen>
-    </KeyboardAvoidingView>
-  );
+        <Button icon="check" onPress={() => void save()} disabled={busy}>{busy ? "正在保存…" : "保存片刻"}</Button>
+        {existing && <Pressable accessibilityRole="button" accessibilityLabel="删除这条记录" onPress={() => setDeleting(true)} style={{ alignItems: "center", padding: 20, minHeight: 52 }}><Text style={[s.muted, { color: c.red }]}>删除这条记录</Text></Pressable>}
+        <Confirm visible={deleting} title="删除这条记录？" message="这条记录将从战绩和人物档案中移除。" onCancel={() => setDeleting(false)} onConfirm={() => void remove()} busy={busy} />
+      </View>
+    </Screen>
+  </KeyboardAvoidingView>;
 }

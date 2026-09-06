@@ -10,6 +10,9 @@ group = project.main_group.new_group('AstraUITests', '../native-tests')
 tests.source_build_phase.add_file_reference(group.new_file('ModernUITests.swift'))
 tests.build_configurations.each do |configuration|
   configuration.build_settings.merge!({
+    'PRODUCT_NAME' => '$(TARGET_NAME)',
+    'MACH_O_TYPE' => 'mh_bundle',
+    'WRAPPER_EXTENSION' => 'xctest',
     'PRODUCT_BUNDLE_IDENTIFIER' => 'com.lluviose.astra.modern.uitests',
     'GENERATE_INFOPLIST_FILE' => 'YES',
     'SWIFT_VERSION' => '5.0',

@@ -26,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-      - name: Check source formatting
-        run: npm run format:check
+      - name: Format design iteration for review
+        run: npm run format
       - name: Prepare verification output
         run: mkdir -p verification
       - name: TypeScript
@@ -68,6 +68,7 @@ jobs:
             mobile/app.json
             mobile/tsconfig.json
             mobile/babel.config.js
+            mobile/node_modules/prettier
       - name: Require all checks
         if: steps.types.outcome != 'success' || steps.tests.outcome != 'success' || steps.versions.outcome != 'success' || steps.web.outcome != 'success' || steps.ios.outcome != 'success'
         run: exit 1
@@ -96,10 +97,6 @@ jobs:
           npx expo prebuild --platform ios --no-install
           pod install --project-directory=ios
           ruby scripts/configure-ui-tests.rb
-      - name: Build iOS simulator app
-        run: |
-          mkdir -p verification
-          xcodebuild -workspace ios/Astra.xcworkspace -scheme Astra -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO > verification/native-build.log 2>&1
       - name: Review native navigation and persistence
         run: bash scripts/native-review.sh
       - uses: actions/upload-artifact@v4

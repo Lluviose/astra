@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
+import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -85,7 +86,8 @@ export default function PhotoViewer() {
         ? { uri: photos[index] }
         : undefined;
   return (
-    <View style={{ flex: 1, backgroundColor: "#101319" }}>
+    <View style={{ flex: 1, backgroundColor: "#101411" }}>
+      <StatusBar style="light" />
       <View
         style={{
           paddingTop: insets.top + 10,
@@ -100,7 +102,7 @@ export default function PhotoViewer() {
           accessibilityRole="button"
           accessibilityLabel="关闭相册"
           onPress={() => router.back()}
-          style={{ padding: 13 }}
+          style={{ padding: 13, backgroundColor: "#252C26", borderRadius: 25 }}
         >
           <Icon name="x" color="#fff" />
         </Pressable>
@@ -110,7 +112,7 @@ export default function PhotoViewer() {
         <Text
           style={[
             s.tiny,
-            { color: "#AEB7C7", minWidth: 46, textAlign: "right" },
+            { color: "#AFB8B0", minWidth: 46, textAlign: "right" },
           ]}
         >
           {photos.length ? index + 1 : 0} / {photos.length}
@@ -124,7 +126,8 @@ export default function PhotoViewer() {
             <Image
               source={source}
               style={{
-                width,
+                width: width - 24,
+                marginHorizontal: 12,
                 height: height - insets.top - insets.bottom - 160,
               }}
               contentFit="contain"
@@ -151,7 +154,7 @@ export default function PhotoViewer() {
         >
           <Icon name="arrow-left" color="#fff" />
         </Pressable>
-        <Text style={[s.tiny, { color: "#AEB7C7" }]}>双指缩放 · 左右翻阅</Text>
+        <Text style={[s.tiny, { color: "#AEB7C7" }]}>{photos.length > 1 ? "双指缩放 · 左右翻阅" : "双指缩放查看细节"}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="下一张"
