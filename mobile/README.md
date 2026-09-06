@@ -40,6 +40,8 @@ npm run export:ios -- --output-dir ios-export
 
 本轮通过类型检查、25 项业务测试、Web 与 iOS JavaScript 导出、Expo 离线依赖检查。原生编译、iPhone 真机性能和截图验收尚未完成：当前环境无 Xcode，本地浏览器预览连接被环境拦截。JavaScript 导出不等于 iOS 应用编译成功。
 
+`iOS IPA` workflow 在每次推送 `main` 时自动运行，构建本目录的新应用并上传 `Astra-ipa`（免签名 IPA，保留 14 天）。本次配置提交也会触发。手动运行可选择签名和 Release；签名材料须匹配 `com.lluviose.astra.modern`。
+
 `React Native review` workflow 仍然只手动运行，macOS 模拟器选项默认关闭。原生验收脚本已适配新导航。`public/review.html` 提供固定手机宽度的开发预览。
 
 ## 代码边界

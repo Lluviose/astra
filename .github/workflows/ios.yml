@@ -1,14 +1,15 @@
-name: iOS
+name: iOS IPA
 
 on:
-  # Cloud runs are opt-in while development focuses on iPhone UI.
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       signed:
         description: "用仓库 Secrets 签名（需要 Apple 开发者账号），off 则只产出免签名 IPA"
         type: choice
         default: "off"
-        options: [off, on]
+        options: ["off", "on"]
       publish_release:
         description: "把 IPA 挂到 GitHub Release"
         type: boolean
@@ -22,22 +23,29 @@ permissions:
   contents: write
 
 env:
+  CI: "1"
+  EXPO_PUBLIC_DEMO_MODE: "0"
   SCHEME: Astra
-  DERIVED_DATA: ${{ github.workspace }}/DerivedData
-  ARCHIVE_PATH: ${{ github.workspace }}/build/Astra.xcarchive
-  SIGNED_ARCHIVE_PATH: ${{ github.workspace }}/build/Astra-signed.xcarchive
+  DERIVED_DATA: ${{ github.workspace }}/mobile/DerivedData
+  ARCHIVE_PATH: ${{ github.workspace }}/mobile/build/Astra.xcarchive
+  SIGNED_ARCHIVE_PATH: ${{ github.workspace }}/mobile/build/Astra-signed.xcarchive
 
 jobs:
   build:
     name: 构建 + 测试 + 打包
     runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: 选择 Xcode 26
         run: |
           set -euo pipefail
-          # macos-15 默认可能是 16.x；液态玻璃 / iOS 26 SDK 需要 Xcode 26
+          # Prefer Xcode 26 when available on the runner.
           XCODE="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)"
           if [ -n "${XCODE:-}" ]; then
             sudo xcode-select -s "$XCODE"
@@ -48,66 +56,42 @@ jobs:
           xcodebuild -version
           xcrun simctl list runtimes | grep -i ios || true
 
-      - name: 安装 xcodegen
-        run: brew install xcodegen
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
 
-      - name: 生成图标与工程
-        run: |
-          python3 Scripts/generate_icon.py
-          xcodegen generate
+      - name: 安装新版应用依赖
+        run: npm ci
 
-      - name: 单元测试（模拟器）
+      - name: 类型与业务检查
         run: |
-          set -euo pipefail
-          DEST_ID=$(python3 - <<'PY'
-          import json, subprocess, sys
-          data = json.loads(
-              subprocess.check_output(["xcrun", "simctl", "list", "-j", "devices", "available"], text=True)
-          )
-          phones = []
-          for runtime, devices in data.get("devices", {}).items():
-              if "iOS" not in runtime:
-                  continue
-              for device in devices:
-                  name = device.get("name", "")
-                  if device.get("isAvailable") and name.startswith("iPhone"):
-                      phones.append((runtime, device))
-          if not phones:
-              sys.exit("no available iPhone simulator")
-          phones.sort(key=lambda item: item[0], reverse=True)
-          preferred = ["iPhone 16", "iPhone 16 Pro", "iPhone 17", "iPhone 17 Pro", "iPhone 18", "iPhone 18 Pro"]
-          for want in preferred:
-              for runtime, device in phones:
-                  if device["name"] == want:
-                      print(device["udid"], file=sys.stderr)
-                      print(f"picked {device['name']} on {runtime}", file=sys.stderr)
-                      print(device["udid"])
-                      raise SystemExit
-          runtime, device = phones[0]
-          print(f"picked {device['name']} on {runtime}", file=sys.stderr)
-          print(device["udid"])
-          PY
-          )
-          echo "使用模拟器: $DEST_ID"
-          if ! xcodebuild test \
-            -project Astra.xcodeproj \
-            -scheme "$SCHEME" \
-            -destination "platform=iOS Simulator,id=$DEST_ID" \
-            -derivedDataPath "$DERIVED_DATA" \
-            CODE_SIGNING_ALLOWED=NO \
-            > xcodebuild-test.log 2>&1; then
-            echo "===== 编译/测试错误 ====="
-            grep -E "error:|fatal error:|Testing failed|TEST FAILED" xcodebuild-test.log | head -80 || true
-            echo "===== 日志末尾 ====="
-            tail -40 xcodebuild-test.log
-            exit 1
-          fi
-          grep -E "Executed [0-9]+ test|TEST SUCCEEDED" xcodebuild-test.log || tail -20 xcodebuild-test.log
+          npm run typecheck
+          npm test
+
+      - name: 生成 Expo iOS 工程
+        run: |
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+          python3 - <<'PYCODE'
+          import os
+          from pathlib import Path
+          projects = list(Path("ios").glob("*.xcodeproj"))
+          if len(projects) != 1:
+              raise SystemExit("Expected exactly one generated application project")
+          scheme = projects[0].stem
+          workspace = projects[0].with_suffix(".xcworkspace")
+          if not workspace.is_dir():
+              raise SystemExit("CocoaPods workspace was not generated")
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              output.write(f"SCHEME={scheme}\nWORKSPACE={workspace.resolve()}\n")
+          PYCODE
 
       - name: Archive（免签名）
         run: |
           xcodebuild archive \
-            -project Astra.xcodeproj \
+            -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
@@ -120,22 +104,24 @@ jobs:
 
       - name: 打包 IPA（免签名）
         run: |
-          APP="$ARCHIVE_PATH/Products/Applications/Astra.app"
+          apps=("$ARCHIVE_PATH"/Products/Applications/*.app)
+          test "${#apps[@]}" -eq 1
+          APP="${apps[0]}"
           test -d "$APP" || { echo "找不到 Astra.app"; exit 1; }
           mkdir -p build/Payload
-          cp -R "$APP" build/Payload/
+          cp -R "$APP" build/Payload/Astra.app
           cd build
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload Astra-unsigned.ipa
           mv Payload/Astra.app Astra-unsigned.app
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent Astra-unsigned.app Astra-unsigned.app.zip
           ls -lh Astra-unsigned.ipa
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         with:
           name: Astra-ipa
           path: |
-            build/Astra-unsigned.ipa
-            build/Astra-unsigned.app.zip
+            mobile/build/Astra-unsigned.ipa
+            mobile/build/Astra-unsigned.app.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -169,7 +155,7 @@ jobs:
         if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
         run: |
           xcodebuild archive \
-            -project Astra.xcodeproj \
+            -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
@@ -185,19 +171,21 @@ jobs:
       - name: 打包 IPA（签名）
         if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
         run: |
-          APP="$SIGNED_ARCHIVE_PATH/Products/Applications/Astra.app"
+          apps=("$SIGNED_ARCHIVE_PATH"/Products/Applications/*.app)
+          test "${#apps[@]}" -eq 1
+          APP="${apps[0]}"
           test -d "$APP" || { echo "找不到已签名 Astra.app"; exit 1; }
           mkdir -p build/signed/Payload
-          cp -R "$APP" build/signed/Payload/
+          cp -R "$APP" build/signed/Payload/Astra.app
           cd build/signed
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload ../Astra-signed.ipa
           ls -lh ../Astra-signed.ipa
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         if: steps.check-sign.outputs.available == 'true' && github.event.inputs.signed == 'on'
         with:
           name: Astra-signed-ipa
-          path: build/Astra-signed.ipa
+          path: mobile/build/Astra-signed.ipa
           if-no-files-found: error
           retention-days: 7
 
@@ -211,3 +199,13 @@ jobs:
           if [ -f "build/Astra-signed.ipa" ]; then FILE="build/Astra-signed.ipa"; fi
           gh release create "$TAG" "$FILE" --title "Astra $TAG" --notes "由 GitHub Actions 自动构建。"
           echo "Release: $TAG"
+
+      - name: 构建结果摘要
+        if: always()
+        run: |
+          printf '### Astra iOS IPA\n\nCommit: `%s`\n\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f build/Astra-unsigned.ipa ]; then
+            printf '下载本次运行的 **Astra-ipa** artifact。默认产物为免签名 IPA，需要另行签名后安装。\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'IPA 尚未生成，请检查失败步骤。\n' >> "$GITHUB_STEP_SUMMARY"
+          fi

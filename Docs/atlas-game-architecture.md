@@ -109,6 +109,6 @@ flowchart TD
 
 本轮通过：25 项 Node 业务测试、TypeScript、Web production bundle、iOS Hermes JavaScript bundle。Expo 离线依赖检查通过，但离线检查的验证范围有限。
 
-浏览器访问本地预览返回 `ERR_BLOCKED_BY_CLIENT`，未完成视觉截图验收。当前环境无 Xcode，未运行原生编译、模拟器 UI 测试、真机 GPU 性能测试和签名安装。`native-tests/ModernUITests.swift` 已更新导航入口，仍需执行。GitHub 云端 workflow 保持手动触发，未擅自运行 macOS 构建。
+浏览器访问本地预览返回 `ERR_BLOCKED_BY_CLIENT`，未完成视觉截图验收。当前环境无 Xcode，未运行原生编译、模拟器 UI 测试、真机 GPU 性能测试和签名安装。`native-tests/ModernUITests.swift` 已更新导航入口，仍需执行。用户随后授权默认打包：`iOS IPA` workflow 现于每次推送 `main` 自动编译新版应用并上传免签名 IPA；UI review workflow 仍为手动。工作流已配置不代表构建已成功。
 
 发布前应在 iPhone 真机验收：冷启动与恢复、3D 首帧与点选、横竖屏和大字体、GL 错误退路、Face ID 与后台遮罩、记录保存/编辑/删除后回算、SQLite 重启持久化、低电量下温升与内存释放。
