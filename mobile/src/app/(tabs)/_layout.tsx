@@ -19,7 +19,7 @@ function Navigation({ state, navigation }: BottomTabBarProps) {
         borderTopWidth: 1,
         borderTopColor: c.line,
         paddingBottom: Math.max(insets.bottom, 12),
-        paddingTop: 11,
+        paddingTop: 9,
       }}
     >
       <View
@@ -57,15 +57,17 @@ function Navigation({ state, navigation }: BottomTabBarProps) {
                 minHeight: 50,
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 4,
+                gap: 5,
               }}
             >
-              <Icon name={icon} size={21} color={active ? c.blue : c.muted} />
+              <View style={{ width: 44, height: 29, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: active ? "#ECEEEA" : "transparent" }}>
+                <Icon name={icon} size={19} color={active ? c.ink : c.muted} />
+              </View>
               <Text
                 style={[
                   s.tiny,
                   {
-                    color: active ? c.blue : c.muted,
+                    color: active ? c.ink : c.muted,
                     fontWeight: active ? "700" : "400",
                   },
                 ]}
@@ -80,10 +82,10 @@ function Navigation({ state, navigation }: BottomTabBarProps) {
           accessibilityLabel="新增记录"
           onPress={() => router.push("/record")}
           style={{
-            width: 49,
-            height: 49,
-            borderRadius: 17,
-            backgroundColor: c.blue,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: c.ink,
             alignItems: "center",
             justifyContent: "center",
             marginLeft: 10,

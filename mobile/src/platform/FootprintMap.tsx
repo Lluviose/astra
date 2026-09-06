@@ -12,9 +12,9 @@ export default function FootprintMap({ cities }: { cities: string[] }) {
     <View
       style={{
         height: 300,
-        borderRadius: 18,
+        borderRadius: 12,
         overflow: "hidden",
-        marginBottom: 25,
+        marginBottom: 0,
       }}
     >
       <MapView

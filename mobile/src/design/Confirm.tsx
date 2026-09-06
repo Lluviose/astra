@@ -1,6 +1,7 @@
 import React from "react";
 import { Modal, View, Text, Pressable } from "react-native";
-import { Button, c, s } from "./ui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Button, Icon, c, s } from "./ui";
 export default function Confirm({
   visible,
   title,
@@ -8,6 +9,7 @@ export default function Confirm({
   onCancel,
   onConfirm,
   busy = false,
+  confirmLabel = "确认删除",
 }: {
   visible: boolean;
   title: string;
@@ -15,21 +17,24 @@ export default function Confirm({
   onCancel: () => void;
   onConfirm: () => void;
   busy?: boolean;
+  confirmLabel?: string;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal
       transparent
       visible={visible}
       animationType="fade"
-      onRequestClose={onCancel}
+      onRequestClose={() => { if (!busy) onCancel(); }}
     >
       <View
         style={{
           flex: 1,
           backgroundColor: "rgba(15,22,36,0.35)",
           alignItems: "center",
-          justifyContent: "center",
-          padding: 28,
+          justifyContent: "flex-end",
+          padding: 17,
+          paddingBottom: Math.max(17, insets.bottom),
         }}
       >
         <View
@@ -42,7 +47,8 @@ export default function Confirm({
             padding: 25,
           }}
         >
-          <Text style={s.h2}>{title}</Text>
+          <View style={{ width: 32, height: 3, backgroundColor: c.line, borderRadius: 2, alignSelf: "center", marginBottom: 26 }} />
+          <Text style={[s.h2, { fontSize: 23, lineHeight: 33 }]}>{title}</Text>
           <Text style={[s.muted, { marginTop: 12, marginBottom: 24 }]}>
             {message}
           </Text>
@@ -51,7 +57,7 @@ export default function Confirm({
             disabled={busy}
             style={{ backgroundColor: c.red }}
           >
-            确认删除
+            {confirmLabel}
           </Button>
           <Button
             onPress={onCancel}

@@ -1,8 +1,7 @@
 name: iOS
 
 on:
-  push:
-    branches: [main]
+  # Cloud runs are opt-in while development focuses on iPhone UI.
   workflow_dispatch:
     inputs:
       signed:

@@ -6,11 +6,12 @@ trap 'xcrun simctl shutdown "$device" >/dev/null 2>&1 || true' EXIT
 xcrun simctl boot "$device"
 xcrun simctl bootstatus "$device" -b
 xcrun simctl status_bar "$device" override --time '9:41' --batteryState charged --batteryLevel 100
+mkdir -p verification
 status=0
 xcodebuild test -workspace ios/Astra.xcworkspace -scheme Astra-UIReview \
   -configuration Release -destination "platform=iOS Simulator,id=$device" \
   -derivedDataPath build -resultBundlePath verification/UIReview.xcresult \
-  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO \
+  -parallel-testing-enabled NO ARCHS="$(uname -m)" ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO \
   > verification/native-ui-test.log 2>&1 || status=$?
 if [ -d verification/UIReview.xcresult ]; then
   xcrun xcresulttool export attachments --path verification/UIReview.xcresult --output-path verification/screenshots

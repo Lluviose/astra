@@ -20,6 +20,7 @@ import { Button, c, s, Icon } from "../design/ui";
 export default function Layout() {
   const [fontsLoaded, fontError] = useFonts(Feather.font);
   const { ready, error, hydrate, data, toast, unlocked } = useApp();
+  const [unlockError, setUnlockError] = useState("");
   const [background, setBackground] = useState(false),
     [unlocking, setUnlocking] = useState(false);
   useEffect(() => {
@@ -36,12 +37,15 @@ export default function Layout() {
   }, []);
   const unlock = async () => {
     setUnlocking(true);
+    setUnlockError("");
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: "解锁 Astra",
         cancelLabel: "取消",
       });
       if (result.success) useApp.setState({ unlocked: true });
+    } catch {
+      setUnlockError("设备认证暂不可用，请重试。");
     } finally {
       setUnlocking(false);
     }
@@ -86,10 +90,10 @@ export default function Layout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="record" options={{ presentation: "modal" }} />
+          <Stack.Screen name="record" options={{ presentation: "modal", gestureEnabled: false }} />
           <Stack.Screen
             name="person/edit"
-            options={{ presentation: "modal" }}
+            options={{ presentation: "modal", gestureEnabled: false }}
           />
           <Stack.Screen
             name="photo"
@@ -135,8 +139,9 @@ export default function Layout() {
             },
           ]}
         >
-          <Icon name="lock" size={32} color={c.blue} />
-          <Text style={s.title}>只属于你。</Text>
+          <View style={{ width: 78, height: 78, borderRadius: 23, backgroundColor: c.paper, alignItems: "center", justifyContent: "center", marginBottom: 3 }}><Icon name="aperture" size={34} color={c.ink} /></View>
+          <Text style={[s.title, { fontSize: 29 }]}>私人档案已锁定</Text>
+          <Text style={[s.muted, { marginTop: -13 }]}>{unlockError || "验证身份，继续你的故事。"}</Text>
           {needsLock && !background && (
             <Button onPress={() => void unlock()} disabled={unlocking}>
               解锁 Astra

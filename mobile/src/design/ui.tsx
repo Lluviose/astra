@@ -7,6 +7,7 @@ import {
   TextInput,
   StyleSheet,
   Platform,
+  Keyboard,
   useWindowDimensions,
   type ViewStyle,
   type StyleProp,
@@ -20,11 +21,11 @@ import * as Haptics from "expo-haptics";
 import { useApp } from "../data/store";
 
 export const c = {
-  bg: "#F7F8FA",
+  bg: "#F6F6F3",
   paper: "#FFFFFF",
   ink: "#171B24",
   muted: "#697181",
-  line: "#E6E9EF",
+  line: "#E1E3DF",
   blue: "#315EF5",
   blueSoft: "#EAF0FF",
   green: "#397D67",
@@ -50,9 +51,9 @@ export const s = StyleSheet.create({
   },
   title: {
     ...textStyle,
-    fontSize: 32,
-    lineHeight: 43,
-    fontWeight: "600",
+    fontSize: 34,
+    lineHeight: 44,
+    fontWeight: "500",
     letterSpacing: -1,
   },
   h2: {
@@ -64,7 +65,7 @@ export const s = StyleSheet.create({
   },
   body: { ...textStyle },
   muted: { ...textStyle, color: c.muted, fontSize: 13, lineHeight: 21 },
-  tiny: { ...textStyle, color: c.muted, fontSize: 11, lineHeight: 17 },
+  tiny: { ...textStyle, color: c.muted, fontSize: 12, lineHeight: 18 },
   label: { ...textStyle, fontSize: 13, fontWeight: "600" },
   rule: { height: 1, backgroundColor: c.line },
   section: { marginTop: 30 },
@@ -73,10 +74,10 @@ export const s = StyleSheet.create({
     backgroundColor: c.paper,
     borderWidth: 1,
     borderColor: c.line,
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    minHeight: 50,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    minHeight: 54,
   },
   shadow: {
     shadowColor: "#202C4B",
@@ -135,8 +136,8 @@ export function Button({
           minHeight: 50,
           paddingHorizontal: 20,
           paddingVertical: 13,
-          borderRadius: 14,
-          backgroundColor: secondary ? c.soft : c.blue,
+          borderRadius: 12,
+          backgroundColor: secondary ? c.soft : c.ink,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
@@ -257,6 +258,8 @@ export function Field({
         placeholderTextColor={c.muted}
         multiline={multiline}
         keyboardType={keyboardType}
+        returnKeyType={multiline ? "default" : "done"}
+        onSubmitEditing={multiline ? undefined : Keyboard.dismiss}
         style={[
           s.input,
           multiline && { minHeight: 116, textAlignVertical: "top" },
@@ -276,6 +279,9 @@ export function Photo({
   style?: StyleProp<ViewStyle>;
   hidden?: boolean;
 }) {
+  const [measuredWidth, setMeasuredWidth] = React.useState(80);
+  const tones = ["#E1E7DF", "#E9E1DB", "#E3E5ED", "#E6E7D8"];
+  const tone = tones[(name.charCodeAt(0) || 0) % tones.length];
   const source =
     uri === "demo:portrait"
       ? require("../../assets/editorial-portrait.png")
@@ -284,9 +290,10 @@ export function Photo({
         : undefined;
   return (
     <View
+      onLayout={(event) => setMeasuredWidth(event.nativeEvent.layout.width)}
       style={[
         {
-          backgroundColor: uri ? c.soft : "#E9EDF3",
+          backgroundColor: uri ? c.soft : tone,
           overflow: "hidden",
           alignItems: "center",
           justifyContent: "center",
@@ -304,17 +311,17 @@ export function Photo({
           accessibilityLabel={`${name}的照片`}
         />
       ) : (
-        <View style={{ alignItems: "center", gap: 12 }}>
-          <Text
+        <View style={{ alignItems: "center", justifyContent: "center" }}>
+          {hidden ? <Icon name="eye-off" size={Math.min(26, measuredWidth * 0.4)} color="#758276" /> : <Text
             style={{
-              fontSize: 48,
-              fontWeight: "200",
-              color: "#9AA7BA",
+              fontSize: Math.min(72, measuredWidth * 0.4),
+              fontWeight: "300",
+              color: "#758276",
               fontFamily: font,
             }}
           >
-            {hidden ? "· ·" : name.slice(0, 1)}
-          </Text>
+            {name.slice(0, 1) || "+"}
+          </Text>}
         </View>
       )}
     </View>
@@ -381,16 +388,15 @@ export function Empty({
   return (
     <View
       style={{
-        paddingVertical: 54,
+        paddingVertical: 43,
         alignItems: "center",
         gap: 15,
         paddingHorizontal: 20,
       }}
     >
-      <View
-        style={{ backgroundColor: c.blueSoft, padding: 20, borderRadius: 28 }}
-      >
-        <Icon name={icon} size={30} color={c.blue} />
+      <View style={{ width: 110, height: 112, marginBottom: 8 }}>
+        <View style={{ position: "absolute", width: 73, height: 91, left: 25, top: 7, borderRadius: 7, backgroundColor: "#E4E9E0", transform: [{ rotate: "9deg" }] }} />
+        <View style={{ position: "absolute", width: 73, height: 91, left: 11, top: 9, borderRadius: 7, backgroundColor: c.paper, borderWidth: 1, borderColor: c.line, padding: 15, transform: [{ rotate: "-6deg" }] }}><Icon name={icon} size={22} color="#72836C" /><View style={{ height: 2, backgroundColor: c.line, marginTop: 14, width: 33 }} /><View style={{ height: 2, backgroundColor: c.line, marginTop: 7, width: 21 }} /></View>
       </View>
       <Text style={[s.h2, { textAlign: "center" }]}>{title}</Text>
       <Text style={[s.muted, { textAlign: "center", maxWidth: 300 }]}>
@@ -408,24 +414,26 @@ export function Header({
   title,
   back = false,
   right,
+  onBack,
 }: {
   title?: string;
   back?: boolean;
   right?: React.ReactNode;
+  onBack?: () => void;
 }) {
   const hidden = useApp((a) => a.hidden),
     setHidden = useApp((a) => a.setHidden),
     demo = useApp((a) => a.data.demo);
   return (
-    <View style={[s.between, { height: 64, marginBottom: 10 }]}>
+    <View style={[s.between, { height: 52, marginBottom: 6 }]}>
       {back ? (
         <View style={[s.row, { gap: 5, flex: 1 }]}>
           <IconButton
             name="arrow-left"
             label="返回"
-            onPress={() =>
+            onPress={onBack || (() =>
               router.canGoBack() ? router.back() : router.replace("/")
-            }
+            )}
           />
           <Text style={[s.label, { fontSize: 17 }]}>{title}</Text>
         </View>
@@ -433,23 +441,20 @@ export function Header({
         <View style={[s.row, { gap: 10 }]}>
           <View
             style={{
-              width: 28,
-              height: 28,
-              backgroundColor: c.blue,
-              borderRadius: 9,
-              transform: [{ rotate: "-8deg" }],
+              width: 23,
+              height: 23,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Icon name="aperture" color="#fff" size={23} />
+            <Icon name="aperture" color={c.ink} size={23} />
           </View>
           <Text
             style={{
               fontFamily: font,
-              fontSize: 25,
-              letterSpacing: -1.2,
-              fontWeight: "800",
+              fontSize: 22,
+              letterSpacing: -1,
+              fontWeight: "700",
               color: c.ink,
             }}
           >
@@ -481,15 +486,27 @@ export function Screen({
   title,
   right,
   scroll = true,
+  footer,
+  onBack,
 }: {
   children: React.ReactNode;
   back?: boolean;
   title?: string;
   right?: React.ReactNode;
   scroll?: boolean;
+  footer?: React.ReactNode;
+  onBack?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const [keyboardVisible, setKeyboardVisible] = React.useState(false);
+  const hasFooter = !!footer;
+  React.useEffect(() => {
+    if (!hasFooter) return;
+    const show = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, [hasFooter]);
   const pad = width < 390 ? 20 : width > 900 ? 40 : 24;
   const content = (
     <View
@@ -498,28 +515,32 @@ export function Screen({
         maxWidth: 1040,
         alignSelf: "center",
         paddingHorizontal: pad,
-        paddingTop: insets.top,
       }}
     >
-      <Header back={back} title={title} right={right} />
       {children}
-      <View style={{ height: 40 }} />
+      <View style={{ height: hasFooter ? 16 : 40 }} />
     </View>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
+      <View style={{ width: "100%", maxWidth: 1040, alignSelf: "center", paddingHorizontal: pad }}><Header back={back} title={title} right={right} onBack={onBack} /></View>
       {scroll ? (
         <ScrollView
+          testID="screen-scroll"
+          style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom }}
+          contentContainerStyle={{ paddingBottom: hasFooter ? 0 : insets.bottom }}
         >
           {content}
         </ScrollView>
       ) : (
         content
       )}
+      {hasFooter && <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line, backgroundColor: c.bg, paddingTop: 12, paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 14), paddingHorizontal: pad }}>
+        <View style={{ width: "100%", maxWidth: 640, alignSelf: "center" }}>{footer}</View>
+      </View>}
     </View>
   );
 }
@@ -547,4 +568,52 @@ export function ErrorNote({ message }: { message: string }) {
       <Text style={[s.body, { color: c.red }]}>{message}</Text>
     </View>
   ) : null;
+}
+
+export function PageTitle({ title, subtitle, count, right }: {
+  title: string; subtitle?: string; count?: number | string; right?: React.ReactNode;
+}) {
+  return <View style={[s.between, { alignItems: "flex-end", marginTop: 14, marginBottom: 25 }]}>
+    <View style={{ flex: 1, paddingRight: 16 }}>
+      <Text style={s.title}>{title}</Text>
+      {subtitle && <Text style={[s.muted, { marginTop: 6 }]}>{subtitle}</Text>}
+    </View>
+    {count !== undefined && <Text style={{ fontFamily: font, fontSize: 48, lineHeight: 57, fontWeight: "200", letterSpacing: -2, color: "#8B928E", fontVariant: ["tabular-nums"] }}>{String(count).padStart(2, "0")}</Text>}
+    {right}
+  </View>;
+}
+
+export function Segments({ items, value, onChange }: {
+  items: [string, string][]; value: string; onChange: (value: string) => void;
+}) {
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 25 }}>
+    {items.map(([key, label]) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: value === key }} onPress={() => { tap(); onChange(key); }} style={{ minHeight: 46, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: value === key ? c.ink : "transparent" }}>
+      <Text style={[s.label, { fontSize: 14, color: value === key ? c.ink : c.muted }]}>{label}</Text>
+    </Pressable>)}
+  </ScrollView>;
+}
+
+export function FormSection({ number, title, caption, children }: {
+  number: string; title: string; caption?: string; children: React.ReactNode;
+}) {
+  return <View style={{ marginBottom: 28 }}>
+    <View style={[s.row, { gap: 10, marginBottom: 17 }]}>
+      <Text style={[s.tiny, { color: c.blue, fontVariant: ["tabular-nums"] }]}>{number}</Text>
+      <Text style={[s.label, { fontSize: 15 }]}>{title}</Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: c.line, marginLeft: 5 }} />
+    </View>
+    {caption && <Text style={[s.muted, { marginBottom: 16 }]}>{caption}</Text>}
+    {children}
+  </View>;
+}
+
+export function SearchField({ label, value, onChangeText, placeholder }: {
+  label: string; value: string; onChangeText: (value: string) => void; placeholder: string;
+}) {
+  const hidden = useApp(a => a.hidden);
+  return <View style={[s.row, { backgroundColor: "#ECEEEA", borderRadius: 10, paddingLeft: 15, gap: 10 }]}>
+    <Icon name="search" size={17} color={c.muted} />
+    <TextInput accessibilityLabel={label} value={hidden ? "" : value} editable={!hidden} onChangeText={onChangeText} placeholder={hidden ? "内容已隐藏" : placeholder} placeholderTextColor={c.muted} style={[s.body, { flex: 1, fontSize: 14, minHeight: 48, paddingVertical: 12 }]} />
+    {!!value && <IconButton name="x" label={`清空${label}`} onPress={() => onChangeText("")} />}
+  </View>;
 }

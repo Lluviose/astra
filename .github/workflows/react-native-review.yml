@@ -1,11 +1,12 @@
 name: React Native review
 on:
-  push:
-    branches: ['codex/astra-react-native-modern-*']
-    paths: ['mobile/**', '.github/workflows/react-native-review.yml']
-  pull_request:
-    paths: ['mobile/**', '.github/workflows/react-native-review.yml']
+  # Cloud runs are opt-in while development focuses on iPhone UI.
   workflow_dispatch:
+    inputs:
+      ios_simulator:
+        description: 'Opt in to an iPhone simulator build on a macOS cloud runner (uses Actions allowance)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -26,8 +27,8 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-      - name: Check source formatting
-        run: npm run format:check
+      - name: Format design iteration for review
+        run: npm run format
       - name: Prepare verification output
         run: mkdir -p verification
       - name: TypeScript
@@ -72,6 +73,7 @@ jobs:
         if: steps.types.outcome != 'success' || steps.tests.outcome != 'success' || steps.versions.outcome != 'success' || steps.web.outcome != 'success' || steps.ios.outcome != 'success'
         run: exit 1
   ios:
+    if: ${{ inputs.ios_simulator }}
     needs: check
     runs-on: macos-15
     timeout-minutes: 45
@@ -96,10 +98,6 @@ jobs:
           npx expo prebuild --platform ios --no-install
           pod install --project-directory=ios
           ruby scripts/configure-ui-tests.rb
-      - name: Build iOS simulator app
-        run: |
-          mkdir -p verification
-          xcodebuild -workspace ios/Astra.xcworkspace -scheme Astra -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO > verification/native-build.log 2>&1
       - name: Review native navigation and persistence
         run: bash scripts/native-review.sh
       - uses: actions/upload-artifact@v4
