@@ -37,6 +37,7 @@ final class ModernUITests: XCTestCase {
         XCTAssertTrue(app.textFields["搜索战绩"].waitForExistence(timeout: 10))
         capture("03-journal")
         tap("殿堂")
+        XCTAssertTrue(element("属于你的轨迹。").waitForExistence(timeout: 10))
         capture("04-hall")
 
         tap("新增记录")
@@ -45,11 +46,11 @@ final class ModernUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 10))
         title.tap()
         title.typeText("Native review note")
-        app.swipeUp()
+        app.scrollViews.firstMatch.swipeUp()
         let save = element("保存片刻")
         for _ in 0..<4 {
             if save.isHittable { break }
-            app.swipeUp()
+            app.scrollViews.firstMatch.swipeUp()
         }
         XCTAssertTrue(save.isHittable)
         capture("05-record")
@@ -64,8 +65,8 @@ final class ModernUITests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText("Native review note")
-        XCTAssertTrue(app.staticTexts["Native review note"].waitForExistence(timeout: 10))
-        app.swipeUp()
+        XCTAssertTrue(element("编辑记录：Native review note").waitForExistence(timeout: 10))
+        app.scrollViews.firstMatch.swipeUp()
         capture("06-persisted-record")
     }
 }
