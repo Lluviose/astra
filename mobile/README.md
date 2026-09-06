@@ -8,7 +8,7 @@ Expo SDK 55 / React Native / TypeScript。iOS 优先的全新设计版本，位�
 
 ```bash
 cd mobile
-npm install
+npm ci
 npm run ios
 ```
 
@@ -42,7 +42,7 @@ npm run export:web
 npm run export:ios
 ```
 
-`React Native review` 工作流执行检查、Expo 两平台导出、iOS 模拟器 Release 构建及原生页面截图。`public/review.html` 用固定手机宽度展示同一套 React Native Web 页面，方便视觉检查。
+`React Native review` 工作流执行格式、类型与业务检查、Expo 两平台导出及 iOS 模拟器 Release 构建。XCTest 通过实际控件导航到三个主页面和人物档案，新增一条记录，并在应用重启后搜索确认持久化；测试截图与日志随构建产物保存。`public/review.html` 用固定手机宽度展示同一套 React Native Web 页面，方便视觉检查。
 
 ## 代码边界
 

@@ -26,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-      - name: Format source
-        run: npm run format
+      - name: Check source formatting
+        run: npm run format:check
       - name: Prepare verification output
         run: mkdir -p verification
       - name: TypeScript
@@ -95,11 +95,12 @@ jobs:
           if [ -d /Applications/Xcode_26.3.app ]; then sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer; fi
           npx expo prebuild --platform ios --no-install
           pod install --project-directory=ios
+          ruby scripts/configure-ui-tests.rb
       - name: Build iOS simulator app
         run: |
           mkdir -p verification
           xcodebuild -workspace ios/Astra.xcworkspace -scheme Astra -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO > verification/native-build.log 2>&1
-      - name: Capture native pages
+      - name: Review native navigation and persistence
         run: bash scripts/native-review.sh
       - uses: actions/upload-artifact@v4
         if: always()

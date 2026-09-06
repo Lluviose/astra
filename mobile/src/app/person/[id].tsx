@@ -1,1 +1,1 @@
-export {default} from '../../features/PersonScreen';
+export { default } from "../../features/PersonScreen";

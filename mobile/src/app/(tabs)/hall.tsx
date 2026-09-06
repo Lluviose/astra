@@ -1,1 +1,1 @@
-export {default} from '../../features/HallScreen';
+export { default } from "../../features/HallScreen";

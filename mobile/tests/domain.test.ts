@@ -1,15 +1,106 @@
-import {test} from 'node:test';
-import assert from 'node:assert/strict';
-import {emptyData,validDate,upsertEntry,upsertPerson,removePerson,filterEntries,collection,summary,scoreAverage} from '../src/domain/model.ts';
-import {demoData} from '../src/domain/demo.ts';
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  emptyData,
+  validDate,
+  upsertEntry,
+  upsertPerson,
+  removePerson,
+  filterEntries,
+  collection,
+  summary,
+  scoreAverage,
+} from "../src/domain/model.ts";
+import { demoData } from "../src/domain/demo.ts";
 
-test('a fresh install contains no fictional records',()=>{assert.equal(emptyData().people.length,0);assert.equal(emptyData().demo,false);});
-test('dates reject overflow and accept leap days',()=>{assert.equal(validDate('2024-02-29'),true);assert.equal(validDate('2026-02-29'),false);assert.equal(validDate('2026-04-31'),false);assert.equal(validDate('2026-13-01'),false);assert.equal(validDate('2026-9-5'),false);});
-test('collection requires intimacy and preserves archived people',()=>{const d=demoData();assert.equal(collection(d).length,3);const archived={...d,people:d.people.map(p=>({...p,archived:true}))};assert.equal(collection(archived).length,3);});
-test('record filters intersect person, kind, month, and search text',()=>{const d=demoData(new Date(2026,8,5));const row=d.entries[0];assert.deepEqual(filterEntries(d,'雨停','intimacy','lin','2026-09').map(e=>e.id),[row.id]);assert.equal(filterEntries(d,'雨停','date','lin','2026-09').length,0);});
-test('editing replaces the same entry without duplicate counts',()=>{const d=demoData();const next=upsertEntry(d,{...d.entries[0],title:'修改后的片刻'});assert.equal(next.entries.length,d.entries.length);assert.equal(next.entries.find(e=>e.id===d.entries[0].id)?.title,'修改后的片刻');assert.notEqual(d.entries[0].title,'修改后的片刻');});
-test('invalid save never mutates the input and rejects missing people',()=>{const d=demoData();const before=JSON.stringify(d);assert.throws(()=>upsertEntry(d,{...d.entries[0],personId:'missing'}));assert.throws(()=>upsertEntry(d,{...d.entries[0],date:'2026-02-30'}));assert.equal(JSON.stringify(d),before);});
-test('deleting a person removes only their dependent records',()=>{const d=demoData();const next=removePerson(d,'lin');assert.equal(next.people.some(p=>p.id==='lin'),false);assert.equal(next.entries.some(e=>e.personId==='lin'),false);assert.equal(next.entries.length,d.entries.filter(e=>e.personId!=='lin').length);});
-test('scores are finite and within range',()=>{const d=demoData();assert.throws(()=>upsertPerson(d,{...d.people[0],scores:[11,0,0,0,0,0]}));assert.throws(()=>upsertPerson(d,{...d.people[0],scores:[NaN,0,0,0,0,0]}));assert.equal(scoreAverage([8,8,8,8,8,8]),8);});
-test('monthly history crosses calendar years and does not invent data',()=>{const result=summary(emptyData(),new Date(2026,0,15));assert.deepEqual(result.months.map(m=>m.key),['2025-08','2025-09','2025-10','2025-11','2025-12','2026-01']);assert.equal(result.months.reduce((n,m)=>n+m.count,0),0);assert.equal(result.cities.length,0);});
-test('new person and record can be validated as one pending change',()=>{const d=demoData();const first=upsertPerson(emptyData(),d.people[0]);const complete=upsertEntry(first,d.entries[0]);assert.equal(complete.people.length,1);assert.equal(complete.entries.length,1);});
+test("a fresh install contains no fictional records", () => {
+  assert.equal(emptyData().people.length, 0);
+  assert.equal(emptyData().demo, false);
+});
+test("dates reject overflow and accept leap days", () => {
+  assert.equal(validDate("2024-02-29"), true);
+  assert.equal(validDate("2026-02-29"), false);
+  assert.equal(validDate("2026-04-31"), false);
+  assert.equal(validDate("2026-13-01"), false);
+  assert.equal(validDate("2026-9-5"), false);
+});
+test("collection requires intimacy and preserves archived people", () => {
+  const d = demoData();
+  assert.equal(collection(d).length, 3);
+  const archived = {
+    ...d,
+    people: d.people.map((p) => ({ ...p, archived: true })),
+  };
+  assert.equal(collection(archived).length, 3);
+});
+test("record filters intersect person, kind, month, and search text", () => {
+  const d = demoData(new Date(2026, 8, 5));
+  const row = d.entries[0];
+  assert.deepEqual(
+    filterEntries(d, "雨停", "intimacy", "lin", "2026-09").map((e) => e.id),
+    [row.id],
+  );
+  assert.equal(filterEntries(d, "雨停", "date", "lin", "2026-09").length, 0);
+});
+test("editing replaces the same entry without duplicate counts", () => {
+  const d = demoData();
+  const next = upsertEntry(d, { ...d.entries[0], title: "修改后的片刻" });
+  assert.equal(next.entries.length, d.entries.length);
+  assert.equal(
+    next.entries.find((e) => e.id === d.entries[0].id)?.title,
+    "修改后的片刻",
+  );
+  assert.notEqual(d.entries[0].title, "修改后的片刻");
+});
+test("invalid save never mutates the input and rejects missing people", () => {
+  const d = demoData();
+  const before = JSON.stringify(d);
+  assert.throws(() => upsertEntry(d, { ...d.entries[0], personId: "missing" }));
+  assert.throws(() => upsertEntry(d, { ...d.entries[0], date: "2026-02-30" }));
+  assert.equal(JSON.stringify(d), before);
+});
+test("deleting a person removes only their dependent records", () => {
+  const d = demoData();
+  const next = removePerson(d, "lin");
+  assert.equal(
+    next.people.some((p) => p.id === "lin"),
+    false,
+  );
+  assert.equal(
+    next.entries.some((e) => e.personId === "lin"),
+    false,
+  );
+  assert.equal(
+    next.entries.length,
+    d.entries.filter((e) => e.personId !== "lin").length,
+  );
+});
+test("scores are finite and within range", () => {
+  const d = demoData();
+  assert.throws(() =>
+    upsertPerson(d, { ...d.people[0], scores: [11, 0, 0, 0, 0, 0] }),
+  );
+  assert.throws(() =>
+    upsertPerson(d, { ...d.people[0], scores: [NaN, 0, 0, 0, 0, 0] }),
+  );
+  assert.equal(scoreAverage([8, 8, 8, 8, 8, 8]), 8);
+});
+test("monthly history crosses calendar years and does not invent data", () => {
+  const result = summary(emptyData(), new Date(2026, 0, 15));
+  assert.deepEqual(
+    result.months.map((m) => m.key),
+    ["2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01"],
+  );
+  assert.equal(
+    result.months.reduce((n, m) => n + m.count, 0),
+    0,
+  );
+  assert.equal(result.cities.length, 0);
+});
+test("new person and record can be validated as one pending change", () => {
+  const d = demoData();
+  const first = upsertPerson(emptyData(), d.people[0]);
+  const complete = upsertEntry(first, d.entries[0]);
+  assert.equal(complete.people.length, 1);
+  assert.equal(complete.entries.length, 1);
+});

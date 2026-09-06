@@ -19,8 +19,18 @@
       "expo-router",
       "expo-sqlite",
       ["expo-build-properties", { "ios": { "deploymentTarget": "18.0" } }],
-      ["expo-image-picker", { "photosPermission": "选择照片，为你的私人档案添加封面。", "cameraPermission": "为私人档案拍摄照片。", "microphonePermission": false }],
-      ["expo-local-authentication", { "faceIDPermission": "使用面容 ID 解锁你的私人档案。" }],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "选择照片，为你的私人档案添加封面。",
+          "cameraPermission": "为私人档案拍摄照片。",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "使用面容 ID 解锁你的私人档案。" }
+      ],
       ["expo-splash-screen", { "backgroundColor": "#F7F8FA" }]
     ]
   }
