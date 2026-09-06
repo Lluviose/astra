@@ -7,6 +7,7 @@ import {
   TextInput,
   StyleSheet,
   Platform,
+  Keyboard,
   useWindowDimensions,
   type ViewStyle,
   type StyleProp,
@@ -64,7 +65,7 @@ export const s = StyleSheet.create({
   },
   body: { ...textStyle },
   muted: { ...textStyle, color: c.muted, fontSize: 13, lineHeight: 21 },
-  tiny: { ...textStyle, color: c.muted, fontSize: 11, lineHeight: 17 },
+  tiny: { ...textStyle, color: c.muted, fontSize: 12, lineHeight: 18 },
   label: { ...textStyle, fontSize: 13, fontWeight: "600" },
   rule: { height: 1, backgroundColor: c.line },
   section: { marginTop: 30 },
@@ -257,6 +258,8 @@ export function Field({
         placeholderTextColor={c.muted}
         multiline={multiline}
         keyboardType={keyboardType}
+        returnKeyType={multiline ? "default" : "done"}
+        onSubmitEditing={multiline ? undefined : Keyboard.dismiss}
         style={[
           s.input,
           multiline && { minHeight: 116, textAlignVertical: "top" },
@@ -411,10 +414,12 @@ export function Header({
   title,
   back = false,
   right,
+  onBack,
 }: {
   title?: string;
   back?: boolean;
   right?: React.ReactNode;
+  onBack?: () => void;
 }) {
   const hidden = useApp((a) => a.hidden),
     setHidden = useApp((a) => a.setHidden),
@@ -426,9 +431,9 @@ export function Header({
           <IconButton
             name="arrow-left"
             label="返回"
-            onPress={() =>
+            onPress={onBack || (() =>
               router.canGoBack() ? router.back() : router.replace("/")
-            }
+            )}
           />
           <Text style={[s.label, { fontSize: 17 }]}>{title}</Text>
         </View>
@@ -481,15 +486,27 @@ export function Screen({
   title,
   right,
   scroll = true,
+  footer,
+  onBack,
 }: {
   children: React.ReactNode;
   back?: boolean;
   title?: string;
   right?: React.ReactNode;
   scroll?: boolean;
+  footer?: React.ReactNode;
+  onBack?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const [keyboardVisible, setKeyboardVisible] = React.useState(false);
+  const hasFooter = !!footer;
+  React.useEffect(() => {
+    if (!hasFooter) return;
+    const show = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, [hasFooter]);
   const pad = width < 390 ? 20 : width > 900 ? 40 : 24;
   const content = (
     <View
@@ -501,25 +518,29 @@ export function Screen({
       }}
     >
       {children}
-      <View style={{ height: 40 }} />
+      <View style={{ height: hasFooter ? 16 : 40 }} />
     </View>
   );
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
-      <View style={{ width: "100%", maxWidth: 1040, alignSelf: "center", paddingHorizontal: pad }}><Header back={back} title={title} right={right} /></View>
+      <View style={{ width: "100%", maxWidth: 1040, alignSelf: "center", paddingHorizontal: pad }}><Header back={back} title={title} right={right} onBack={onBack} /></View>
       {scroll ? (
         <ScrollView
           testID="screen-scroll"
+          style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom }}
+          contentContainerStyle={{ paddingBottom: hasFooter ? 0 : insets.bottom }}
         >
           {content}
         </ScrollView>
       ) : (
         content
       )}
+      {hasFooter && <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line, backgroundColor: c.bg, paddingTop: 12, paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 14), paddingHorizontal: pad }}>
+        <View style={{ width: "100%", maxWidth: 640, alignSelf: "center" }}>{footer}</View>
+      </View>}
     </View>
   );
 }

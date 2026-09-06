@@ -3,10 +3,7 @@ import {
   View,
   Text,
   Pressable,
-  ScrollView,
   Switch,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useApp, newId } from "../../data/store";
@@ -25,15 +22,13 @@ import {
   IconButton,
   Photo,
   Field,
-  Button,
-  Chip,
   Icon,
   Empty,
-  ErrorNote,
   c,
   s,
 } from "../../design/ui";
 import Confirm from "../../design/Confirm";
+import FormScreen from "../../design/FormScreen";
 
 export default function PersonEditor() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -53,6 +48,8 @@ export default function PersonEditor() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [deleting, setDeleting] = useState(false);
+  const draft = { name, city, note, tags, photo, scores, favorite, archived };
+  const [initialDraft] = useState(() => JSON.stringify(draft));
   async function choosePhoto() {
     try {
       const next = await pickPhoto();
@@ -62,6 +59,7 @@ export default function PersonEditor() {
     }
   }
   async function save() {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
@@ -127,10 +125,8 @@ export default function PersonEditor() {
         />
       </Screen>
     );
-  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-    <Screen back title="人物档案"><View style={{ maxWidth: 640, width: "100%", alignSelf: "center" }}>
+  return <FormScreen title="人物档案" saveLabel="保存档案" error={error} busy={busy} dirty={JSON.stringify(draft) !== initialDraft} onSave={() => void save()}><View style={{ maxWidth: 640, width: "100%", alignSelf: "center" }}>
       <PageTitle title={id ? "编辑档案" : "新建档案"} subtitle="先留下代号，其余可以慢慢补全" />
-      <ErrorNote message={error} />
       <Pressable accessibilityRole="button" accessibilityLabel="选择人物封面" onPress={() => void choosePhoto()} style={[s.row, { gap: 21, backgroundColor: c.paper, padding: 17, borderRadius: 12, marginBottom: 29 }]}>
         <Photo uri={photo} name={name} style={{ width: 75, height: 95, borderRadius: 6 }} />
         <View style={{ flex: 1 }}><Text style={[s.h2, { fontSize: 19 }]}>{name || "一份新的档案"}</Text><Text style={[s.tiny, { marginTop: 5, marginBottom: 15 }]}>选一张想记住的照片</Text><Text style={[s.label, { color: c.blue }]}>{photo ? "更换封面" : "添加封面"} ↗</Text></View>
@@ -149,9 +145,7 @@ export default function PersonEditor() {
         {showScores && dimensions.map((label, index) => <View key={label} style={[s.between, { minHeight: 65, borderTopWidth: 1, borderColor: c.line }]}><Text style={s.label}>{label}</Text><View style={[s.row, { gap: 8 }]}><IconButton name="minus" label={`降低${label}评分`} onPress={() => setScores(scores.map((n, j) => j === index ? Math.max(0, n - 1) : n) as Scores)} /><Text style={[s.label, { width: 27, textAlign: "center", color: c.blue }]}>{scores[index] || "—"}</Text><IconButton name="plus" label={`提高${label}评分`} onPress={() => setScores(scores.map((n, j) => j === index ? Math.min(10, n + 1) : n) as Scores)} /></View></View>)}
       </View>
       {id && <View style={[s.between, { marginBottom: 26, minHeight: 52 }]}><View><Text style={s.body}>归档人物</Text><Text style={s.tiny}>保留已有收藏和战绩</Text></View><Switch accessibilityLabel="归档人物" value={archived} onValueChange={setArchived} trackColor={{ true: c.ink }} /></View>}
-      <Button onPress={() => void save()} disabled={busy}>{busy ? "正在保存…" : "保存档案"}</Button>
       {id && <Pressable accessibilityRole="button" accessibilityLabel="删除人物" onPress={() => setDeleting(true)} style={{ minHeight: 54, alignItems: "center", justifyContent: "center" }}><Text style={[s.muted, { color: c.red }]}>删除人物</Text></Pressable>}
       <Confirm visible={deleting} title="删除这份档案？" message="人物和她的全部相处记录都会被删除。" onCancel={() => setDeleting(false)} onConfirm={() => void remove()} busy={busy} />
-    </View></Screen>
-  </KeyboardAvoidingView>;
+    </View></FormScreen>;
 }

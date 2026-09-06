@@ -9,6 +9,7 @@ export default function Confirm({
   onCancel,
   onConfirm,
   busy = false,
+  confirmLabel = "确认删除",
 }: {
   visible: boolean;
   title: string;
@@ -16,6 +17,7 @@ export default function Confirm({
   onCancel: () => void;
   onConfirm: () => void;
   busy?: boolean;
+  confirmLabel?: string;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -23,7 +25,7 @@ export default function Confirm({
       transparent
       visible={visible}
       animationType="fade"
-      onRequestClose={onCancel}
+      onRequestClose={() => { if (!busy) onCancel(); }}
     >
       <View
         style={{
@@ -55,7 +57,7 @@ export default function Confirm({
             disabled={busy}
             style={{ backgroundColor: c.red }}
           >
-            确认删除
+            {confirmLabel}
           </Button>
           <Button
             onPress={onCancel}

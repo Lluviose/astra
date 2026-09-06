@@ -1,11 +1,12 @@
 name: React Native review
 on:
-  push:
-    branches: ['codex/astra-react-native-modern-*']
-    paths: ['mobile/**', '.github/workflows/react-native-review.yml']
-  pull_request:
-    paths: ['mobile/**', '.github/workflows/react-native-review.yml']
+  # Cloud runs are opt-in while development focuses on iPhone UI.
   workflow_dispatch:
+    inputs:
+      ios_simulator:
+        description: 'Opt in to an iPhone simulator build on a macOS cloud runner (uses Actions allowance)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -68,11 +69,11 @@ jobs:
             mobile/app.json
             mobile/tsconfig.json
             mobile/babel.config.js
-            mobile/node_modules/prettier
       - name: Require all checks
         if: steps.types.outcome != 'success' || steps.tests.outcome != 'success' || steps.versions.outcome != 'success' || steps.web.outcome != 'success' || steps.ios.outcome != 'success'
         run: exit 1
   ios:
+    if: ${{ inputs.ios_simulator }}
     needs: check
     runs-on: macos-15
     timeout-minutes: 45
