@@ -601,6 +601,7 @@ final class AppState {
         Companion(
             paletteIndex: (companions.count + 1) % Palette.avatarGradients.count,
             cityID: cityID ?? companions.last?.cityID ?? "310000",
+            stage: .new,
             rating: 0,
             scorecard: .empty
         )

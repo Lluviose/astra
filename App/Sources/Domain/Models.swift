@@ -547,7 +547,7 @@ enum ProtectionStatus: String, Codable, CaseIterable, Hashable, Sendable, Identi
         switch self {
         case .notRecorded: "未记录"
         case .protected: "全程戴套"
-        case .partial: "中途摘了"
+        case .partial: "部分戴套 / 中途摘戴"
         case .noProtection: "无套"
         case .notApplicable: "无对应行为"
         }
@@ -567,7 +567,7 @@ enum ProtectionStatus: String, Codable, CaseIterable, Hashable, Sendable, Identi
         switch self {
         case .notRecorded: "屏障未记"
         case .protected: "全程戴套"
-        case .partial: "中途摘了"
+        case .partial: "部分戴套 / 中途摘戴"
         case .noProtection: "无套"
         case .notApplicable: "无对应行为"
         }
@@ -620,15 +620,15 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
 
     var label: String {
         switch self {
-        case .kissing: "亲亲"
-        case .touching: "上手"
+        case .kissing: "接吻"
+        case .touching: "抚摸"
         case .fingering: "手指进去"
         case .handjob: "她用手"
         case .titjob: "乳交"
         case .oralGiving: "口 · 我给她"
         case .oralReceiving: "口 · 她给我"
         case .sixtyNine: "69"
-        case .vaginalPenetration: "做爱"
+        case .vaginalPenetration: "阴道性交"
         case .analInsertive: "肛 · 我在上"
         case .analReceptive: "肛 · 我在下"
         case .cowgirl: "她骑上来"
@@ -650,10 +650,14 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
 
     var group: IntimacyActivityGroup {
         switch self {
-        case .kissing, .touching, .fingering, .handjob, .titjob,
-             .oralGiving, .oralReceiving, .sixtyNine,
-             .vaginalPenetration, .analInsertive, .analReceptive, .toys, .other:
+        case .kissing, .touching, .fingering, .handjob, .titjob:
+            .touch
+        case .oralGiving, .oralReceiving, .sixtyNine:
+            .oral
+        case .vaginalPenetration, .analInsertive, .analReceptive:
             .body
+        case .toys, .other:
+            .heat
         case .cowgirl, .doggy, .missionary, .standing, .spooning:
             .position
         case .shower, .car, .outdoor, .hotel:
@@ -665,6 +669,8 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
 }
 
 enum IntimacyActivityGroup: String, CaseIterable, Identifiable {
+    case touch
+    case oral
     case body
     case position
     case place
@@ -674,10 +680,12 @@ enum IntimacyActivityGroup: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .body: "身体"
+        case .touch: "接吻与手上动作"
+        case .oral: "口交"
+        case .body: "性交"
         case .position: "姿势"
-        case .place: "在哪做"
-        case .heat: "更刺激的"
+        case .place: "场景"
+        case .heat: "其他行为"
         }
     }
 }
@@ -695,6 +703,9 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
     case onBody
     case multiple
     case edging
+    case sheDidNotCome
+    case sheNotSure
+    case didNotFinish
 
     var id: String { rawValue }
 
@@ -711,6 +722,9 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
         case .onBody: "射在身上"
         case .multiple: "我射了不止一次"
         case .edging: "一直吊着不让射"
+        case .sheDidNotCome: "她没高潮"
+        case .sheNotSure: "不确定她有没有高潮"
+        case .didNotFinish: "我没射精"
         }
     }
 
@@ -873,6 +887,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     /// 发生地点；nil 表示沿用对方常驻地。存储规则同 `Companion.cityID`。
     var cityID: String?
     var place: String
+    var venueCategory: VenueCategory
+    var missedProgress: MissedProgress
+    var missedReasons: Set<MissedReason>
     /// 花费（元），nil 表示没记
     var cost: Double?
     /// 0 表示未记录，1...5 表示本人身体 / 情绪感受；不作为“表现评分”。
@@ -901,6 +918,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         kind: EncounterKind = .intimacy,
         cityID: String? = nil,
         place: String = "",
+        venueCategory: VenueCategory = .notRecorded,
+        missedProgress: MissedProgress = .notRecorded,
+        missedReasons: Set<MissedReason> = [],
         cost: Double? = nil,
         physicalRating: Int = 0,
         emotionalRating: Int = 0,
@@ -925,6 +945,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.kind = kind
         self.cityID = cityID
         self.place = place
+        self.venueCategory = venueCategory
+        self.missedProgress = missedProgress
+        self.missedReasons = missedReasons
         self.cost = cost
         self.physicalRating = min(max(physicalRating, 0), 5)
         self.emotionalRating = min(max(emotionalRating, 0), 5)
@@ -953,6 +976,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         kind = try c.decodeIfPresent(EncounterKind.self, forKey: .kind) ?? .missed
         cityID = try c.decodeIfPresent(String.self, forKey: .cityID)
         place = try c.decodeIfPresent(String.self, forKey: .place) ?? ""
+        venueCategory = try c.decodeIfPresent(VenueCategory.self, forKey: .venueCategory) ?? .notRecorded
+        missedProgress = try c.decodeIfPresent(MissedProgress.self, forKey: .missedProgress) ?? .notRecorded
+        missedReasons = try c.decodeIfPresent(Set<MissedReason>.self, forKey: .missedReasons) ?? []
         cost = try c.decodeIfPresent(Double.self, forKey: .cost)
         physicalRating = min(max(try c.decodeIfPresent(Int.self, forKey: .physicalRating) ?? 0, 0), 5)
         emotionalRating = min(max(try c.decodeIfPresent(Int.self, forKey: .emotionalRating) ?? 0, 0), 5)
@@ -976,7 +1002,8 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     /// 结果是模型的硬边界：没上床的记录不能携带性行为、防护或身体感受字段。
     mutating func normalizeForOutcome() {
         guard kind.isMissed else {
-            if protectionStatus == .notApplicable { protectionStatus = .notRecorded }
+            missedProgress = .notRecorded
+            missedReasons = []
             return
         }
 
@@ -1034,13 +1061,14 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
 // MARK: - 标签建议
 
 enum TagSuggestions {
-    static let common = [
-        "好看", "胸好", "腰细", "腿长", "会叫", "水多", "紧", "口活好",
-        "主动", "听话", "反差", "声好听", "身材好", "会打扮", "黑丝", "制服",
-        "准炮友", "炮友", "固定炮友", "只约不聊", "能过夜", "不留宿", "得提前约",
-        "无套", "内射", "能口爆", "能颜射", "多轮", "会骑",
-        "同城", "异地", "周末", "夜猫子", "能喝", "不喝酒",
-        "先确认再发图", "只聊文字", "不发私密图", "不截屏",
-        "见面前聊套", "边界清楚", "沟通直接", "守时",
+    static let groups = [
+        RecordOptionGroup(title: "长相与打扮", options: ["好看", "会打扮", "反差", "声好听", "黑丝", "制服", "素颜好看", "笑容好看"]),
+        RecordOptionGroup(title: "身材", options: ["身材好", "胸好", "腰细", "腿长", "娇小", "高挑", "健身"]),
+        RecordOptionGroup(title: "床上印象", options: ["会叫", "水多", "紧", "口活好", "主动", "听话", "多轮", "会骑"]),
+        RecordOptionGroup(title: "关系与联系", options: ["准炮友", "炮友", "固定炮友", "只约不聊", "沟通直接", "守时", "回复快", "慢热"]),
+        RecordOptionGroup(title: "时间与距离", options: ["同城", "异地", "周末", "夜猫子", "工作日", "得提前约", "能过夜", "不留宿"]),
+        RecordOptionGroup(title: "生活习惯", options: ["能喝", "不喝酒", "不抽烟", "爱运动", "作息规律"]),
+        RecordOptionGroup(title: "已沟通的偏好", options: ["无套", "内射", "能口爆", "能颜射", "先确认再发图", "只聊文字", "不发私密图", "不截屏", "见面前聊套", "边界清楚"]),
     ]
+    static let common = groups.flatMap(\.options)
 }

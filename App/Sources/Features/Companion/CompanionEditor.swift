@@ -6,6 +6,23 @@ import UIKit
 struct CompanionEditor: View {
 
     let initial: Companion
+    let recordAfterSaving: Bool
+
+    private enum Page: Int, CaseIterable, Identifiable {
+        case basics, preferences, photos
+        var id: Int { rawValue }
+        var label: String {
+            switch self {
+            case .basics: "基本资料"
+            case .preferences: "约法与标签"
+            case .photos: "照片"
+            }
+        }
+    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var movingForward = true
+    @State private var page: Page = .basics
+    @State private var showBackground = false
 
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -32,38 +49,47 @@ struct CompanionEditor: View {
             || !pendingAlbumPhotoIDs.isEmpty
     }
 
-    init(companion: Companion) {
+    init(companion: Companion, recordAfterSaving: Bool = false) {
         self.initial = companion
+        self.recordAfterSaving = recordAfterSaving
         _draft = State(initialValue: companion)
         _hasMetDate = State(initialValue: companion.metDate != nil)
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                basicSection
-                statusSection
-                citySection
-                scoreSection
-                profilePhotosEditorSection
-                privatePhotosEditorSection
-                intimacySection
-                tagsSection
-                optionalInfoSection
-                detailSection
-                if !isNew {
-                    dangerSection
+            VStack(spacing: 0) {
+                NativeEditorHeader(steps: editorSteps, selection: pageSelection)
+                ZStack {
+                    editorForm
+                        .id(page)
+                        .transition(NativeEditorMotion.transition(forward: movingForward, reduceMotion: reduceMotion))
                 }
+                .clipped()
             }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记下她" : "改档案")
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(isNew ? "新增人物" : "编辑人物")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { cancel() }
                 }
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Button("上一步") { changePage(Page(rawValue: page.rawValue - 1) ?? .basics) }
+                        .disabled(page == .basics)
+                    Spacer()
+                    Text("\(page.rawValue + 1) / 3").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if page != .photos {
+                        Button("下一步") { changePage(Page(rawValue: page.rawValue + 1) ?? .photos) }
+                    } else {
+                        Button(recordAfterSaving ? "保存并记这次" : "保存") { save() }
+                            .disabled(app.location(id: draft.cityID) == nil)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { save() }
+                    Button(recordAfterSaving ? "保存并记这次" : "保存") { save() }
+                        .disabled(app.location(id: draft.cityID) == nil)
                         .fontWeight(.semibold)
                         .tint(Palette.accent)
                 }
@@ -110,7 +136,53 @@ struct CompanionEditor: View {
         }
     }
 
+    private var editorForm: some View {
+            Form {
+                switch page {
+                case .basics:
+                    basicSection
+                    citySection
+                    statusSection
+                    optionalInfoSection
+                case .preferences:
+                    intimacySection
+                    tagsSection
+                    scoreSection
+                    detailSection
+                    if !isNew { dangerSection }
+                case .photos:
+                    profilePhotosEditorSection
+                    privatePhotosEditorSection
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var editorSteps: [NativeEditorStep] {
+        [
+            NativeEditorStep(title: "基本资料", subtitle: "先记她是谁，再选常驻城市或国家。", symbol: "person.crop.circle"),
+            NativeEditorStep(title: "约法与标签", subtitle: "关系期待、已沟通的规矩和你的印象。", symbol: "checkmark.bubble"),
+            NativeEditorStep(title: "照片", subtitle: "人物照和私密照片分开存放。", symbol: "photo.on.rectangle")
+        ]
+    }
+
+    private var pageSelection: Binding<Int> {
+        Binding(get: { page.rawValue }, set: { changePage(Page(rawValue: $0) ?? page) })
+    }
+
+    private func changePage(_ next: Page) {
+        guard next != page else { return }
+        NativeEditorMotion.dismissKeyboard()
+        movingForward = next.rawValue > page.rawValue
+        Haptics.shared.play(.selection)
+        withAnimation(NativeEditorMotion.animation(reduceMotion: reduceMotion)) { page = next }
+    }
+
     private func save() {
+        guard app.location(id: draft.cityID) != nil else { changePage(.basics); return }
+        draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.contactNote = draft.contactNote.trimmingCharacters(in: .whitespacesAndNewlines)
         draft.rating = draft.scorecard.legacyStarRating
         if let metDate = draft.metDate, metDate > Date() {
             draft.metDate = Date()
@@ -172,7 +244,7 @@ struct CompanionEditor: View {
                     .textInputAutocapitalization(.never)
             }
 
-            TextField("微信 / 备注名", text: $draft.contactNote)
+            TextField("微信号 / 手机号 / 其他联系方式", text: $draft.contactNote)
         }
     }
 
@@ -284,35 +356,15 @@ struct CompanionEditor: View {
     // MARK: 相处状态
 
     private var statusSection: some View {
-        Section("现在到哪一步") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(RelationStage.allCases, id: \.self) { stage in
-                        Button {
-                            draft.stage = stage
-                        } label: {
-                            HStack(spacing: 5) {
-                                if draft.stage == stage {
-                                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                                }
-                                Text(stage.label).font(.subheadline.weight(.semibold))
-                            }
-                            .foregroundStyle(draft.stage == stage ? .white : Color.primary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background {
-                                if draft.stage == stage {
-                                    Capsule().fill(stage.tint.gradient)
-                                }
-                            }
-                            .glassCapsule(interactive: true, shadowRadius: 8)
-                        }
-                        .buttonStyle(HapticButtonStyle(cue: .selection))
+        Section("现在是什么关系 · 单选") {
+            FlowLayout(spacing: 7, lineSpacing: 8) {
+                ForEach(RelationStage.allCases) { stage in
+                    RecordChoice(title: stage.label, isOn: draft.stage == stage, tint: stage.tint, compact: true) {
+                        draft.stage = stage
                     }
                 }
-                .padding(.vertical, 4)
             }
-            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+            .padding(.vertical, 4)
         }
     }
 
@@ -324,9 +376,9 @@ struct CompanionEditor: View {
                 ScorecardEditorLink(scorecard: draft.scorecard)
             }
         } header: {
-            Text("这一眼的感觉")
+            Text("我对她的评分")
         } footer: {
-            Text("六维评分只给你自己看，会同步成旧版五星，方便筛选和备份。")
+            Text("颜值、身材、床上默契、主动感、欲望值和回味欲；不了解的项可以不打分。")
         }
     }
 
@@ -334,10 +386,8 @@ struct CompanionEditor: View {
 
     private var intimacySection: some View {
         Section {
-            TextField("想怎么约（只约、当炮友、固定、先看看）", text: $draft.expectations, axis: .vertical)
-                .lineLimit(2...4)
-            TextField("她说过不行的事", text: $draft.boundaries, axis: .vertical)
-                .lineLimit(2...5)
+            SuggestedNotesField(title: "想怎么约", placeholder: "关系期待，可自己写", text: $draft.expectations, suggestions: ProfileSuggestions.expectations)
+            SuggestedNotesField(title: "已经说清楚的规矩", placeholder: "不接受什么、哪些事要先问", text: $draft.boundaries, suggestions: ProfileSuggestions.boundaries)
             TextField("安全备忘（检测、套、别的）", text: $draft.safetyNotes, axis: .vertical)
                 .lineLimit(2...5)
         } header: {
@@ -350,13 +400,13 @@ struct CompanionEditor: View {
     // MARK: 地点与认识渠道
 
     private var citySection: some View {
-        Section("哪儿认识的") {
+        Section("常驻地点与认识方式") {
             Button {
                 Haptics.shared.play(.lightTap)
                 isPickingCity = true
             } label: {
                 HStack {
-                    Label(app.locationName(for: draft), systemImage: "mappin.circle.fill")
+                    Label(app.location(id: draft.cityID)?.name ?? "选择常驻城市 / 国家", systemImage: "mappin.circle.fill")
                         .foregroundStyle(.primary)
                     Spacer()
                     ChevronHint()
@@ -365,7 +415,22 @@ struct CompanionEditor: View {
             }
             .buttonStyle(.plain)
 
-            TextField("怎么认识的（App、朋友、酒局…）", text: $draft.metChannel)
+            TextField("怎么认识的，也可自己写", text: $draft.metChannel)
+            DisclosureGroup("选择认识渠道 · 单选") {
+                ForEach(ProfileSuggestions.channels) { group in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(group.title).font(.caption).foregroundStyle(.secondary)
+                        FlowLayout(spacing: 7, lineSpacing: 8) {
+                            ForEach(group.options, id: \.self) { option in
+                                RecordChoice(title: option, isOn: draft.metChannel == option, tint: Palette.accent, compact: true) {
+                                    draft.metChannel = draft.metChannel == option ? "" : option
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
             Toggle("记下认识那天", isOn: $hasMetDate)
             if hasMetDate {
                 DatePicker(
@@ -385,36 +450,45 @@ struct CompanionEditor: View {
 
     private var tagsSection: some View {
         Section {
-            FlowLayout(spacing: 6, lineSpacing: 6) {
-                ForEach(app.usedTags, id: \.self) { tag in
-                    TagChip(
-                        title: tag,
-                        isOn: draft.tags.contains(tag),
-                        tint: Palette.accent,
-                        cue: draft.tags.contains(tag) ? .toggleOff : .toggleOn
-                    ) {
-                        toggle(tag: tag)
-                    }
-                }
-                ForEach(TagSuggestions.common.filter { !app.usedTags.contains($0) }, id: \.self) { tag in
-                    TagChip(
-                        title: tag,
-                        isOn: draft.tags.contains(tag),
-                        tint: Color.secondary,
-                        cue: draft.tags.contains(tag) ? .toggleOff : .toggleOn
-                    ) {
-                        toggle(tag: tag)
-                    }
-                }
-                TagChip(title: "+ 自定义", isOn: false, tint: Color.secondary, cue: .lightTap) {
-                    showAddTagDialog = true
+            if !draft.tags.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("已选 \(draft.tags.count) 项 · 点标签取消").font(.caption).foregroundStyle(.secondary)
+                    tagChoices(draft.tags)
                 }
             }
+            ForEach(TagSuggestions.groups) { group in
+                DisclosureGroup {
+                    tagChoices(group.options)
+                } label: {
+                    HStack {
+                        Text(group.title)
+                        Spacer()
+                        Text("\(group.options.filter { draft.tags.contains($0) }.count) / \(group.options.count)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            let custom = app.usedTags.filter { !TagSuggestions.common.contains($0) && !draft.tags.contains($0) }
+            if !custom.isEmpty {
+                DisclosureGroup("用过的自定义标签") { tagChoices(custom) }
+            }
+            Button("添加自定义标签") { showAddTagDialog = true }
         } header: {
-            Text("标签")
+            Text("人物标签 · 可多选")
         } footer: {
-            Text("方便以后翻出来，也能在名册里按标签筛。")
+            Text("标签方便搜索和筛选。偏好只记已经沟通过的，每次仍需确认。")
         }
+    }
+
+    private func tagChoices(_ options: [String]) -> some View {
+        FlowLayout(spacing: 6, lineSpacing: 6) {
+            ForEach(options, id: \.self) { tag in
+                RecordChoice(title: tag, isOn: draft.tags.contains(tag), tint: Palette.accent, compact: true) {
+                    toggle(tag: tag)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private func toggle(tag: String) {
@@ -428,41 +502,43 @@ struct CompanionEditor: View {
     // MARK: 可选背景
 
     private var optionalInfoSection: some View {
-        Section("可选背景") {
-            Picker("年龄", selection: $draft.age) {
-                Text("未设置").tag(Int?.none)
-                ForEach(18...80, id: \.self) { age in
-                    Text("\(age)").tag(Int?.some(age))
+        Section {
+            DisclosureGroup("年龄、身材、生日与职业（可选）", isExpanded: $showBackground) {
+                Picker("年龄", selection: $draft.age) {
+                    Text("未设置").tag(Int?.none)
+                    ForEach(18...80, id: \.self) { age in
+                        Text("\(age)").tag(Int?.some(age))
+                    }
                 }
-            }
 
-            Picker("身高", selection: $draft.heightCM) {
-                Text("未设置").tag(Int?.none)
-                ForEach(140...210, id: \.self) { cm in
-                    Text("\(cm) cm").tag(Int?.some(cm))
+                Picker("身高", selection: $draft.heightCM) {
+                    Text("未设置").tag(Int?.none)
+                    ForEach(140...210, id: \.self) { cm in
+                        Text("\(cm) cm").tag(Int?.some(cm))
+                    }
                 }
-            }
 
-            Picker("下胸围", selection: $draft.bustBandCM) {
-                Text("未设置").tag(Int?.none)
-                ForEach(Array(stride(from: 60, through: 110, by: 5)), id: \.self) { cm in
-                    Text("\(cm) cm").tag(Int?.some(cm))
+                Picker("下胸围", selection: $draft.bustBandCM) {
+                    Text("未设置").tag(Int?.none)
+                    ForEach(Array(stride(from: 60, through: 110, by: 5)), id: \.self) { cm in
+                        Text("\(cm) cm").tag(Int?.some(cm))
+                    }
                 }
-            }
 
-            Picker("罩杯", selection: $draft.bustSize) {
-                ForEach(BustSize.allCases) { size in
-                    Text(size.label).tag(size)
+                Picker("罩杯", selection: $draft.bustSize) {
+                    ForEach(BustSize.allCases) { size in
+                        Text(size.label).tag(size)
+                    }
                 }
-            }
 
-            HStack {
-                Text("生日")
-                Spacer()
-                MonthDayMenu(month: $draft.birthdayMonth, day: $draft.birthdayDay)
-            }
+                HStack {
+                    Text("生日")
+                    Spacer()
+                    MonthDayMenu(month: $draft.birthdayMonth, day: $draft.birthdayDay)
+                }
 
-            TextField("职业", text: $draft.occupation)
+                TextField("职业", text: $draft.occupation)
+            }
         }
     }
 
@@ -481,9 +557,9 @@ struct CompanionEditor: View {
             TextField("其他私密备注", text: $draft.notes, axis: .vertical)
                 .lineLimit(3...6)
         } header: {
-            Text("多久约一次")
+            Text("联系提醒与备注")
         } footer: {
-            Text("到点只轻轻提醒一下，不想约就别理。")
+            Text("只在 App 内提示联系周期，不会自动发消息。")
         }
     }
 
@@ -497,37 +573,6 @@ struct CompanionEditor: View {
             }
             .frame(maxWidth: .infinity)
         }
-    }
-}
-
-// MARK: - 标签 Chip（编辑表单专用）
-
-private struct TagChip: View {
-    let title: String
-    let isOn: Bool
-    let tint: Color
-    let cue: HapticCue
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                if isOn {
-                    Image(systemName: "checkmark").font(.system(size: 9, weight: .bold))
-                }
-                Text(title).font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(isOn ? .white : Color.primary)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 6)
-            .background {
-                if isOn {
-                    Capsule().fill(tint.gradient)
-                }
-            }
-            .glassCapsule(interactive: true, shadowRadius: 6)
-        }
-        .buttonStyle(HapticButtonStyle(cue: cue))
     }
 }
 

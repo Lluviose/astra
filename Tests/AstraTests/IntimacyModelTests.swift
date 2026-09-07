@@ -177,7 +177,7 @@ final class IntimacyModelTests: XCTestCase {
             companionID: UUID(),
             activities: [.toys, .kissing, .analReceptive, .oralGiving]
         )
-        XCTAssertEqual(encounter.activitySummary, "亲亲、口 · 我给她、肛 · 我在下 等 4 项")
+        XCTAssertEqual(encounter.activitySummary, "接吻、口 · 我给她、肛 · 我在下 等 4 项")
     }
 
     func testClimaxSummaryKeepsFinishDetailsSeparate() {
@@ -194,6 +194,97 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertFalse(BoundaryFeeling.comfortable.needsFollowUp)
         XCTAssertTrue(BoundaryFeeling.uncertain.needsFollowUp)
         XCTAssertTrue(BoundaryFeeling.concern.needsFollowUp)
+    }
+
+    func testOldEncounterDecodesWithoutInventingNewCategories() throws {
+        let old = #"{"companionID":"00000000-0000-0000-0000-000000000001","kind":"missed","place":"旧场所与阶段备注","note":"保留旧备注"}"#
+        let encounter = try JSONDecoder().decode(Encounter.self, from: Data(old.utf8))
+        XCTAssertEqual(encounter.venueCategory, .notRecorded)
+        XCTAssertEqual(encounter.missedProgress, .notRecorded)
+        XCTAssertTrue(encounter.missedReasons.isEmpty)
+        XCTAssertEqual(encounter.place, "旧场所与阶段备注")
+        XCTAssertEqual(encounter.note, "保留旧备注")
+    }
+
+    func testNewCategoriesRoundTripWithDecimalCost() throws {
+        let original = Encounter(companionID: UUID(), kind: .missed, venueCategory: .cafe,
+                                 missedProgress: .met, missedReasons: [.schedule, .bothDeclined], cost: 128.50)
+        let decoded = try JSONDecoder().decode(Encounter.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(decoded, original)
+        XCTAssertEqual(decoded.cost, 128.50)
+        XCTAssertEqual(decoded.missedSummary, "见了面，没上床、时间没对上、双方只想见面")
+    }
+
+    func testOutcomeDraftCanSwitchBackBeforeNormalization() {
+        var draft = Encounter(companionID: UUID(), physicalRating: 4, activities: [.kissing],
+                              climaxDetails: [.condomFinish], protectionStatus: .protected,
+                              safetyMeasures: [.externalCondom], followUpKinds: [.testing])
+        let original = draft
+        draft.kind = .missed
+        draft.missedReasons = [.schedule]
+        draft.kind = .intimacy
+        draft.normalizeForOutcome()
+        XCTAssertEqual(draft, original)
+    }
+
+    func testSavingMissedClearsHiddenDetailsButKeepsItsOwnCategories() {
+        var draft = Encounter(companionID: UUID(), venueCategory: .hotel, physicalRating: 5,
+                              activities: [.kissing], climaxDetails: [.sheCame],
+                              protectionStatus: .protected, followUpKinds: [.testing, .message],
+                              photoIDs: ["photo"])
+        draft.kind = .missed
+        draft.missedProgress = .stayed
+        draft.missedReasons = [.bothDeclined]
+        draft.normalizeForOutcome()
+        XCTAssertTrue(draft.activities.isEmpty)
+        XCTAssertTrue(draft.climaxDetails.isEmpty)
+        XCTAssertEqual(draft.physicalRating, 0)
+        XCTAssertEqual(draft.protectionStatus, .notApplicable)
+        XCTAssertEqual(draft.followUpKinds, [.message])
+        XCTAssertEqual(draft.venueCategory, .hotel)
+        XCTAssertEqual(draft.missedProgress, .stayed)
+        XCTAssertEqual(draft.missedReasons, [.bothDeclined])
+        XCTAssertEqual(draft.photoIDs, ["photo"])
+    }
+
+    func testReuseDoesNotCopyProtectionLocationMoneyOrFollowUp() {
+        let previous = Encounter(companionID: UUID(), cityID: "110000", place: "旧场所",
+                                 cost: 900, activities: [.kissing], climaxDetails: [.condomFinish],
+                                 protectionStatus: .protected, safetyMeasures: [.externalCondom],
+                                 followUpKinds: [.testing])
+        var draft = Encounter(companionID: previous.companionID, cityID: "310000", cost: 28.50)
+        draft.reuseDetails(from: previous)
+        XCTAssertEqual(draft.activities, previous.activities)
+        XCTAssertEqual(draft.climaxDetails, previous.climaxDetails)
+        XCTAssertEqual(draft.protectionStatus, .notRecorded)
+        XCTAssertTrue(draft.safetyMeasures.isEmpty)
+        XCTAssertTrue(draft.followUpKinds.isEmpty)
+        XCTAssertEqual(draft.cityID, "310000")
+        XCTAssertEqual(draft.cost, 28.50)
+        XCTAssertTrue(draft.place.isEmpty)
+    }
+
+    func testNoApplicableBehaviorIsPreservedForIntimateRecord() throws {
+        let original = Encounter(companionID: UUID(), activities: [.kissing], protectionStatus: .notApplicable)
+        let decoded = try JSONDecoder().decode(Encounter.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(decoded.protectionStatus, .notApplicable)
+    }
+
+    func testClimaxChoicesExcludeContradictionsAndAllowMultipleFinishes() {
+        var draft = Encounter(companionID: UUID(), climaxDetails: [.sheCame, .sheMultiple, .condomFinish, .pullOut])
+        draft.toggleClimax(.sheNotSure)
+        XCTAssertFalse(draft.climaxDetails.contains(.sheCame))
+        XCTAssertFalse(draft.climaxDetails.contains(.sheMultiple))
+        draft.toggleClimax(.sheDidNotCome)
+        XCTAssertFalse(draft.climaxDetails.contains(.sheNotSure))
+        draft.toggleClimax(.didNotFinish)
+        XCTAssertFalse(draft.climaxDetails.contains(.condomFinish))
+        XCTAssertFalse(draft.climaxDetails.contains(.pullOut))
+        draft.toggleClimax(.condomFinish)
+        draft.toggleClimax(.pullOut)
+        XCTAssertFalse(draft.climaxDetails.contains(.didNotFinish))
+        XCTAssertTrue(draft.climaxDetails.contains(.condomFinish))
+        XCTAssertTrue(draft.climaxDetails.contains(.pullOut))
     }
 
 }

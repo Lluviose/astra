@@ -18,7 +18,7 @@ struct RosterScreen: View {
                         title: "名册还是空的",
                         message: "记下她是谁、到哪一步、约过几次、留过什么照片。",
                         actionTitle: "加个人",
-                        action: { flow.beginAddingCompanion() }
+                        action: { flow.beginAddingCompanion(app: app) }
                     )
                 } else {
                     rosterList
@@ -68,7 +68,7 @@ struct RosterScreen: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        flow.beginAddingCompanion()
+                        flow.beginAddingCompanion(app: app)
                     } label: {
                         Image(systemName: "plus")
                     }

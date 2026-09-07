@@ -5,6 +5,23 @@ struct EncounterEditor: View {
 
     let initial: Encounter
 
+    private enum Page: Int, CaseIterable, Identifiable {
+        case result, details, followUp
+        var id: Int { rawValue }
+        var label: String {
+            switch self {
+            case .result: "结果"
+            case .details: "细节"
+            case .followUp: "跟进"
+            }
+        }
+    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var movingForward = true
+    @State private var page: Page = .result
+    @State private var showTemplateConfirm = false
+    @State private var hasIntimateDraft: Bool
+
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
@@ -25,7 +42,18 @@ struct EncounterEditor: View {
 
     private var isNew: Bool { !app.encounters.contains { $0.id == initial.id } }
     private var companion: Companion? { app.companion(id: initial.companionID) }
-    private var hasUnsavedChanges: Bool { draft != initial }
+    private var hasUnsavedChanges: Bool {
+        draft != initial || costText != (initial.cost.map { String($0) } ?? "")
+    }
+    private var parsedCost: Double? { Double(costText.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    private var isCostValid: Bool {
+        costText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || (parsedCost.map { $0.isFinite && $0 >= 0 } ?? false)
+    }
+    private var canSave: Bool {
+        companion != nil && isCostValid && draft.date <= Date()
+            && app.location(id: draft.cityID ?? companion?.cityID ?? "") != nil
+    }
 
     /// 上一次上床的记录；新建上床记录时可以一键沿用。
     private var lastHookup: Encounter? {
@@ -40,8 +68,9 @@ struct EncounterEditor: View {
 
     init(encounter: Encounter) {
         self.initial = encounter
+        _hasIntimateDraft = State(initialValue: encounter.kind.isIntimate)
         _draft = State(initialValue: encounter)
-        _costText = State(initialValue: encounter.cost.map { String(Int($0)) } ?? "")
+        _costText = State(initialValue: encounter.cost.map { String($0) } ?? "")
         _hasFollowUpDate = State(initialValue: encounter.followUpDate != nil)
         _showBoundaryDetails = State(
             initialValue: encounter.boundaryFeeling != .notRecorded || !encounter.personalStates.isEmpty
@@ -49,42 +78,22 @@ struct EncounterEditor: View {
         _showSafetyDetails = State(
             initialValue: !encounter.safetyMeasures.isEmpty || !encounter.safetyNote.isEmpty
         )
-        _showFollowUpDetails = State(initialValue: !encounter.followUpKinds.isEmpty)
+        _showFollowUpDetails = State(initialValue: true)
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                subjectSection
-                basicsSection
-
-                if draft.kind.isIntimate {
-                    safetySection
-                    activitySection
-                    climaxSection
+            VStack(spacing: 0) {
+                NativeEditorHeader(steps: editorSteps, selection: pageSelection)
+                ZStack {
+                    editorForm
+                        .id(page)
+                        .transition(NativeEditorMotion.transition(forward: movingForward, reduceMotion: reduceMotion))
                 }
-
-                experienceSection
-                photosSection
-                notesSection
-
-                if draft.kind.isIntimate {
-                    boundarySection
-                }
-                followUpSection
-
-                if !isNew {
-                    Section {
-                        Button("删除这条记录", role: .destructive) {
-                            Haptics.shared.play(.warning)
-                            showDeleteConfirm = true
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
+                .clipped()
             }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isNew ? "记一笔" : "改记录")
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(isNew ? "记录这次约炮" : "编辑约炮记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -92,8 +101,21 @@ struct EncounterEditor: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("保存") { save() }
+                        .disabled(!canSave)
                         .fontWeight(.semibold)
                         .tint(Palette.accent)
+                }
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Button("上一步") { changePage(Page(rawValue: page.rawValue - 1) ?? .result) }
+                        .disabled(page == .result)
+                    Spacer()
+                    Text("\(page.rawValue + 1) / 3").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if page != .followUp {
+                        Button("下一步") { changePage(Page(rawValue: page.rawValue + 1) ?? .followUp) }
+                    } else {
+                        Button("保存记录") { save() }.disabled(!canSave)
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     if isCostFocused {
@@ -103,6 +125,13 @@ struct EncounterEditor: View {
                 }
             }
             .interactiveDismissDisabled(hasUnsavedChanges)
+            .onChange(of: draft.kind) { _, kind in
+                // 从没上床首次改成上床时，不把模型的“不适用”当成这次已选防护。
+                if kind.isIntimate, !hasIntimateDraft {
+                    draft.protectionStatus = .notRecorded
+                    hasIntimateDraft = true
+                }
+            }
             .alert("放弃未保存的修改？", isPresented: $showUnsavedAlert) {
                 Button("继续编辑", role: .cancel) {}
                 Button("放弃修改", role: .destructive) { abandon() }
@@ -121,13 +150,13 @@ struct EncounterEditor: View {
                 }
                 Button("取消", role: .cancel) {}
             }
-            .onChange(of: draft.kind) { _, kind in
-                normalizeForKind(kind)
-            }
-            .onChange(of: draft.climaxDetails) { _, details in
-                if details.contains(.creampie), draft.protectionStatus == .notRecorded {
-                    draft.protectionStatus = .noProtection
+            .alert("替换当前行为和收尾？", isPresented: $showTemplateConfirm) {
+                Button("取消", role: .cancel) {}
+                Button("复用上次") {
+                    if let lastHookup { applyTemplate(from: lastHookup) }
                 }
+            } message: {
+                Text("只替换这两组细节，请按这次实际情况核对。")
             }
             .onChange(of: draft.protectionStatus) { _, status in
                 if status != .protected, status != .partial {
@@ -155,6 +184,67 @@ struct EncounterEditor: View {
         }
     }
 
+    private var editorForm: some View {
+            Form {
+                if !isCostValid {
+                    Section {
+                        Button("花费格式不对，点这里修改") { changePage(.details) }
+                            .foregroundStyle(Palette.warning)
+                    }
+                }
+                switch page {
+                case .result:
+                    subjectSection
+                    basicsSection
+                    if draft.kind.isMissed { missedSection }
+                case .details:
+                    if draft.kind.isIntimate {
+                        activitySection
+                        climaxSection
+                        safetySection
+                        boundarySection
+                    }
+                    experienceSection
+                    notesSection
+                    photosSection
+                case .followUp:
+                    reviewSection
+                    followUpSection
+                    if !isNew {
+                        Section {
+                            Button("删除这条记录", role: .destructive) {
+                                Haptics.shared.play(.warning)
+                                showDeleteConfirm = true
+                            }
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .animation(NativeEditorMotion.animation(reduceMotion: reduceMotion), value: draft.kind)
+            .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var editorSteps: [NativeEditorStep] {
+        [
+            NativeEditorStep(title: "结果", subtitle: "上床了还是没上床，确认时间和地点就能存。", symbol: "checkmark.circle"),
+            NativeEditorStep(title: "细节", subtitle: draft.kind.isIntimate ? "行为、戴套、感受和照片，按需补充。" : "记录感受、花费、备注和照片。", symbol: "slider.horizontal.3"),
+            NativeEditorStep(title: "跟进", subtitle: "看一眼记录，再决定要不要联系或处理后续。", symbol: "checklist")
+        ]
+    }
+
+    private var pageSelection: Binding<Int> {
+        Binding(get: { page.rawValue }, set: { changePage(Page(rawValue: $0) ?? page) })
+    }
+
+    private func changePage(_ next: Page) {
+        guard next != page else { return }
+        NativeEditorMotion.dismissKeyboard()
+        movingForward = next.rawValue > page.rawValue
+        Haptics.shared.play(.selection)
+        withAnimation(NativeEditorMotion.animation(reduceMotion: reduceMotion)) { page = next }
+    }
+
     // MARK: - 对象
 
     @ViewBuilder
@@ -173,11 +263,15 @@ struct EncounterEditor: View {
 
                 if let lastHookup {
                     Button {
-                        applyTemplate(from: lastHookup)
+                        if draft.activities.isEmpty && draft.climaxDetails.isEmpty {
+                            applyTemplate(from: lastHookup)
+                        } else {
+                            showTemplateConfirm = true
+                        }
                     } label: {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("沿用上次的玩法、收尾和套")
+                                Text("复用上次的行为和收尾")
                                     .font(.subheadline.weight(.semibold))
                                 Text("\(Format.relativeDay(lastHookup.date)) · \(templateSummary(for: lastHookup))")
                                     .font(.caption2)
@@ -200,23 +294,12 @@ struct EncounterEditor: View {
     private func templateSummary(for encounter: Encounter) -> String {
         var parts: [String] = []
         if !encounter.activitySummary.isEmpty { parts.append(encounter.activitySummary) }
-        if encounter.protectionStatus.isRecorded, encounter.protectionStatus != .notApplicable {
-            parts.append(encounter.protectionStatus.compactLabel)
-        }
+        if !encounter.climaxSummary.isEmpty { parts.append(encounter.climaxSummary) }
         return parts.isEmpty ? "上次没记细节" : parts.joined(separator: " · ")
     }
 
     private func applyTemplate(from encounter: Encounter) {
-        draft.activities = encounter.activities
-        draft.climaxDetails = encounter.climaxDetails
-        draft.protectionStatus = encounter.protectionStatus == .notApplicable ? .notRecorded : encounter.protectionStatus
-        draft.safetyMeasures = encounter.safetyMeasures
-        if draft.place.isEmpty { draft.place = encounter.place }
-        if draft.cost == nil, let cost = encounter.cost, cost > 0 {
-            draft.cost = cost
-            costText = String(Int(cost))
-        }
-        showSafetyDetails = showSafetyDetails || !draft.safetyMeasures.isEmpty
+        draft.reuseDetails(from: encounter)
         Haptics.shared.play(.success)
     }
 
@@ -224,15 +307,12 @@ struct EncounterEditor: View {
 
     private var basicsSection: some View {
         Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(EncounterKind.recordableCases) { kind in
-                        kindChip(kind)
-                    }
+            Picker("这次结果", selection: $draft.kind) {
+                ForEach(EncounterKind.recordableCases) { kind in
+                    Text(kind.label).tag(kind)
                 }
-                .padding(.vertical, 4)
             }
-            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+            .pickerStyle(.segmented)
 
             DatePicker("时间", selection: $draft.date, in: ...Date())
 
@@ -250,24 +330,70 @@ struct EncounterEditor: View {
             }
             .buttonStyle(.plain)
 
-            TextField(
-                draft.kind.isIntimate ? "酒店、她家、车里…（可留空）" : "在哪一步没成（可留空）",
-                text: $draft.place
-            )
+            Picker("场所类型", selection: $draft.venueCategory) {
+                ForEach(VenueCategory.allCases) { category in
+                    Text(category.label).tag(category)
+                }
+            }
+            TextField("具体场所备注（可留空）", text: $draft.place)
         } header: {
             Text("这次结果")
         } footer: {
-            Text("只分上床了还是没上床。时间和地点会进时间线和版图，细节以后补也行。")
+            Text("常驻地点已带入，请确认这次实际在哪。切换结果会保留当前草稿，保存时只保留对应结果的字段。")
         }
     }
 
     // MARK: - 套
 
+    private var missedSection: some View {
+        Section {
+            Picker("到了哪一步", selection: $draft.missedProgress) {
+                ForEach(MissedProgress.allCases) { progress in
+                    Text(progress.label).tag(progress)
+                }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("为什么没上床 · 可多选").font(.subheadline.weight(.semibold))
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(MissedReason.allCases) { reason in
+                        RecordChoice(title: reason.label, isOn: draft.missedReasons.contains(reason), tint: Palette.accent, compact: true) {
+                            draft.missedReasons = toggled(reason, in: draft.missedReasons)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("没上床的情况")
+        } footer: {
+            Text("没上床也可能是双方的选择。只记知道的原因，不确定就留空。")
+        }
+    }
+
+    private var reviewSection: some View {
+        Section("保存前看一眼") {
+            LabeledContent("结果", value: draft.kind.label)
+            LabeledContent("时间", value: draft.date.formatted(date: .abbreviated, time: .shortened))
+            LabeledContent("地点", value: selectedLocationName)
+            if draft.venueCategory != .notRecorded {
+                LabeledContent("场所", value: draft.venueCategory.label)
+            }
+            if draft.kind.isIntimate {
+                LabeledContent("戴套", value: draft.protectionStatus.label)
+                if !draft.activitySummary.isEmpty { Text(draft.activitySummary) }
+                if !draft.climaxSummary.isEmpty { Text(draft.climaxSummary) }
+            } else if !draft.missedSummary.isEmpty {
+                Text(draft.missedSummary)
+            }
+            LabeledContent("还约不约", value: draft.meetAgainIntent.label)
+        }
+    }
+
     private var safetySection: some View {
         Section {
             FlowLayout(spacing: 7, lineSpacing: 8) {
-                ForEach([ProtectionStatus.protected, .partial, .noProtection]) { status in
-                    GlassChip(
+                ForEach(ProtectionStatus.allCases) { status in
+                    RecordChoice(
                         title: status.label,
                         systemImage: status.symbolName,
                         isOn: draft.protectionStatus == status,
@@ -283,7 +409,7 @@ struct EncounterEditor: View {
             DisclosureGroup(isExpanded: $showSafetyDetails) {
                 FlowLayout(spacing: 7, lineSpacing: 8) {
                     ForEach(SafetyMeasure.allCases) { measure in
-                        GlassChip(
+                        RecordChoice(
                             title: measure.label,
                             isOn: draft.safetyMeasures.contains(measure),
                             tint: Palette.safe,
@@ -307,7 +433,7 @@ struct EncounterEditor: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("有没有戴套")
+            Text("戴套与其他防护 · 按这次实际情况选")
         } footer: {
             Text("戴套、吃药、避孕不是一回事。无套和内射分开记。")
         }
@@ -324,7 +450,7 @@ struct EncounterEditor: View {
                         .foregroundStyle(.secondary)
                     FlowLayout(spacing: 7, lineSpacing: 8) {
                         ForEach(IntimacyActivity.allCases.filter { $0.group == group }) { activity in
-                            GlassChip(
+                            RecordChoice(
                                 title: activity.label,
                                 isOn: draft.activities.contains(activity),
                                 tint: group == .heat || group == .place ? Palette.coral : Palette.accent,
@@ -339,36 +465,36 @@ struct EncounterEditor: View {
             }
         } header: {
             HStack {
-                Text("床上做了什么")
+                Text("做了什么 · 可多选")
                 Spacer()
                 if !draft.activities.isEmpty {
                     Text("\(draft.activities.count) 项")
                 }
             }
         } footer: {
-            Text("姿势、口、她骑上来、车震，发生了就勾。")
+            Text("按实际发生的行为勾选；没记的留空，没列出的写在补充备注。")
         }
     }
 
     private var climaxSection: some View {
         Section {
-            FlowLayout(spacing: 7, lineSpacing: 8) {
-                ForEach(ClimaxDetail.allCases) { detail in
-                    GlassChip(
-                        title: detail.label,
-                        isOn: draft.climaxDetails.contains(detail),
-                        tint: detail.tint,
-                        compact: true
-                    ) {
-                        draft.climaxDetails = toggled(detail, in: draft.climaxDetails)
+            ForEach(ClimaxDetailGroup.allCases) { group in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(group.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    FlowLayout(spacing: 7, lineSpacing: 8) {
+                        ForEach(ClimaxDetail.allCases.filter { $0.group == group }) { detail in
+                            RecordChoice(title: detail.label, isOn: draft.climaxDetails.contains(detail), tint: detail.tint, compact: true) {
+                                draft.toggleClimax(detail)
+                            }
+                        }
                     }
                 }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
         } header: {
-            Text("这次怎么收的")
+            Text("高潮与射精 · 可多选")
         } footer: {
-            Text("内射、口爆、颜射分开勾；她高潮了也记一笔。")
+            Text("她的感受不确定就选不确定。多轮可以记录多种收尾，戴套情况单独选。")
         }
     }
 
@@ -380,14 +506,16 @@ struct EncounterEditor: View {
                 experiencePicker(
                     title: "身体感受",
                     rating: $draft.physicalRating,
-                    emojis: ["😣", "😕", "😐", "😋", "🥵"]
+                    emojis: ["😣", "😕", "😐", "😋", "🥵"],
+                    labels: ["很不爽", "不太爽", "一般", "爽", "很爽"]
                 )
             }
 
             experiencePicker(
                 title: "情绪感受",
                 rating: $draft.emotionalRating,
-                emojis: ["😞", "😕", "😐", "🙂", "😊"]
+                emojis: ["😞", "😕", "😐", "🙂", "😊"],
+                labels: ["很差", "不太好", "一般", "开心", "很开心"]
             )
 
             Picker(draft.kind.isIntimate ? "还想再上吗" : "还想再约吗", selection: $draft.meetAgainIntent) {
@@ -433,21 +561,23 @@ struct EncounterEditor: View {
             HStack {
                 Text("花费")
                 Spacer()
-                TextField("0", text: $costText)
-                    .keyboardType(.numberPad)
+                TextField("未记录", text: $costText)
+                    .keyboardType(.decimalPad)
                     .focused($isCostFocused)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 120)
-                    .onChange(of: costText) { _, newValue in
-                        draft.cost = Double(newValue.filter { $0.isNumber })
-                    }
+                    .onChange(of: costText) { _, _ in draft.cost = parsedCost }
                 Text("元")
                     .foregroundStyle(.secondary)
             }
 
+            if !isCostValid {
+                Text("花费用非负数字填写，可带小数；不记就留空。")
+                    .font(.caption).foregroundStyle(Palette.warning)
+            }
             TextField(
                 draft.kind.isIntimate
-                    ? "她哪里敏感、叫得怎么样、下次想怎么玩"
+                    ? "这次体验、其他行为、下次要注意什么"
                     : "为什么没上床、下次要不要换时间或地点",
                 text: $draft.note,
                 axis: .vertical
@@ -474,7 +604,7 @@ struct EncounterEditor: View {
 
                     FlowLayout(spacing: 7, lineSpacing: 8) {
                         ForEach(PersonalState.allCases) { state in
-                            GlassChip(
+                            RecordChoice(
                                 title: state.label,
                                 isOn: draft.personalStates.contains(state),
                                 tint: state == .clearheaded ? Palette.safe : Palette.warning,
@@ -515,7 +645,7 @@ struct EncounterEditor: View {
             DisclosureGroup(isExpanded: $showFollowUpDetails) {
                 FlowLayout(spacing: 7, lineSpacing: 8) {
                     ForEach(availableFollowUps) { kind in
-                        GlassChip(
+                        RecordChoice(
                             title: kind.label,
                             systemImage: kind.symbolName,
                             isOn: draft.followUpKinds.contains(kind),
@@ -567,7 +697,7 @@ struct EncounterEditor: View {
                 }
             }
         } footer: {
-            Text("跟进全靠你自己勾。没勾就不会烦你。")
+            Text("只保存你主动勾选的事项和日期，不会自动发消息。")
         }
     }
 
@@ -583,34 +713,11 @@ struct EncounterEditor: View {
         return "选择地点"
     }
 
-    private func kindChip(_ kind: EncounterKind) -> some View {
-        Button {
-            draft.kind = kind
-        } label: {
-            HStack(spacing: 5) {
-                if draft.kind == kind {
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                }
-                Image(systemName: kind.symbolName).font(.system(size: 12, weight: .semibold))
-                Text(kind.label).font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(draft.kind == kind ? .white : Color.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background {
-                if draft.kind == kind {
-                    Capsule().fill(kind.tint.gradient)
-                }
-            }
-            .glassCapsule(interactive: true, shadowRadius: 8)
-        }
-        .buttonStyle(HapticButtonStyle(cue: .selection))
-    }
-
     private func experiencePicker(
         title: String,
         rating: Binding<Int>,
-        emojis: [String]
+        emojis: [String],
+        labels: [String]
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -621,6 +728,8 @@ struct EncounterEditor: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
+                    Text("\(rating.wrappedValue) 分 · \(labels[rating.wrappedValue - 1])")
+                        .font(.caption).foregroundStyle(.secondary)
                     Button("清除") {
                         rating.wrappedValue = 0
                     }
@@ -637,14 +746,14 @@ struct EncounterEditor: View {
                         Text(emojis[value - 1])
                             .font(.title3)
                             .opacity(rating.wrappedValue == value ? 1 : 0.3)
-                            .scaleEffect(rating.wrappedValue == value ? 1.16 : 1)
+                            .scaleEffect(rating.wrappedValue == value && !reduceMotion ? 1.16 : 1)
                             .animation(
-                                .spring(response: 0.25, dampingFraction: 0.65),
+                                NativeEditorMotion.animation(reduceMotion: reduceMotion),
                                 value: rating.wrappedValue
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(title) \(value) 分")
+                    .accessibilityLabel("\(title) \(value) 分，\(labels[value - 1])")
                     .accessibilityAddTraits(rating.wrappedValue == value ? .isSelected : [])
                 }
             }
@@ -684,7 +793,7 @@ struct EncounterEditor: View {
     private var barrierGuidanceText: String {
         switch draft.protectionStatus {
         case .partial:
-            "中途摘了不等于一定有风险，看具体做了什么；需要的话下面勾去做检测。"
+            "部分行为没戴套，具体情况可写在备忘，需要处理的事可以在跟进页勾选。"
         case .noProtection:
             "无套本身不等于风险结论，看具体行为；需要的话下面勾去做检测或咨询。"
         default:
@@ -743,14 +852,11 @@ struct EncounterEditor: View {
         }
     }
 
-    private func normalizeForKind(_ kind: EncounterKind) {
-        draft.kind = kind
-        draft.normalizeForOutcome()
-        hasFollowUpDate = draft.followUpDate != nil
-    }
-
     private func save() {
-        normalizeForKind(draft.kind)
+        guard canSave else { return }
+        draft.cost = parsedCost
+        draft.cityID = draft.cityID ?? companion?.cityID
+        draft.normalizeForOutcome()
         draft.physicalRating = min(max(draft.physicalRating, 0), 5)
         draft.emotionalRating = min(max(draft.emotionalRating, 0), 5)
         if draft.followUpKinds.isEmpty {

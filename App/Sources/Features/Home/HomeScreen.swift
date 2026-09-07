@@ -81,7 +81,7 @@ struct HomeScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        flow.beginAddingCompanion()
+                        flow.beginAddingCompanion(app: app)
                     } label: {
                         Image(systemName: "person.badge.plus")
                     }
@@ -323,7 +323,7 @@ struct HomeScreen: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
-                    flow.beginAddingCompanion()
+                    flow.beginAddingCompanion(app: app)
                 } label: {
                     Label("加第一个人", systemImage: "person.badge.plus")
                         .font(.subheadline.weight(.bold))
