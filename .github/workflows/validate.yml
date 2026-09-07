@@ -1,0 +1,55 @@
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: iOS simulator tests
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode 26
+        run: |
+          set -euo pipefail
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          python3 Scripts/generate_icon.py
+          xcodegen generate
+      - name: Test on an available iPhone
+        run: |
+          set -euo pipefail
+          DEST_ID=$(python3 - <<'PY'
+          import json, subprocess
+          runtimes = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "-j", "devices", "available"]))["devices"]
+          phones = [device["udid"] for runtime, devices in sorted(runtimes.items(), reverse=True)
+                    if "iOS" in runtime for device in devices
+                    if device.get("isAvailable") and device["name"].startswith("iPhone")]
+          if not phones:
+              raise SystemExit("No available iPhone simulator")
+          print(phones[0])
+          PY
+          )
+          xcodebuild test -project Astra.xcodeproj -scheme Astra \
+            -destination "platform=iOS Simulator,id=$DEST_ID" \
+            -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO \
+            > xcodebuild-test.log 2>&1 || { tail -100 xcodebuild-test.log; exit 1; }
+          tail -30 xcodebuild-test.log
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: validation-log
+          path: xcodebuild-test.log

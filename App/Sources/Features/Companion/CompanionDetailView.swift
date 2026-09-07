@@ -561,6 +561,10 @@ struct EncounterRow: View {
                     if let locationName {
                         Label(locationName, systemImage: "mappin")
                     }
+                    if encounter.venueCategory != .notRecorded {
+                        Text(encounter.venueCategory.label)
+                            .lineLimit(1)
+                    }
                     if encounter.kind.isIntimate, encounter.protectionStatus.isRecorded {
                         Label(encounter.protectionStatus.compactLabel, systemImage: encounter.protectionStatus.symbolName)
                             .foregroundStyle(encounter.protectionStatus.tint)
@@ -607,6 +611,12 @@ struct EncounterRow: View {
                     .foregroundStyle(.secondary)
                 }
 
+                if !encounter.missedSummary.isEmpty {
+                    Text(encounter.missedSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
                 if encounter.kind.isMissed, encounter.hasPendingFollowUp {
                     Label("待跟进", systemImage: "checklist")
                         .font(.caption2)

@@ -35,6 +35,8 @@ struct TimelineScreen: View {
         let q = normalizedQuery
         if encounter.place.lowercased().contains(q) { return true }
         if encounter.note.lowercased().contains(q) { return true }
+        if encounter.venueCategory != .notRecorded, encounter.venueCategory.label.lowercased().contains(q) { return true }
+        if encounter.missedSummary.lowercased().contains(q) { return true }
         if encounter.followUpNote.lowercased().contains(q) { return true }
         if app.locationName(for: encounter).lowercased().contains(q) { return true }
         if let companion = app.companion(id: encounter.companionID),
@@ -427,6 +429,7 @@ struct FollowUpRow: View {
 struct CompanionPickerSheet: View {
 
     let onSelect: (Companion) -> Void
+    let onAdd: () -> Void
 
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -443,6 +446,8 @@ struct CompanionPickerSheet: View {
             .filter { companion in
                 q.isEmpty
                     || companion.displayName.lowercased().contains(q)
+                    || companion.contactNote.lowercased().contains(q)
+                    || companion.tags.contains { $0.lowercased().contains(q) }
                     || matchingLocationIDs.contains(companion.cityID)
             }
     }
@@ -450,11 +455,19 @@ struct CompanionPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Button {
+                        onAdd()
+                        dismiss()
+                    } label: {
+                        Label("新增人物，接着记这次", systemImage: "person.badge.plus")
+                    }
+                }
                 if filtered.isEmpty {
                     EmptyStateView(
                         symbol: "person.crop.circle.badge.questionmark",
                         title: "没有匹配的人",
-                        message: "换一个代号或地点试试，或先把她加进名册。"
+                        message: "换个关键词，或点上方新增人物。"
                     )
                 } else {
                     ForEach(filtered) { companion in
@@ -473,7 +486,7 @@ struct CompanionPickerSheet: View {
             .listStyle(.insetGrouped)
             .navigationTitle("记谁？")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $query, prompt: "代号 / 地点")
+            .searchable(text: $query, prompt: "代号 / 联系方式 / 标签 / 地点")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { dismiss() }
