@@ -148,7 +148,7 @@ private struct GlassActionStyleModifier: ViewModifier {
             .padding(.vertical, 8)
             .background {
                 Capsule(style: .continuous)
-                    .fill(prominent ? AnyShapeStyle(Palette.accent.gradient) : AnyShapeStyle(Color.primary.opacity(0.10)))
+                    .fill(prominent ? AnyShapeStyle(Palette.accentDeep.gradient) : AnyShapeStyle(Color.primary.opacity(0.10)))
             }
             .foregroundStyle(prominent ? .white : Color.primary)
     }

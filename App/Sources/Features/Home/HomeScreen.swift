@@ -379,7 +379,7 @@ struct HomeScreen: View {
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .background(Palette.accent.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Palette.accentDeep.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(HapticButtonStyle(cue: .mediumTap, scale: 0.97))
