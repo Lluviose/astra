@@ -195,7 +195,9 @@ struct CompanionScoreEditor: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 24)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -233,7 +235,7 @@ struct CompanionScoreEditor: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .glassCard(cornerRadius: 22, shadowRadius: 8)
+        .contentSurface(cornerRadius: 22)
     }
 
     private func presetButton(_ title: String, symbol: String, value: ScorePreset) -> some View {
@@ -295,7 +297,7 @@ private struct ScoreDimensionControl: View {
             .foregroundStyle(.secondary)
         }
         .padding(16)
-        .glassCard(cornerRadius: 20, shadowRadius: 7)
+        .contentSurface(cornerRadius: 20)
     }
 
     private var feelingText: String {
@@ -333,3 +335,4 @@ private enum ScorePreset {
         }
     }
 }
+

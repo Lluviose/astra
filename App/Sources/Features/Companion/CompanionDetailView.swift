@@ -140,6 +140,7 @@ struct CompanionDetailView: View {
             timelineSection(companion)
         }
         .listStyle(.insetGrouped)
+        .astraListBackground()
         .navigationTitle(app.namesRevealed ? companion.displayName : "档案")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -729,3 +730,4 @@ struct EncounterRow: View {
         .padding(.vertical, 2)
     }
 }
+

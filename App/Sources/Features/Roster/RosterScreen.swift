@@ -4,6 +4,7 @@ import SwiftUI
 struct RosterScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var flow = RecordingFlow()
     @State private var showFilter = false
@@ -24,6 +25,7 @@ struct RosterScreen: View {
                     rosterList
                 }
             }
+            .background(Palette.background.ignoresSafeArea())
             .navigationTitle("名册")
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
@@ -107,7 +109,7 @@ struct RosterScreen: View {
     private var rosterList: some View {
         List {
             Section {
-                HStack(spacing: 12) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 2 : 4), spacing: 16) {
                     digestChip("\(app.stats.activeCount)", "在册")
                     digestChip("\(app.conqueredCompanions.count)", "上过")
                     digestChip("\(app.stats.repeatGirlCount)", "回头客")
@@ -118,7 +120,10 @@ struct RosterScreen: View {
             }
 
             Section {
-                HStack(spacing: 12) {
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: 14))
+                    : AnyLayout(HStackLayout(spacing: 14))
+                layout {
                     NavigationLink {
                         HaremGalleryScreen()
                     } label: {
@@ -225,6 +230,7 @@ struct RosterScreen: View {
             }
         }
         .listStyle(.insetGrouped)
+        .astraListBackground()
         .haptic(.selection, trigger: app.filter.activeConditionCount)
     }
 
@@ -240,13 +246,15 @@ struct RosterScreen: View {
     private func digestChip(_ value: String, _ label: String) -> some View {
         VStack(spacing: 2) {
             Text(value)
-                .font(.headline.weight(.bold))
+                .font(.system(.title2, design: .rounded).weight(.semibold))
                 .monospacedDigit()
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -371,3 +379,4 @@ struct RosterFilterSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
+

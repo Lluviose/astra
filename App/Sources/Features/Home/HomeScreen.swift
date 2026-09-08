@@ -4,6 +4,8 @@ import SwiftUI
 struct HomeScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var flow = RecordingFlow()
     @State private var path = NavigationPath()
@@ -48,20 +50,24 @@ struct HomeScreen: View {
                     .ignoresSafeArea()
 
                 ScrollView {
-                    LazyVStack(spacing: 16) {
+                    LazyVStack(spacing: AstraLayout.sectionSpacing) {
+                        overviewHeading
+                            .entranceMotion()
                         hero
+                            .entranceMotion(delay: 0.04)
 
                         if !quickLogCompanions.isEmpty {
                             quickLogStrip
                         }
-
-                        focusCard
 
                         if !app.pendingFollowUps.isEmpty || !app.needsAttention.isEmpty {
                             todoCard
                         }
 
                         entryGrid
+                            .entranceMotion(delay: 0.08)
+
+                        focusCard
 
                         safetyCard
 
@@ -69,12 +75,15 @@ struct HomeScreen: View {
                             recordsCard
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, AstraLayout.pageInset)
+                    .padding(.top, 12)
+                    .padding(.bottom, 32)
+                    .frame(maxWidth: AstraLayout.contentWidth)
+                    .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle("猎场")
+            .navigationTitle("星图")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
@@ -93,6 +102,7 @@ struct HomeScreen: View {
                         app.toggleNamesRevealed()
                     } label: {
                         Image(systemName: app.namesRevealed ? "eye.slash" : "eye")
+                            .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                     }
                     .accessibilityLabel(app.namesRevealed ? "隐藏代号" : "显示代号")
                 }
@@ -127,62 +137,103 @@ struct HomeScreen: View {
 
     // MARK: - 首屏主卡
 
+    private var overviewHeading: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(Date.now.formatted(.dateTime.month(.wide).day().weekday(.wide)))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text("你的私人星图")
+                    .font(.largeTitle.weight(.bold))
+                    .tracking(-0.8)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Spacer(minLength: 0)
+            if !typeSize.isAccessibilitySize {
+                AstraMark(size: 52).foregroundStyle(Palette.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 2)
+    }
+
+    private var metricColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 8), count: typeSize.isAccessibilitySize ? 2 : 4)
+    }
+
     private var hero: some View {
         let rank = app.royalRank
         return HeroPanel {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    HeroBadge(title: "只在这台手机上")
-                    Spacer()
-                    Label("Lv.\(rank.level)", systemImage: "crown.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Palette.gold)
+            VStack(alignment: .leading, spacing: 24) {
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        HeroBadge(title: "只在这台手机上")
+                        Spacer(minLength: 8)
+                        rankLabel(level: rank.level)
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        HeroBadge(title: "只在这台手机上")
+                        rankLabel(level: rank.level)
+                    }
                 }
 
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text(rank.title)
-                        .font(.system(size: 29, weight: .bold, design: .rounded))
-                        .tracking(-0.6)
+                        .font(.system(.title, design: .rounded).weight(.semibold))
+                        .tracking(-0.5)
                     Text(monthLine)
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.76))
+                        .foregroundStyle(.white.opacity(0.78))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack(spacing: 8) {
+                LazyVGrid(columns: metricColumns, alignment: .leading, spacing: 8) {
                     HeroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
                     HeroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
                     HeroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
                     HeroMetric(value: "\(app.conquestLocationCount)", label: "战绩地")
                 }
 
-                HStack(spacing: 10) {
-                    Menu {
-                        Button {
-                            flow.begin(kind: .intimacy, app: app)
+                GlassStack(spacing: 12) {
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(spacing: 12))
+                        : AnyLayout(HStackLayout(spacing: 12))
+                    layout {
+                        Menu {
+                            Button {
+                                flow.begin(kind: .intimacy, app: app)
+                            } label: {
+                                Label("上床了", systemImage: EncounterKind.intimacy.symbolName)
+                            }
+                            Button {
+                                flow.begin(kind: .missed, app: app)
+                            } label: {
+                                Label("没上床", systemImage: EncounterKind.missed.symbolName)
+                            }
                         } label: {
-                            Label("上床了", systemImage: EncounterKind.intimacy.symbolName)
+                            HeroButtonLabel(title: "记一笔", systemImage: "plus", prominent: true)
                         }
-                        Button {
-                            flow.begin(kind: .missed, app: app)
-                        } label: {
-                            Label("没上床", systemImage: EncounterKind.missed.symbolName)
-                        }
-                    } label: {
-                        HeroButtonLabel(title: "记一笔", systemImage: "plus.circle.fill", prominent: true)
-                    }
-                    .buttonStyle(.plain)
+                        .buttonStyle(HapticButtonStyle())
 
-                    HeroButton(title: "巡视版图", systemImage: "map.fill", cue: .cityFocus) {
-                        showMap = true
+                        HeroButton(title: "打开版图", systemImage: "map", cue: .cityFocus) {
+                            showMap = true
+                        }
                     }
                 }
 
                 Text("私藏 \(app.privateCollectionCount) 张 · 成就 \(rank.unlockedCount)/\(rank.totalCount) · 名册 \(app.stats.activeCount) 人")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func rankLabel(level: Int) -> some View {
+        Label("Lv.\(level)", systemImage: "crown")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Palette.gold)
+            .fixedSize()
     }
 
     private var monthLine: String {
@@ -202,14 +253,13 @@ struct HomeScreen: View {
     // MARK: - 快速记一笔
 
     private var quickLogStrip: some View {
-        SectionCard("点她，直接记", systemImage: "hand.tap.fill", tint: Palette.coral) {
+        SectionCard("快速记录", systemImage: "square.and.pencil", tint: Palette.accent) {
             Text("最近的人")
         } content: {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(quickLogCompanions) { companion in
                         Button {
-                            Haptics.shared.play(.selection)
                             quickLogTarget = companion
                         } label: {
                             VStack(spacing: 6) {
@@ -336,7 +386,7 @@ struct HomeScreen: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .glassCard(cornerRadius: 22, shadowRadius: 10)
+            .contentSurface()
         }
     }
 
@@ -427,7 +477,8 @@ struct HomeScreen: View {
     private var entryGrid: some View {
         let rank = app.royalRank
         let next = AchievementCatalog.nextUp(in: app.achievements, limit: 1).first
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: typeSize.isAccessibilitySize ? 1 : 2)
+        return LazyVGrid(columns: columns, spacing: 14) {
             NavigationLink {
                 HaremGalleryScreen()
             } label: {
@@ -551,3 +602,4 @@ struct HomeScreen: View {
         }
     }
 }
+

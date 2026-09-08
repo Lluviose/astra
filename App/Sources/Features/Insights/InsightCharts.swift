@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 上床 / 没上床双柱月趋势。时间线用 6 个月，统计页用 12 个月。
 struct OutcomeMonthChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let points: [EncounterInsights.MonthPoint]
     var barHeight: CGFloat = 70
 
@@ -28,7 +29,7 @@ struct OutcomeMonthChart: View {
                         Text("\(item.hookups)/\(item.misses)")
                             .font(.system(size: points.count > 6 ? 8 : 10, weight: .semibold))
                             .foregroundStyle(item.total > 0 ? Color.secondary : Color.secondary.opacity(0.45))
-                            .contentTransition(.numericText())
+                            .contentTransition(reduceMotion ? .opacity : .numericText())
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
 
@@ -48,7 +49,7 @@ struct OutcomeMonthChart: View {
                 }
             }
             .frame(height: barHeight + 42, alignment: .bottom)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: points.map(\.total))
+            .animation(AstraMotion.response(reduceMotion: reduceMotion), value: points.map(\.total))
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
@@ -87,3 +88,4 @@ struct InsightFigure: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+

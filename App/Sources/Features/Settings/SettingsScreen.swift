@@ -28,6 +28,7 @@ struct SettingsScreen: View {
 
     @Environment(AppState.self) private var app
     @Environment(AppLock.self) private var lock
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var isExporting = false
     @State private var exportDocument: BackupDocument?
@@ -42,13 +43,16 @@ struct SettingsScreen: View {
     var body: some View {
         NavigationStack {
             Form {
+                identitySection
                 privacySection
-                principlesSection
-                hapticsSection
                 appearanceSection
+                hapticsSection
                 dataSection
+                principlesSection
                 aboutSection
             }
+            .labelStyle(SettingsIconLabelStyle())
+            .astraListBackground()
             .navigationTitle("设置")
         }
         .fileExporter(
@@ -114,6 +118,27 @@ struct SettingsScreen: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("所有人、约过的记录、照片和设置都会被删掉，回不来。建议先导出一份备份。")
+        }
+    }
+
+    private var identitySection: some View {
+        Section {
+            HStack(spacing: 18) {
+                AstraMark(size: 58)
+                    .foregroundStyle(Palette.accent)
+                    .padding(10)
+                    .contentSurface(cornerRadius: 24)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("星图").font(.title2.weight(.semibold))
+                    Text("你的记录，只属于你")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Text("版本 \(Bundle.main.appVersion)")
+                        .font(.caption).foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.vertical, 12)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
         }
     }
 
@@ -217,12 +242,11 @@ struct SettingsScreen: View {
 
     private var appearanceSection: some View {
         Section("外观") {
-            Picker("外观", selection: app.settingsBinding(\.appearance)) {
-                ForEach(AppearancePreference.allCases) { preference in
-                    Text(preference.label).tag(preference)
-                }
+            if typeSize.isAccessibilitySize {
+                appearancePicker.pickerStyle(.menu)
+            } else {
+                appearancePicker.pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
 
             Picker("地图样式", selection: app.settingsBinding(\.mapSkin)) {
                 ForEach(MapSkin.allCases) { skin in
@@ -232,6 +256,14 @@ struct SettingsScreen: View {
 
             Toggle(isOn: app.settingsBinding(\.showHeatGlow)) {
                 Label("地点光晕", systemImage: "sparkles")
+            }
+        }
+    }
+
+    private var appearancePicker: some View {
+        Picker("外观", selection: app.settingsBinding(\.appearance)) {
+            ForEach(AppearancePreference.allCases) { preference in
+                Text(preference.label).tag(preference)
             }
         }
     }
@@ -307,11 +339,8 @@ struct AboutView: View {
         List {
             Section {
                 VStack(spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 34, weight: .light))
+                    AstraMark(size: 76)
                         .foregroundStyle(Palette.accent)
-                        .frame(width: 76, height: 76)
-                        .glassCircle()
 
                     Text("星图")
                         .font(.title2.weight(.bold))
@@ -439,3 +468,4 @@ private extension Bundle {
         return "\(short) (\(build))"
     }
 }
+

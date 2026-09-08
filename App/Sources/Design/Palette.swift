@@ -1,45 +1,46 @@
 import SwiftUI
+import UIKit
 
-/// 全局配色。以夜紫为底、霓虹莓红为强调，保持私密、克制而不冷淡。
+/// Adaptive system neutrals, a single blue accent, and restrained midnight covers.
 enum Palette {
+    static let background = Color(uiColor: .systemGroupedBackground)
+    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
+    static let accent = adaptive(light: 0x0066CC, dark: 0x409CFF)
+    static let accentDeep = Color(red: 0.04, green: 0.25, blue: 0.50)
+    static let coral = adaptive(light: 0xB84462, dark: 0xF18BA5)
+    static let safe = adaptive(light: 0x247867, dark: 0x6AD2BA)
+    static let warning = adaptive(light: 0x9C5B0B, dark: 0xF4BA64)
+    static let gold = Color(red: 0.93, green: 0.82, blue: 0.57)
+    static let goldDeep = adaptive(light: 0x876322, dark: 0xDFC389)
+    static let midnight = Color(red: 0.055, green: 0.075, blue: 0.12)
 
-    static let accent = Color(red: 0.72, green: 0.31, blue: 0.95)
-    static let accentDeep = Color(red: 0.49, green: 0.16, blue: 0.78)
-    static let coral = Color(red: 0.96, green: 0.29, blue: 0.50)
-    static let safe = Color(red: 0.22, green: 0.70, blue: 0.56)
-    static let warning = Color(red: 0.95, green: 0.48, blue: 0.28)
-    /// 王冠、名次、金徽章
-    static let gold = Color(red: 1.0, green: 0.80, blue: 0.28)
-    static let goldDeep = Color(red: 0.92, green: 0.63, blue: 0.12)
-    static let midnight = Color(red: 0.06, green: 0.045, blue: 0.12)
-
-    /// 首页、成就册、排行用的主 hero 渐变
     static let heroGradient = LinearGradient(
-        colors: [
-            Color(red: 0.17, green: 0.08, blue: 0.31),
-            Color(red: 0.41, green: 0.12, blue: 0.46),
-            Color(red: 0.69, green: 0.17, blue: 0.40),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
+        colors: [Color(red: 0.10, green: 0.14, blue: 0.22),
+                 Color(red: 0.17, green: 0.22, blue: 0.33),
+                 Color(red: 0.24, green: 0.30, blue: 0.42)],
+        startPoint: .topLeading, endPoint: .bottomTrailing
     )
 
-    /// 后宫图鉴、今夜焦点用的更深一档的渐变
     static let velvetGradient = LinearGradient(
-        colors: [
-            Color(red: 0.08, green: 0.035, blue: 0.16),
-            Color(red: 0.36, green: 0.07, blue: 0.30),
-            Color(red: 0.78, green: 0.15, blue: 0.34),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
+        colors: [Color(red: 0.11, green: 0.12, blue: 0.19),
+                 Color(red: 0.22, green: 0.22, blue: 0.31),
+                 Color(red: 0.32, green: 0.29, blue: 0.39)],
+        startPoint: .topLeading, endPoint: .bottomTrailing
     )
 
     static let screenGradient = LinearGradient(
-        colors: [accent.opacity(0.09), coral.opacity(0.035), Color.clear],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
+        colors: [background, background],
+        startPoint: .top, endPoint: .bottom
     )
+
+    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        Color(uiColor: UIColor { traits in
+            let hex = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: CGFloat((hex >> 16) & 0xff) / 255,
+                           green: CGFloat((hex >> 8) & 0xff) / 255,
+                           blue: CGFloat(hex & 0xff) / 255, alpha: 1)
+        })
+    }
 
     // MARK: - 头像渐变
 
@@ -70,12 +71,13 @@ enum Palette {
         let colors = avatarColors(index)
         return LinearGradient(
             colors: [
-                midnight.mix(with: colors[0], by: 0.42),
-                midnight.mix(with: colors[1], by: 0.58),
-                midnight.mix(with: colors[0], by: 0.80),
+                midnight.mix(with: colors[0], by: 0.24),
+                midnight.mix(with: colors[1], by: 0.36),
+                midnight.mix(with: colors[0], by: 0.46),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
 }
+

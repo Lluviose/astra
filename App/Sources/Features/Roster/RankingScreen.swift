@@ -97,7 +97,9 @@ struct RankingScreen: View {
                     rankingList
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -230,7 +232,7 @@ struct RankingScreen: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, rank == 1 ? 16 : 13)
         .padding(.horizontal, 6)
-        .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+        .contentSurface(cornerRadius: 20)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
@@ -257,7 +259,7 @@ struct RankingScreen: View {
                 }
             }
             .padding(.horizontal, 14)
-            .glassCard(cornerRadius: 22, shadowRadius: 9)
+            .contentSurface(cornerRadius: 22)
         }
     }
 
@@ -307,5 +309,6 @@ private struct RankingRow: View {
         .contentShape(Rectangle())
     }
 }
+
 
 

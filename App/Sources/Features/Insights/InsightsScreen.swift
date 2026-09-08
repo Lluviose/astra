@@ -18,7 +18,7 @@ struct InsightsScreen: View {
                         title: "还没有可统计的记录",
                         message: "记下几次上床或没上床，这里会自动算出上床率、套的情况、最常做的和最常约的时段。"
                     )
-                    .glassCard(cornerRadius: 24, shadowRadius: 10)
+                    .contentSurface(cornerRadius: 24)
                 } else {
                     trendCard
                     if insights.hookupCount > 0 {
@@ -33,7 +33,9 @@ struct InsightsScreen: View {
                     if insights.wantAgainRate != nil { meetAgainCard }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -386,3 +388,4 @@ struct InsightsScreen: View {
         return "\(value) 天"
     }
 }
+

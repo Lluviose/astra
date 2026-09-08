@@ -4,15 +4,15 @@ import SwiftUI
 struct HaremGalleryScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var sort: HaremSort = .hookups
     @State private var viewingPhotoIDs: [String] = []
     @State private var viewingPhotoIndex: Int?
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 14), count: typeSize.isAccessibilitySize ? 1 : 2)
+    }
 
     private var companions: [Companion] {
         let photoCounts = Dictionary(
@@ -60,7 +60,9 @@ struct HaremGalleryScreen: View {
                     emptyState
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -97,7 +99,7 @@ struct HaremGalleryScreen: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("上过的，都在这里")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .font(.system(.title, design: .rounded).weight(.semibold))
                     Text("不是待办，也不是聊天列表。这里专门用来翻照片、数战绩、回味已经发生过的。")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.76))
@@ -189,7 +191,7 @@ struct HaremGalleryScreen: View {
             }
             .buttonStyle(.plain)
         }
-        .glassCard(cornerRadius: 26, shadowRadius: 12)
+        .contentSurface(cornerRadius: 26)
     }
 
     private var collectionControls: some View {
@@ -240,7 +242,7 @@ struct HaremGalleryScreen: View {
         )
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-        .glassCard(cornerRadius: 24, shadowRadius: 10)
+        .contentSurface(cornerRadius: 24)
     }
 
     private func coverPhotoID(for companion: Companion) -> String? {
@@ -388,7 +390,7 @@ private struct HaremCard: View {
             }
             .buttonStyle(.plain)
         }
-        .glassCard(cornerRadius: 20, shadowRadius: 9)
+        .contentSurface(cornerRadius: 20)
         .opacity(companion.isArchived ? 0.72 : 1)
     }
 }
@@ -452,3 +454,4 @@ struct HaremPortrait: View {
         .accessibilityLabel(app.namesRevealed ? companion.displayName : "人物照片已隐藏")
     }
 }
+

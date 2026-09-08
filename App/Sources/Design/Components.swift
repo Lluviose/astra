@@ -156,41 +156,34 @@ struct GlassChip: View {
     var tint: Color = Palette.accent
     var compact: Bool = false
     var action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
-            action()
+            withAnimation(AstraMotion.response(reduceMotion: reduceMotion)) { action() }
         } label: {
-            label
+            HStack(spacing: 6) {
+                Image(systemName: isOn ? "checkmark" : (systemImage ?? "circle"))
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 14)
+                    .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                Text(title)
+                    .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            .foregroundStyle(isOn ? tint : Color.primary)
+            .padding(.horizontal, compact ? 12 : 16)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
+            .background(isOn ? tint.opacity(0.12) : Palette.surface, in: Capsule())
+            .overlay {
+                Capsule().strokeBorder(isOn ? tint.opacity(0.42) : Color.primary.opacity(0.08), lineWidth: 0.75)
+            }
+            .contentShape(Capsule())
         }
         .buttonStyle(HapticButtonStyle(cue: isOn ? .toggleOff : .toggleOn))
         .accessibilityAddTraits(isOn ? [.isSelected] : [])
-    }
-
-    // 选中态用实色胶囊（保证对比度），未选中态才是玻璃
-    @ViewBuilder
-    private var label: some View {
-        let base = HStack(spacing: 5) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: compact ? 11 : 12, weight: .semibold))
-            }
-            Text(title)
-                .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
-        }
-        .padding(.horizontal, compact ? 10 : 14)
-        .padding(.vertical, compact ? 6 : 9)
-
-        if isOn {
-            base
-                .foregroundStyle(.white)
-                .background { Capsule(style: .continuous).fill(tint.gradient) }
-                .shadow(color: tint.opacity(0.35), radius: 8, y: 3)
-        } else {
-            base
-                .foregroundStyle(Color.primary)
-                .glassCapsule(interactive: true, shadowRadius: 8)
-        }
     }
 }
 
@@ -229,14 +222,13 @@ struct StageBadge: View {
 
 // MARK: - Hero 面板（首页 / 图鉴 / 成就册 / 排行共用）
 
-/// 渐变底 + 白字 + 右上角装饰的大卡。所有页面的「封面」都用它，保证同一套气质。
+/// A single quiet cover anchors each page; decorative rings stay behind content.
 struct HeroPanel<Content: View>: View {
     var gradient: LinearGradient = Palette.heroGradient
     var cornerRadius: CGFloat = 30
-    var glow: Color = Palette.accentDeep
-    /// 传 SF Symbol 名就画成右上角水印，不传就用一枚柔光圆。
+    var glow: Color = Palette.midnight
     var watermark: String? = nil
-    var padding: CGFloat = 20
+    var padding: CGFloat = 24
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -244,29 +236,39 @@ struct HeroPanel<Content: View>: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(padding)
-            .background(gradient, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(alignment: .topTrailing) { decoration }
+            .background {
+                ZStack(alignment: .topTrailing) {
+                    gradient
+                    decoration
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: glow.opacity(0.28), radius: 22, y: 12)
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.24), .white.opacity(0.04)],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 0.75)
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: glow.opacity(0.12), radius: 20, y: 10)
+            .environment(\.colorScheme, .dark)
             .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder
     private var decoration: some View {
-        if let watermark {
-            Image(systemName: watermark)
-                .font(.system(size: 94, weight: .black))
-                .foregroundStyle(.white.opacity(0.055))
-                .offset(x: 14, y: -12)
-                .allowsHitTesting(false)
-        } else {
-            Circle()
-                .fill(.white.opacity(0.09))
-                .frame(width: 170, height: 170)
-                .blur(radius: 2)
-                .offset(x: 70, y: -92)
-                .allowsHitTesting(false)
+        ZStack {
+            Circle().strokeBorder(.white.opacity(0.08), lineWidth: 0.75)
+            Circle().strokeBorder(.white.opacity(0.05), lineWidth: 0.75).padding(28)
+            if let watermark {
+                Image(systemName: watermark)
+                    .font(.system(size: 66, weight: .ultraLight))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.white.opacity(0.07))
+            }
         }
+        .frame(width: 220, height: 220)
+        .offset(x: 70, y: -100)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -274,22 +276,25 @@ struct HeroPanel<Content: View>: View {
 struct HeroMetric: View {
     let value: String
     let label: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(value)
-                .font(.title2.bold())
+                .font(.system(.title2, design: .rounded).weight(.semibold))
                 .monospacedDigit()
-                .contentTransition(.numericText())
+                .contentTransition(reduceMotion ? .opacity : .numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.68))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.76))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(11)
-        .background(.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -331,24 +336,26 @@ struct HeroButtonLabel: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.subheadline.weight(.bold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .heroGlass(cornerRadius: 14, prominent: prominent)
+            .font(.subheadline.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .heroGlass(cornerRadius: 18, prominent: prominent)
             .foregroundStyle(prominent ? Palette.accentDeep : .white)
     }
 }
 
 // MARK: - 玻璃卡片区块
 
-/// 带一行标题的玻璃卡片。列表页大部分模块都长这样。
+/// A legible grouped content card with a consistent symbol and heading hierarchy.
 struct SectionCard<Content: View, Trailing: View>: View {
     let title: String
     let systemImage: String
     var tint: Color = Palette.accent
     var cornerRadius: CGFloat = 22
+    @Environment(\.dynamicTypeSize) private var typeSize
     @ViewBuilder var trailing: () -> Trailing
     @ViewBuilder var content: () -> Content
 
@@ -369,21 +376,42 @@ struct SectionCard<Content: View, Trailing: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                Label(title, systemImage: systemImage)
-                    .font(.headline)
-                    .foregroundStyle(tint)
-                Spacer()
-                trailing()
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) {
+                    heading
+                    accessory
+                }
+            } else {
+                HStack(spacing: 12) {
+                    heading
+                    Spacer(minLength: 4)
+                    accessory
+                }
             }
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .glassCard(cornerRadius: cornerRadius, shadowRadius: 10)
+        .padding(20)
+        .contentSurface(cornerRadius: cornerRadius)
+    }
+
+    private var heading: some View {
+        HStack(spacing: 10) {
+            SymbolTile(systemImage: systemImage, tint: tint, size: 32)
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    private var accessory: some View {
+        trailing()
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -414,31 +442,32 @@ struct EntryTile: View {
     var tint: Color = Palette.accent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(tint.opacity(0.14))
-                    .frame(width: 40, height: 40)
-                Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tint)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                SymbolTile(systemImage: systemImage, tint: tint, size: 46)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(6)
+                    .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.subheadline.weight(.bold))
+                    .font(.headline)
                     .foregroundStyle(.primary)
                 Text(subtitle)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .multilineTextAlignment(.leading)
         }
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
-        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
+        .padding(18)
+        .contentSurface()
+        .contentShape(RoundedRectangle(cornerRadius: AstraLayout.cardRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -490,9 +519,10 @@ struct StatTile: View {
     let caption: String
     var systemImage: String?
     var tint: Color = Palette.accent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 5) {
                 if let systemImage {
                     Image(systemName: systemImage).font(.caption.weight(.semibold))
@@ -504,13 +534,14 @@ struct StatTile: View {
             Text(value)
                 .font(.title2.weight(.bold))
                 .foregroundStyle(tint)
-                .contentTransition(.numericText())
+                .contentTransition(reduceMotion ? .opacity : .numericText())
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, shadowRadius: 10)
+        .padding(18)
+        .contentSurface(cornerRadius: 22)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -532,10 +563,9 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 42, weight: .light))
-                .foregroundStyle(Palette.accent.opacity(0.55))
-            Text(title).font(.headline)
+            SymbolTile(systemImage: symbol, size: 68)
+                .padding(.bottom, 8)
+            Text(title).font(.title3.weight(.semibold))
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -552,7 +582,7 @@ struct EmptyStateView: View {
             }
         }
         .padding(.horizontal, 32)
-        .padding(.vertical, 40)
+        .padding(.vertical, 48)
         .frame(maxWidth: .infinity)
     }
 }
@@ -573,15 +603,15 @@ struct GlassIconButton: View {
         } label: {
             Image(systemName: systemImage)
                 .font(.system(size: size * 0.38, weight: .semibold))
-                .foregroundStyle(isActive ? Color.white : (tint ?? Color.primary))
-                .frame(width: size, height: size)
-                .background {
-                    if isActive { Circle().fill((tint ?? Palette.accent).gradient) }
-                }
-                .glassCircle(interactive: true)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(isActive ? (tint ?? Palette.accent) : Color.primary)
+                .frame(width: max(44, size), height: max(44, size))
+                .glassCircle(tint: isActive ? (tint ?? Palette.accent).opacity(0.18) : nil, interactive: true)
                 .contentShape(Circle())
         }
         .buttonStyle(HapticButtonStyle(cue: cue, scale: 0.92))
         .accessibilityLabel(accessibilityText)
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 }
+

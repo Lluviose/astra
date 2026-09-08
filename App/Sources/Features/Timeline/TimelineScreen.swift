@@ -4,6 +4,7 @@ import SwiftUI
 struct TimelineScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var flow = RecordingFlow()
     @State private var path = NavigationPath()
@@ -62,12 +63,11 @@ struct TimelineScreen: View {
                 }
 
                 Section {
-                    Picker("显示范围", selection: $scope) {
-                        ForEach(RecordScope.allCases) { item in
-                            Text(item.label).tag(item)
-                        }
+                    if typeSize.isAccessibilitySize {
+                        scopePicker.pickerStyle(.menu)
+                    } else {
+                        scopePicker.pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
                 }
 
                 if normalizedQuery.isEmpty, scope == .all, !app.pendingFollowUps.isEmpty {
@@ -157,6 +157,7 @@ struct TimelineScreen: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .astraListBackground()
             .navigationTitle("时间线")
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
@@ -178,6 +179,15 @@ struct TimelineScreen: View {
         .sheet(item: $encounterTarget) { encounter in
             EncounterEditor(encounter: encounter)
         }
+    }
+
+    private var scopePicker: some View {
+        Picker("显示范围", selection: $scope) {
+            ForEach(RecordScope.allCases) { item in
+                Text(item.label).tag(item)
+            }
+        }
+        .haptic(.selection, trigger: scope)
     }
 
     private func beginRecording() {
@@ -498,3 +508,4 @@ struct CompanionPickerSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
+

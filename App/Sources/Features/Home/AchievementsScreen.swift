@@ -40,7 +40,9 @@ struct AchievementsScreen: View {
                     chapterBlock(chapter.category, items: chapter.items)
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 24)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -77,7 +79,7 @@ struct AchievementsScreen: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Lv.\(rank.level) · \(rank.title)")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                     Text(rank.nextRankText)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.80))
@@ -170,7 +172,7 @@ struct AchievementsScreen: View {
                             }
                             .padding(14)
                             .frame(width: 276, alignment: .leading)
-                            .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+                            .contentSurface(cornerRadius: 20)
                             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         }
                         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.98))
@@ -320,7 +322,7 @@ struct AchievementCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 176, alignment: .topLeading)
-        .glassCard(cornerRadius: 20, shadowRadius: 8)
+        .contentSurface(cornerRadius: 20)
         .opacity(achievement.isUnlocked ? 1 : 0.7)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(achievement.title)，\(achievement.category.label) \(achievement.tier.label)，\(achievement.detail)，\(achievement.progressText)")
@@ -399,7 +401,7 @@ struct AchievementPreviewRow: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 10)
+        .contentSurface(cornerRadius: 22)
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
@@ -473,7 +475,7 @@ private struct AchievementDetailSheet: View {
                     Spacer(minLength: 0)
                 }
                 .padding(12)
-                .glassCard(cornerRadius: 16, shadowRadius: 6)
+                .contentSurface(cornerRadius: 16)
             }
 
             Spacer(minLength: 0)
@@ -483,3 +485,4 @@ private struct AchievementDetailSheet: View {
         .presentationBackground(.ultraThinMaterial)
     }
 }
+

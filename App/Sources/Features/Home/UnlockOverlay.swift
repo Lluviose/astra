@@ -7,6 +7,8 @@ struct UnlockOverlay: View {
     var onOpenBook: () -> Void
 
     @State private var appeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ZStack {
@@ -22,13 +24,7 @@ struct UnlockOverlay: View {
                 let shown = Array(achievements.prefix(3))
                 ForEach(shown) { achievement in
                     HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(achievement.tint.opacity(0.2))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: achievement.symbolName)
-                                .foregroundStyle(achievement.tint)
-                        }
+                        SymbolTile(systemImage: achievement.symbolName, tint: achievement.tint, size: 44)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(achievement.title)
                                 .font(.headline)
@@ -50,31 +46,38 @@ struct UnlockOverlay: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 10) {
-                    Button("收下", action: onKeep)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .glassCard(cornerRadius: 14, interactive: true, shadowRadius: 6)
-
-                    Button("去成就册", action: onOpenBook)
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Palette.coral.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .foregroundStyle(.white)
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: 12))
+                    : AnyLayout(HStackLayout(spacing: 12))
+                layout {
+                    Button(action: onKeep) {
+                        Text("收下")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .glassCard(cornerRadius: 16, interactive: true, shadowRadius: 4)
+                    }
+                    Button(action: onOpenBook) {
+                        Text("去成就册")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(Palette.accentDeep, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .foregroundStyle(.white)
+                    }
                 }
+                .buttonStyle(HapticButtonStyle())
             }
-            .padding(20)
-            .glassCard(cornerRadius: 28, shadowRadius: 18)
+            .padding(24)
+            .contentSurface(cornerRadius: 28)
+            .frame(maxWidth: 440)
             .padding(.horizontal, 28)
-            .scaleEffect(appeared ? 1 : 0.9)
+            .scaleEffect(appeared || reduceMotion ? 1 : 0.96)
             .opacity(appeared ? 1 : 0)
         }
         .onAppear {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) {
+            withAnimation(AstraMotion.response(reduceMotion: reduceMotion)) {
                 appeared = true
             }
         }
     }
 }
+
