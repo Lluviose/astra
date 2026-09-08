@@ -14,12 +14,17 @@ struct FlowLayout: Layout {
         var height: CGFloat = 0
     }
 
+    private func measuredSize(of subview: LayoutSubview, maxWidth: CGFloat) -> CGSize {
+        let ideal = subview.sizeThatFits(.unspecified)
+        return subview.sizeThatFits(ProposedViewSize(width: max(0, min(ideal.width, maxWidth)), height: nil))
+    }
+
     private func rows(maxWidth: CGFloat, subviews: Subviews) -> [Row] {
         var result: [Row] = []
         var current = Row()
 
         for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
+            let size = measuredSize(of: subviews[index], maxWidth: maxWidth)
             let projected = current.indices.isEmpty ? size.width : current.width + spacing + size.width
 
             if projected > maxWidth, !current.indices.isEmpty {
@@ -51,7 +56,7 @@ struct FlowLayout: Layout {
         for row in rows {
             var x = bounds.minX
             for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
+                let size = measuredSize(of: subviews[index], maxWidth: bounds.width)
                 subviews[index].place(
                     at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
                     proposal: ProposedViewSize(size)
@@ -607,6 +612,15 @@ struct GlassIconButton: View {
                 .foregroundStyle(isActive ? (tint ?? Palette.accent) : Color.primary)
                 .frame(width: max(44, size), height: max(44, size))
                 .glassCircle(tint: isActive ? (tint ?? Palette.accent).opacity(0.18) : nil, interactive: true)
+                .overlay(alignment: .bottomTrailing) {
+                    if isActive {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Palette.accentDeep, Palette.surface)
+                            .accessibilityHidden(true)
+                            .allowsHitTesting(false)
+                    }
+                }
                 .contentShape(Circle())
         }
         .buttonStyle(HapticButtonStyle(cue: cue, scale: 0.92))
