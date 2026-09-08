@@ -194,6 +194,26 @@ final class AppState {
 
     var hasCountryLocations: Bool { buckets.contains { $0.city.isCountry } }
 
+    /// 有过上床记录的年份，最近的排前面；地图按年翻版图用。
+    var hookupYears: [Int] {
+        let calendar = Calendar.current
+        let years = Set(encounters.filter(\.kind.isIntimate).map { calendar.component(.year, from: $0.date) })
+        return years.sorted(by: >)
+    }
+
+    /// 把某一年（或全部）的记录重新装进地点桶；成员名单不变，只筛记录。
+    func buckets(inYear year: Int?) -> [CityBucket] {
+        guard let year else { return buckets }
+        let calendar = Calendar.current
+        return buckets.map { bucket in
+            CityBucket(
+                city: bucket.city,
+                companions: bucket.companions,
+                encounters: bucket.encounters.filter { calendar.component(.year, from: $0.date) == year }
+            )
+        }
+    }
+
     /// 该人的全部记录，按时间倒序。
     /// 直接从可观察的 `encounters` 计算，保证 UI 随数据自动刷新。
     func encounters(for companionID: UUID) -> [Encounter] {
@@ -432,13 +452,15 @@ final class AppState {
             .max { $0.date < $1.date }
     }
 
-    /// 依照真实战果时间串起地点；连续发生在同一地点时只保留一个节点。
-    func conquestLocationPath() -> [City] {
+    /// 依照真实战果时间串起地点；连续发生在同一地点时只保留一个节点。传入年份则只看那一年。
+    func conquestLocationPath(inYear year: Int? = nil) -> [City] {
+        let calendar = Calendar.current
         let companionsByID = companions.reduce(into: [UUID: Companion]()) { result, companion in
             result[companion.id] = companion
         }
         let orderedCities = encounters
             .filter { $0.kind.isIntimate }
+            .filter { year == nil || calendar.component(.year, from: $0.date) == year }
             .sorted { $0.date < $1.date }
             .compactMap { encounter -> City? in
                 let cityID = encounter.cityID ?? companionsByID[encounter.companionID]?.cityID
@@ -450,6 +472,16 @@ final class AppState {
             path.append(city)
         }
         return path
+    }
+
+    /// 战绩路线首尾相连的直线总里程（公里）。
+    static func routeDistanceKM(_ path: [City]) -> Double {
+        guard path.count >= 2 else { return 0 }
+        var meters: Double = 0
+        for index in 1..<path.count {
+            meters += path[index - 1].distance(to: path[index])
+        }
+        return meters / 1000
     }
 
     // MARK: - 对象

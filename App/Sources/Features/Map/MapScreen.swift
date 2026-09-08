@@ -81,13 +81,24 @@ private struct CityBubble: View {
 
     private var capsule: some View {
         HStack(spacing: 6) {
-            Image(systemName: symbolName)
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(tint)
+            if let flag = bucket.city.flagEmoji {
+                Text(flag)
+                    .font(.system(size: 12))
+            } else {
+                Image(systemName: symbolName)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(tint)
+            }
 
             Text(bucket.city.name)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
+
+            if scope == .hookedUp, bucket.hookupCompanionCount > 1 {
+                Text("\(bucket.hookupCompanionCount) 她")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
 
             Text("\(displayCount)")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
@@ -159,20 +170,63 @@ struct MapScreen: View {
     @State private var globeTourStops: [CLLocationCoordinate2D] = []
     /// 地图默认就是巡视已经拿下的版图，而不是把待推进对象和战绩混在一起。
     @State private var scope: MapRecordScope = .hookedUp
+    /// nil 表示全部年份；有两年以上战绩时才出现年份芯片。
+    @State private var year: Int?
+
+    private var yearBuckets: [CityBucket] { app.buckets(inYear: year) }
 
     private var filteredBuckets: [CityBucket] {
         switch scope {
         case .all:
-            app.buckets
+            yearBuckets.filter { $0.mapCount > 0 }
         case .hookedUp:
-            app.conquestBuckets
+            yearBuckets
+                .filter { $0.hookupCount > 0 }
+                .sorted { lhs, rhs in
+                    if lhs.hookupCount != rhs.hookupCount { return lhs.hookupCount > rhs.hookupCount }
+                    if lhs.hookupCompanionCount != rhs.hookupCompanionCount {
+                        return lhs.hookupCompanionCount > rhs.hookupCompanionCount
+                    }
+                    return (lhs.lastHookupDate ?? .distantPast) > (rhs.lastHookupDate ?? .distantPast)
+                }
         case .missed:
-            app.buckets.filter { $0.missedCount > 0 }
+            yearBuckets.filter { $0.missedCount > 0 }
         }
     }
 
+    /// 当前年份 / 图层下的头号猎场。
+    private var topBucket: CityBucket? {
+        scope == .missed ? nil : filteredBuckets.first { $0.hookupCount > 0 }
+    }
+
+    private var conquestPath: [City] {
+        app.conquestLocationPath(inYear: year)
+    }
+
     private var conquestRoute: [CLLocationCoordinate2D] {
-        app.conquestLocationPath().map(\.displayCoordinate)
+        conquestPath.map(\.displayCoordinate)
+    }
+
+    private var routeDistanceText: String? {
+        let km = AppState.routeDistanceKM(conquestPath)
+        guard km >= 1 else { return nil }
+        return "约 \(Int(km.rounded()).formatted()) km"
+    }
+
+    private var hookupCityCount: Int {
+        yearBuckets.filter { $0.hookupCount > 0 && !$0.city.isCountry }.count
+    }
+
+    private var hookupCountryCount: Int {
+        yearBuckets.filter { $0.hookupCount > 0 && $0.city.isCountry }.count
+    }
+
+    private var yearHookupCount: Int {
+        yearBuckets.reduce(0) { $0 + $1.hookupCount }
+    }
+
+    private var yearHookupCompanionCount: Int {
+        Set(yearBuckets.flatMap { $0.encounters.filter(\.kind.isIntimate).map(\.companionID) }).count
     }
 
     private var mapBounds: MapCameraBounds {
@@ -214,9 +268,7 @@ struct MapScreen: View {
                 .padding(.bottom, 8)
         }
         .overlay(alignment: .bottomLeading) {
-            if scope != .missed,
-               let top = app.topConquestBucket,
-               !filteredBuckets.isEmpty {
+            if let top = topBucket, !filteredBuckets.isEmpty {
                 topCityBadge(top)
                     .padding(.leading, 16)
                     .padding(.bottom, 8)
@@ -224,7 +276,12 @@ struct MapScreen: View {
         }
         .animation(.easeInOut(duration: 0.25), value: app.buckets.count)
         .animation(.easeInOut(duration: 0.25), value: scope)
+        .animation(.easeInOut(duration: 0.25), value: year)
         .onChange(of: scope) { _, _ in
+            selectedCityID = nil
+            cancelGlobeTour()
+        }
+        .onChange(of: year) { _, _ in
             selectedCityID = nil
             cancelGlobeTour()
         }
@@ -373,11 +430,18 @@ struct MapScreen: View {
             }
             .pickerStyle(.segmented)
 
+            if app.hookupYears.count >= 2 {
+                yearChips
+            }
+
             if scope != .missed, conquestRoute.count >= 2 {
                 HStack(spacing: 6) {
                     Label("战绩路线 \(conquestRoute.count) 个地点", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    if let routeDistanceText {
+                        Text("· \(routeDistanceText)")
+                    }
                     Spacer()
-                    if let top = app.topConquestBucket {
+                    if let top = topBucket {
                         Text("头号猎场 · \(top.city.name)")
                     }
                 }
@@ -393,15 +457,54 @@ struct MapScreen: View {
         .padding(.bottom, 8)
     }
 
+    /// 年份芯片：全部 + 每个有战绩的年份，玻璃胶囊，选中实色。
+    private var yearChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            GlassStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    yearChip(nil, title: "全部年份")
+                    ForEach(app.hookupYears, id: \.self) { value in
+                        yearChip(value, title: "\(value) 年")
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+        }
+    }
+
+    private func yearChip(_ value: Int?, title: String) -> some View {
+        let on = year == value
+        return Button {
+            Haptics.shared.play(.selection)
+            year = value
+        } label: {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .foregroundStyle(on ? .white : .primary)
+                .background {
+                    if on { Capsule().fill(Palette.coral.gradient) }
+                }
+                .glassCapsule(interactive: true, shadowRadius: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? [.isSelected] : [])
+    }
+
     private var summaryText: String {
         if app.buckets.isEmpty { return "还没有记录" }
+        let scopeCount = "\(hookupCityCount) 城" + (hookupCountryCount > 0 ? " · \(hookupCountryCount) 国" : "")
         switch scope {
         case .hookedUp:
-            return "\(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount) 次 · \(app.conquestLocationCount) 个地点"
+            if let year {
+                return "\(year) 年 · \(yearHookupCompanionCount) 个她 · 上床 \(yearHookupCount) 次 · \(scopeCount)"
+            }
+            return "\(app.conqueredCompanions.count) 个她 · 上床 \(app.stats.totalIntimacyCount) 次 · \(scopeCount)"
         case .all:
-            return "\(app.buckets.count) 个地点 · 战绩地 \(app.conquestLocationCount) · 共 \(app.encounters.count) 条"
+            return "\(filteredBuckets.count) 个地点 · 战绩地 \(hookupCityCount + hookupCountryCount) · 共 \(yearBuckets.reduce(0) { $0 + $1.recordCount }) 条"
         case .missed:
-            return "没上 \(app.stats.missedCount) 次 · 复盘后继续拓场"
+            return "没上 \(yearBuckets.reduce(0) { $0 + $1.missedCount }) 次 · 复盘后继续拓场"
         }
     }
 

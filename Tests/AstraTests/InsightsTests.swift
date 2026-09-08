@@ -62,6 +62,38 @@ final class InsightsTests: XCTestCase {
         XCTAssertEqual(insights.favoriteDayPart, .daytime)
     }
 
+    func testRhythmAveragesInitiatorAndMilestones() {
+        let her = Companion(name: "她")
+        let base = stableMidday()
+        let encounters = [
+            Encounter(companionID: her.id, date: base, kind: .intimacy, physicalRating: 3,
+                      initiator: .me, rounds: 1, durationMinutes: 30),
+            Encounter(companionID: her.id, date: base.addingTimeInterval(86_400), kind: .intimacy, physicalRating: 5,
+                      initiator: .her, rounds: 3, durationMinutes: 60),
+            Encounter(companionID: her.id, date: base.addingTimeInterval(86_400 * 2), kind: .intimacy, physicalRating: 5,
+                      initiator: .her),
+            Encounter(companionID: her.id, date: base.addingTimeInterval(86_400 * 3), kind: .missed,
+                      initiator: .me, rounds: 4, durationMinutes: 90),
+        ]
+        let insights = EncounterInsights.compute(encounters: encounters, companions: [her], now: base.addingTimeInterval(86_400 * 4))
+
+        XCTAssertEqual(insights.averageDurationMinutes ?? 0, 45, accuracy: 0.001)
+        XCTAssertEqual(insights.averageRounds ?? 0, 2, accuracy: 0.001)
+        XCTAssertEqual(insights.initiatorCounts[.her], 2)
+        XCTAssertEqual(insights.initiatorCounts[.me], 1)
+        XCTAssertEqual(insights.dominantInitiator, .her)
+        XCTAssertEqual(insights.firstHookupDate, base)
+        // 同为 5 分时取更近的一次
+        XCTAssertEqual(insights.bestHookupID, encounters[2].id)
+
+        let empty = EncounterInsights.compute(encounters: [], companions: [])
+        XCTAssertNil(empty.averageDurationMinutes)
+        XCTAssertNil(empty.averageRounds)
+        XCTAssertNil(empty.dominantInitiator)
+        XCTAssertNil(empty.firstHookupDate)
+        XCTAssertNil(empty.bestHookupID)
+    }
+
     func testMissedRecordsNeverLeakIntoIntimateStatistics() {
         let her = Companion(name: "她")
         let missed = Encounter(

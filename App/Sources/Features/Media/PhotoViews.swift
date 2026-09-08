@@ -268,15 +268,16 @@ struct PhotoAddBar: View {
                 selectionLimit: selectionLimit,
                 onImported: onImported
             )
-                .buttonStyle(.bordered)
+            .glassActionStyle()
 
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button {
+                    Haptics.shared.play(.lightTap)
                     showCamera = true
                 } label: {
                     Label("拍照", systemImage: "camera")
                 }
-                .buttonStyle(.bordered)
+                .glassActionStyle()
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -311,7 +312,8 @@ struct AvatarPickerRow: View {
                 }
                 if hasPhoto {
                     Button("去掉照片", role: .destructive, action: onRemove)
-                        .buttonStyle(.bordered)
+                        .glassActionStyle()
+                        .tint(.red)
                 }
             }
             Text("照片只复制进星图，不进系统相册或开发者服务器，可随设备 iCloud Backup 恢复。")

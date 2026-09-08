@@ -37,6 +37,55 @@ struct CityDetailSheet: View {
 
     private var placeWord: String { bucket.city.isCountry ? "这个国家" : "这座城" }
 
+    /// 只用这个地点的上床记录算的小结。
+    private var localInsights: EncounterInsights {
+        EncounterInsights.compute(encounters: bucket.encounters, companions: bucket.companions)
+    }
+
+    private var topVenue: VenueCategory? {
+        var counts: [VenueCategory: Int] = [:]
+        for encounter in bucket.encounters where encounter.kind.isIntimate && encounter.venueCategory != .notRecorded {
+            counts[encounter.venueCategory, default: 0] += 1
+        }
+        return counts.max { lhs, rhs in
+            if lhs.value != rhs.value { return lhs.value < rhs.value }
+            return lhs.key.rawValue > rhs.key.rawValue
+        }?.key
+    }
+
+    private var localPhotoCount: Int {
+        bucket.encounters.reduce(0) { $0 + $1.photoIDs.count }
+    }
+
+    private var recordSection: some View {
+        let insights = localInsights
+        return Section("\(placeWord)的战绩") {
+            if let first = insights.firstHookupDate {
+                LabeledContent("首战", value: DateFormatter.dayFull.string(from: first))
+            }
+            if let last = bucket.lastHookupDate {
+                LabeledContent("最近一次", value: Format.relativeDay(last))
+            }
+            if let topVenue {
+                LabeledContent("常去") {
+                    Label(topVenue.label, systemImage: topVenue.symbolName)
+                }
+            }
+            if let minutes = insights.averageDurationMinutes {
+                LabeledContent("平均多久", value: Encounter.durationText(minutes: Int(minutes.rounded())))
+            }
+            if let part = insights.favoriteDayPart {
+                LabeledContent("常在", value: "\(part.label) \(part.hoursLabel)")
+            }
+            if insights.spendRecordedCount > 0 {
+                LabeledContent("花费合计", value: Format.money(insights.totalSpend))
+            }
+            if localPhotoCount > 0 {
+                LabeledContent("留下的照片", value: "\(localPhotoCount) 张")
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -45,6 +94,10 @@ struct CityDetailSheet: View {
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
+                }
+
+                if bucket.hookupCount > 0 {
+                    recordSection
                 }
 
                 if !hookupCompanions.isEmpty {
@@ -107,9 +160,14 @@ struct CityDetailSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(bucket.mapTint)
+                if let flag = bucket.city.flagEmoji {
+                    Text(flag)
+                        .font(.title2)
+                } else {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(bucket.mapTint)
+                }
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(

@@ -1,6 +1,7 @@
 import SwiftUI
+import UIKit
 
-/// 猎获档案：封面、战绩小结、照片、评分、规矩、线索和她的时间线。
+/// 猎获档案：封面、见她之前看一眼、战绩小结、照片、评分、线索和她的时间线。
 struct CompanionDetailView: View {
 
     let companionID: UUID
@@ -14,6 +15,7 @@ struct CompanionDetailView: View {
     @State private var viewingPhotoIndex: Int?
     @State private var viewingPhotoIDs: [String] = []
     @State private var photoShelf: PhotoShelf = .album
+    @State private var copiedContact = false
 
     private enum PhotoShelf: String, CaseIterable, Identifiable {
         case album
@@ -125,15 +127,15 @@ struct CompanionDetailView: View {
                         .foregroundStyle(Palette.accent)
                 }
             }
+            if companion.hasPlaybook {
+                playbookSection(companion)
+            }
             if app.hookupCount(for: companion.id) > 0 {
                 recordSection(companion)
             }
             photosSection(companion)
             relationshipSection(companion)
             scoreSection(companion)
-            if hasIntimacyNotes(companion) {
-                intimacyInfoSection(companion)
-            }
             infoSection(companion)
             timelineSection(companion)
         }
@@ -148,6 +150,7 @@ struct CompanionDetailView: View {
         let hookups = app.hookupCount(for: companion.id)
         let missed = app.missedCount(for: companion.id)
         let photos = app.albumIDs(for: companion.id).count
+        let storyline = storylineText(companion)
         return Section {
             HeroPanel(
                 gradient: Palette.dossierGradient(companion.paletteIndex),
@@ -174,8 +177,16 @@ struct CompanionDetailView: View {
                             Label(app.locationName(for: companion), systemImage: "mappin")
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.76))
+                            if let storyline {
+                                Label(storyline, systemImage: "calendar")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.76))
+                            }
                         }
                         Spacer(minLength: 0)
+                        if companion.overallScore > 0 {
+                            ScoreRing(score: companion.overallScore, size: 54)
+                        }
                     }
 
                     HStack(spacing: 8) {
@@ -188,12 +199,14 @@ struct CompanionDetailView: View {
                         )
                     }
 
-                    HStack(spacing: 10) {
-                        HeroButton(title: "上床了", systemImage: EncounterKind.intimacy.symbolName, prominent: true, cue: .waveSent) {
-                            editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
-                        }
-                        HeroButton(title: "没上床", systemImage: EncounterKind.missed.symbolName) {
-                            editingEncounter = Encounter(companionID: companion.id, kind: .missed, cityID: companion.cityID)
+                    GlassStack(spacing: 10) {
+                        HStack(spacing: 10) {
+                            HeroButton(title: "上床了", systemImage: EncounterKind.intimacy.symbolName, prominent: true, cue: .waveSent) {
+                                editingEncounter = Encounter(companionID: companion.id, kind: .intimacy, cityID: companion.cityID)
+                            }
+                            HeroButton(title: "没上床", systemImage: EncounterKind.missed.symbolName) {
+                                editingEncounter = Encounter(companionID: companion.id, kind: .missed, cityID: companion.cityID)
+                            }
                         }
                     }
                 }
@@ -206,16 +219,79 @@ struct CompanionDetailView: View {
         }
     }
 
+    /// 「认识 120 天 · 第 9 天上床」这类一句话；没记认识日期就只说上床。
+    private func storylineText(_ companion: Companion) -> String? {
+        let insights = app.companionInsights(for: companion.id)
+        var parts: [String] = []
+        if let days = companion.daysKnown() {
+            parts.append("认识 \(days) 天")
+        }
+        if let daysToFirst = daysFromMeetingToFirstHookup(companion, insights: insights) {
+            parts.append(daysToFirst == 0 ? "当天就上床" : "第 \(daysToFirst) 天上床")
+        } else if let first = insights.firstHookupDate {
+            parts.append("\(Format.relativeDay(first)) 第一次")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func daysFromMeetingToFirstHookup(_ companion: Companion, insights: EncounterInsights) -> Int? {
+        guard let met = companion.metDate, let first = insights.firstHookupDate, first >= met else { return nil }
+        let calendar = Calendar.current
+        return calendar.dateComponents([.day], from: calendar.startOfDay(for: met), to: calendar.startOfDay(for: first)).day
+    }
+
+    // MARK: 见她之前看一眼
+
+    private func playbookSection(_ companion: Companion) -> some View {
+        Section {
+            if !companion.turnOns.isEmpty {
+                privateNoteRow("她在床上喜欢", symbol: "heart.text.square.fill", text: companion.turnOns, tint: Palette.coral)
+            }
+            if !companion.approachNotes.isEmpty {
+                privateNoteRow("怎么约她最顺", symbol: "message.badge.filled.fill", text: companion.approachNotes, tint: Palette.accent)
+            }
+            if !companion.expectations.isEmpty {
+                privateNoteRow("她想怎么约", symbol: "text.bubble.fill", text: companion.expectations, tint: Palette.accent)
+            }
+            if !companion.boundaries.isEmpty {
+                privateNoteRow("她说过不行的", symbol: "hand.raised.fill", text: companion.boundaries, tint: Palette.warning)
+            }
+            if !companion.safetyNotes.isEmpty {
+                privateNoteRow("安全备忘", symbol: "checkmark.shield.fill", text: companion.safetyNotes, tint: Palette.safe)
+            }
+        } header: {
+            Text("见她之前看一眼")
+        } footer: {
+            Text("她随时可以改主意，规矩每次仍要当面确认。")
+        }
+    }
+
     // MARK: 和她的战绩
 
     private func recordSection(_ companion: Companion) -> some View {
         let insights = app.companionInsights(for: companion.id)
+        let encounters = app.encounters(for: companion.id)
         return Section {
+            if let first = insights.firstHookupDate {
+                LabeledContent("第一次上床", value: DateFormatter.dayFull.string(from: first))
+            }
             if let rate = insights.hookupRate, insights.recordCount > 1 {
                 LabeledContent("上床率", value: rate.formatted(.percent.precision(.fractionLength(0))))
             }
             if let days = insights.averageGapDays {
                 LabeledContent("平均间隔", value: "\(Int(days.rounded())) 天")
+            }
+            if let minutes = insights.averageDurationMinutes {
+                LabeledContent("平均多久", value: Encounter.durationText(minutes: Int(minutes.rounded())))
+            }
+            if let rounds = insights.averageRounds {
+                LabeledContent("平均几轮", value: String(format: "%.1f 轮", rounds))
+            }
+            if let initiator = insights.dominantInitiator {
+                LabeledContent("谁更主动") {
+                    Label(initiator.label, systemImage: initiator.symbolName)
+                        .foregroundStyle(Palette.coral)
+                }
             }
             if !insights.topActivities.isEmpty {
                 LabeledContent("最常做") {
@@ -249,6 +325,21 @@ struct CompanionDetailView: View {
             }
             if let part = insights.favoriteDayPart {
                 LabeledContent("常在", value: "\(part.label) \(part.hoursLabel)")
+            }
+            if let bestID = insights.bestHookupID, let best = encounters.first(where: { $0.id == bestID }) {
+                Button {
+                    Haptics.shared.play(.selection)
+                    editingEncounter = best
+                } label: {
+                    LabeledContent("最爽的一次") {
+                        HStack(spacing: 5) {
+                            Text("\(Format.relativeDay(best.date)) · \(best.physicalRating) 分")
+                            ChevronHint()
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         } header: {
             Text("和她的战绩")
@@ -367,21 +458,7 @@ struct CompanionDetailView: View {
         }
     }
 
-    // MARK: 边界与安全
-
-    private func intimacyInfoSection(_ companion: Companion) -> some View {
-        Section("说过的规矩") {
-            if !companion.expectations.isEmpty {
-                privateNoteRow("怎么约", symbol: "text.bubble.fill", text: companion.expectations, tint: Palette.accent)
-            }
-            if !companion.boundaries.isEmpty {
-                privateNoteRow("她说过不行的", symbol: "hand.raised.fill", text: companion.boundaries, tint: Palette.warning)
-            }
-            if !companion.safetyNotes.isEmpty {
-                privateNoteRow("安全备忘", symbol: "checkmark.shield.fill", text: companion.safetyNotes, tint: Palette.safe)
-            }
-        }
-    }
+    // MARK: 私密备忘行
 
     private func privateNoteRow(_ title: String, symbol: String, text: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -394,10 +471,6 @@ struct CompanionDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 2)
-    }
-
-    private func hasIntimacyNotes(_ companion: Companion) -> Bool {
-        !companion.expectations.isEmpty || !companion.boundaries.isEmpty || !companion.safetyNotes.isEmpty
     }
 
     // MARK: 信息
@@ -433,7 +506,30 @@ struct CompanionDetailView: View {
                 LabeledContent("认识时间", value: DateFormatter.dayFull.string(from: metDate))
             }
             if !companion.contactNote.isEmpty {
-                LabeledContent("联系方式", value: companion.contactNote)
+                Button {
+                    UIPasteboard.general.string = companion.contactNote
+                    Haptics.shared.play(.success)
+                    copiedContact = true
+                } label: {
+                    LabeledContent("联系方式") {
+                        HStack(spacing: 5) {
+                            Text(companion.contactNote)
+                                .lineLimit(1)
+                            Image(systemName: copiedContact ? "checkmark.circle.fill" : "doc.on.doc")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(copiedContact ? Palette.safe : .secondary)
+                                .contentTransition(.symbolEffect(.replace))
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("点一下复制")
+                .task(id: copiedContact) {
+                    guard copiedContact else { return }
+                    try? await Task.sleep(for: .seconds(1.6))
+                    copiedContact = false
+                }
             }
             if !companion.tags.isEmpty {
                 FlowLayout(spacing: 6, lineSpacing: 6) {
@@ -586,9 +682,15 @@ struct EncounterRow: View {
                 if encounter.kind.isIntimate,
                    !encounter.activities.isEmpty
                     || !encounter.climaxDetails.isEmpty
+                    || !encounter.rhythmSummary.isEmpty
                     || encounter.boundaryFeeling.needsFollowUp
                     || encounter.hasPendingFollowUp {
                     HStack(spacing: 6) {
+                        if !encounter.rhythmSummary.isEmpty {
+                            Text(encounter.rhythmSummary)
+                                .lineLimit(1)
+                                .foregroundStyle(Palette.accent)
+                        }
                         if !encounter.activities.isEmpty {
                             Text(encounter.activitySummary)
                                 .lineLimit(1)

@@ -23,6 +23,41 @@ enum VenueCategory: String, Codable, CaseIterable, Identifiable, Sendable {
         case .other: "其他场所"
         }
     }
+
+    var symbolName: String {
+        switch self {
+        case .notRecorded: "minus.circle"
+        case .hotel: "bed.double.fill"
+        case .myHome: "house.fill"
+        case .herHome: "house.and.flag.fill"
+        case .sharedHome: "house.lodge.fill"
+        case .car: "car.fill"
+        case .outdoors: "leaf.fill"
+        case .restaurant: "fork.knife"
+        case .cafe: "cup.and.saucer.fill"
+        case .bar: "wineglass.fill"
+        case .entertainment: "popcorn.fill"
+        case .online: "iphone"
+        case .other: "mappin"
+        }
+    }
+
+    /// 芯片上用的短名。
+    var shortLabel: String {
+        switch self {
+        case .hotel: "酒店"
+        case .bar: "酒吧"
+        case .entertainment: "影院 / 娱乐"
+        case .online: "线上"
+        case .other: "其他"
+        default: label
+        }
+    }
+
+    /// 芯片按从近到远排列，未记录不单独占位。
+    static var choices: [VenueCategory] {
+        allCases.filter { $0 != .notRecorded }
+    }
 }
 
 enum MissedProgress: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -81,6 +116,18 @@ enum ProfileSuggestions {
     ]
     static let expectations = ["只约一次", "偶尔约", "固定炮友", "先见面再说", "先聊天", "认真恋爱", "不确定"]
     static let boundaries = ["全程戴套", "不拍照 / 录像", "不发私密图", "不留宿", "不去家里", "不喝酒", "不公开关系", "随时可以停"]
+    /// 她在床上喜欢什么，方便下次照着来。
+    static let turnOns = [
+        "喜欢慢一点", "喜欢猛一点", "喜欢被亲脖子", "耳朵敏感", "胸敏感", "喜欢先口",
+        "喜欢后入", "喜欢在上面", "喜欢被压着", "喜欢关灯", "喜欢开灯", "喜欢说骚话",
+        "喜欢被夸", "喜欢被主导", "喜欢主导", "喜欢多前戏", "喜欢事后抱着", "喜欢洗完再做",
+    ]
+    /// 怎么约她最顺，见面前扫一眼。
+    static let approach = [
+        "直接约就行", "先聊两天再约", "周末才有空", "工作日晚上方便", "只能白天", "喝点酒放得开",
+        "别催她", "她喜欢我主动", "她会主动约", "提前一天说", "临时也能约", "得先吃饭",
+        "接她比较稳", "她愿意来我家", "只去酒店", "回复慢，别多想",
+    ]
 }
 
 enum ClimaxDetailGroup: String, CaseIterable, Identifiable {
@@ -93,12 +140,56 @@ enum ClimaxDetailGroup: String, CaseIterable, Identifiable {
         case .other: "次数与其他"
         }
     }
+
+    var details: [ClimaxDetail] {
+        ClimaxDetail.allCases.filter { $0.group == self }
+    }
+}
+
+/// 结果页的快捷时间：刚从酒店出来、第二天早上补记，都不该去转轮子。
+enum QuickDateChoice: String, CaseIterable, Identifiable {
+    case now, lastNight, thisMorning, yesterday, dayBefore
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .now: "刚刚"
+        case .lastNight: "昨晚"
+        case .thisMorning: "今早"
+        case .yesterday: "昨天下午"
+        case .dayBefore: "前天晚上"
+        }
+    }
+
+    func date(now: Date = Date(), calendar: Calendar = .current) -> Date {
+        let today = calendar.startOfDay(for: now)
+        func at(_ dayOffset: Int, hour: Int) -> Date {
+            let day = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
+            return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day
+        }
+        switch self {
+        case .now: return now
+        case .lastNight: return at(-1, hour: 23)
+        case .thisMorning: return min(at(0, hour: 8), now)
+        case .yesterday: return at(-1, hour: 15)
+        case .dayBefore: return at(-2, hour: 22)
+        }
+    }
+
+    /// 已选时间落在哪个快捷档；不落在任何档就返回 nil，芯片全部不亮。
+    static func matching(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> QuickDateChoice? {
+        allCases.first { choice in
+            if choice == .now { return abs(date.timeIntervalSince(now)) < 60 }
+            return abs(date.timeIntervalSince(choice.date(now: now, calendar: calendar))) < 60
+        }
+    }
 }
 
 extension ClimaxDetail {
     var group: ClimaxDetailGroup {
         switch self {
-        case .sheCame, .sheMultiple, .sheDidNotCome, .sheNotSure: .partner
+        case .sheCame, .sheMultiple, .sheSquirted, .sheDidNotCome, .sheNotSure: .partner
         case .multiple, .edging: .other
         default: .finish
         }

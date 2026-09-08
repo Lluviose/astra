@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 记录编辑器：结果、时间、地点填了就能存；上床了再往下补玩法、收尾、套和感受。
+/// 记录编辑器：结果、时间、地点填了就能存；上床了再往下补节奏、玩法、收尾、套和感受。
 struct EncounterEditor: View {
 
     let initial: Encounter
@@ -39,6 +39,7 @@ struct EncounterEditor: View {
     @State private var viewingPhotoIndex: Int?
 
     private let maxPhotos = 8
+    private let roundChoices = [1, 2, 3, 4, 5]
 
     private var isNew: Bool { !app.encounters.contains { $0.id == initial.id } }
     private var companion: Companion? { app.companion(id: initial.companionID) }
@@ -195,10 +196,13 @@ struct EncounterEditor: View {
                 switch page {
                 case .result:
                     subjectSection
-                    basicsSection
+                    outcomeSection
+                    timeSection
+                    placeSection
                     if draft.kind.isMissed { missedSection }
                 case .details:
                     if draft.kind.isIntimate {
+                        rhythmSection
                         activitySection
                         climaxSection
                         safetySection
@@ -228,7 +232,11 @@ struct EncounterEditor: View {
     private var editorSteps: [NativeEditorStep] {
         [
             NativeEditorStep(title: "结果", subtitle: "上床了还是没上床，确认时间和地点就能存。", symbol: "checkmark.circle"),
-            NativeEditorStep(title: "细节", subtitle: draft.kind.isIntimate ? "行为、戴套、感受和照片，按需补充。" : "记录感受、花费、备注和照片。", symbol: "slider.horizontal.3"),
+            NativeEditorStep(
+                title: "细节",
+                subtitle: draft.kind.isIntimate ? "谁主动、几轮多久、玩法、收尾、套和感受，按需补。" : "记录感受、花费、备注和照片。",
+                symbol: "slider.horizontal.3"
+            ),
             NativeEditorStep(title: "跟进", subtitle: "看一眼记录，再决定要不要联系或处理后续。", symbol: "checklist")
         ]
     }
@@ -258,6 +266,18 @@ struct EncounterEditor: View {
                         Text("\(companion.stage.label) · \(app.locationName(for: companion)) · 上床 \(app.hookupCount(for: companion.id)) 次")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                }
+
+                if !companion.turnOns.isEmpty, draft.kind.isIntimate {
+                    Label {
+                        Text(companion.turnOns)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    } icon: {
+                        Image(systemName: "heart.text.square.fill")
+                            .foregroundStyle(Palette.coral)
                     }
                 }
 
@@ -305,22 +325,58 @@ struct EncounterEditor: View {
 
     // MARK: - 结果 / 时间 / 地点
 
-    private var basicsSection: some View {
+    private var outcomeSection: some View {
         Section {
-            Picker("这次结果", selection: $draft.kind) {
-                ForEach(EncounterKind.recordableCases) { kind in
-                    Text(kind.label).tag(kind)
+            GlassStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    ForEach(EncounterKind.recordableCases) { kind in
+                        OutcomeCard(kind: kind, isOn: draft.kind == kind) {
+                            draft.kind = kind
+                        }
+                    }
                 }
             }
-            .pickerStyle(.segmented)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        } header: {
+            Text("这次结果")
+        } footer: {
+            Text("切换结果会保留当前草稿，保存时只保留对应结果的字段。")
+        }
+    }
 
-            DatePicker("时间", selection: $draft.date, in: ...Date())
+    private var timeSection: some View {
+        Section {
+            FlowLayout(spacing: 7, lineSpacing: 8) {
+                ForEach(QuickDateChoice.allCases) { choice in
+                    RecordChoice(
+                        title: choice.label,
+                        systemImage: "clock",
+                        isOn: QuickDateChoice.matching(draft.date) == choice,
+                        compact: true
+                    ) {
+                        draft.date = choice.date()
+                    }
+                }
+            }
+            .padding(.vertical, 4)
 
+            DatePicker("具体时间", selection: $draft.date, in: ...Date())
+        } header: {
+            Text("什么时候")
+        } footer: {
+            Text("刚从酒店出来点「刚刚」，第二天补记点「昨晚」，再细调具体时间。")
+        }
+    }
+
+    private var placeSection: some View {
+        Section {
             Button {
                 Haptics.shared.play(.lightTap)
                 isPickingCity = true
             } label: {
-                LabeledContent("地点") {
+                LabeledContent("城市 / 国家") {
                     HStack(spacing: 5) {
                         Text(selectedLocationName)
                         ChevronHint()
@@ -330,30 +386,60 @@ struct EncounterEditor: View {
             }
             .buttonStyle(.plain)
 
-            Picker("场所类型", selection: $draft.venueCategory) {
-                ForEach(VenueCategory.allCases) { category in
-                    Text(category.label).tag(category)
+            VStack(alignment: .leading, spacing: 8) {
+                ChoiceGroupHeader(
+                    title: "场所",
+                    systemImage: "mappin.and.ellipse",
+                    selectedCount: draft.venueCategory == .notRecorded ? 0 : 1
+                )
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(VenueCategory.choices) { category in
+                        RecordChoice(
+                            title: category.shortLabel,
+                            systemImage: category.symbolName,
+                            isOn: draft.venueCategory == category,
+                            compact: true
+                        ) {
+                            draft.venueCategory = draft.venueCategory == category ? .notRecorded : category
+                        }
+                    }
                 }
             }
-            TextField("具体场所备注（可留空）", text: $draft.place)
+            .padding(.vertical, 4)
+
+            TextField("具体场所备注：哪家酒店、几号房、她家几楼（可留空）", text: $draft.place, axis: .vertical)
+                .lineLimit(1...3)
         } header: {
-            Text("这次结果")
+            Text("在哪")
         } footer: {
-            Text("常驻地点已带入，请确认这次实际在哪。切换结果会保留当前草稿，保存时只保留对应结果的字段。")
+            Text("常驻地点已带入，请确认这次实际在哪。场所只记类型，不把“在哪一步没成”写进地点。")
         }
     }
 
-    // MARK: - 套
-
     private var missedSection: some View {
         Section {
-            Picker("到了哪一步", selection: $draft.missedProgress) {
-                ForEach(MissedProgress.allCases) { progress in
-                    Text(progress.label).tag(progress)
+            VStack(alignment: .leading, spacing: 8) {
+                ChoiceGroupHeader(
+                    title: "到了哪一步 · 单选",
+                    systemImage: "figure.walk.motion",
+                    selectedCount: draft.missedProgress == .notRecorded ? 0 : 1
+                )
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(MissedProgress.allCases.filter { $0 != .notRecorded }) { progress in
+                        RecordChoice(title: progress.label, isOn: draft.missedProgress == progress, tint: EncounterKind.missed.tint, compact: true) {
+                            draft.missedProgress = draft.missedProgress == progress ? .notRecorded : progress
+                        }
+                    }
                 }
             }
+            .padding(.vertical, 4)
+
             VStack(alignment: .leading, spacing: 8) {
-                Text("为什么没上床 · 可多选").font(.subheadline.weight(.semibold))
+                ChoiceGroupHeader(
+                    title: "为什么没上床 · 可多选",
+                    systemImage: "questionmark.bubble",
+                    selectedCount: draft.missedReasons.count
+                )
                 FlowLayout(spacing: 7, lineSpacing: 8) {
                     ForEach(MissedReason.allCases) { reason in
                         RecordChoice(title: reason.label, isOn: draft.missedReasons.contains(reason), tint: Palette.accent, compact: true) {
@@ -370,6 +456,8 @@ struct EncounterEditor: View {
         }
     }
 
+    // MARK: - 保存前看一眼
+
     private var reviewSection: some View {
         Section("保存前看一眼") {
             LabeledContent("结果", value: draft.kind.label)
@@ -379,15 +467,120 @@ struct EncounterEditor: View {
                 LabeledContent("场所", value: draft.venueCategory.label)
             }
             if draft.kind.isIntimate {
+                if !draft.rhythmSummary.isEmpty {
+                    LabeledContent("节奏", value: draft.rhythmSummary)
+                }
                 LabeledContent("戴套", value: draft.protectionStatus.label)
                 if !draft.activitySummary.isEmpty { Text(draft.activitySummary) }
                 if !draft.climaxSummary.isEmpty { Text(draft.climaxSummary) }
             } else if !draft.missedSummary.isEmpty {
                 Text(draft.missedSummary)
             }
-            LabeledContent("还约不约", value: draft.meetAgainIntent.label)
+            if let cost = parsedCost, cost > 0 {
+                LabeledContent("花费", value: Format.money(cost))
+            }
+            if !draft.photoIDs.isEmpty {
+                LabeledContent("照片", value: "\(draft.photoIDs.count) 张")
+            }
+            LabeledContent(draft.kind.isIntimate ? "还想再上吗" : "还约不约", value: draft.meetAgainIntent.label)
         }
     }
+
+    // MARK: - 节奏
+
+    private var rhythmSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                ChoiceGroupHeader(
+                    title: "谁主动",
+                    systemImage: "arrow.left.arrow.right",
+                    selectedCount: draft.initiator.isRecorded ? 1 : 0,
+                    tint: Palette.coral
+                )
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(Initiator.allCases.filter(\.isRecorded)) { initiator in
+                        RecordChoice(
+                            title: initiator.label,
+                            systemImage: initiator.symbolName,
+                            isOn: draft.initiator == initiator,
+                            tint: Palette.coral,
+                            compact: true
+                        ) {
+                            draft.initiator = draft.initiator == initiator ? .notRecorded : initiator
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ChoiceGroupHeader(
+                    title: "几轮",
+                    systemImage: "repeat",
+                    selectedCount: draft.rounds == nil ? 0 : 1,
+                    tint: Palette.coral
+                )
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(roundChoices, id: \.self) { count in
+                        RecordChoice(
+                            title: count == roundChoices.last ? "\(count) 轮以上" : "\(count) 轮",
+                            isOn: draft.rounds == count,
+                            tint: Palette.coral,
+                            compact: true
+                        ) {
+                            setRounds(draft.rounds == count ? nil : count)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ChoiceGroupHeader(
+                    title: durationTitle,
+                    systemImage: "timer",
+                    selectedCount: draft.durationMinutes == nil ? 0 : 1,
+                    tint: Palette.coral
+                )
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(DurationPreset.allCases) { preset in
+                        RecordChoice(
+                            title: preset.label,
+                            isOn: draft.durationMinutes == preset.minutes,
+                            tint: Palette.coral,
+                            compact: true
+                        ) {
+                            draft.durationMinutes = draft.durationMinutes == preset.minutes ? nil : preset.minutes
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("节奏")
+        } footer: {
+            Text("凭印象选就行，用来算平均几轮、平均多久。选了 2 轮以上会自动勾上「多轮」。")
+        }
+    }
+
+    private var durationTitle: String {
+        guard let minutes = draft.durationMinutes,
+              !DurationPreset.allCases.contains(where: { $0.minutes == minutes })
+        else { return "多久" }
+        return "多久 · 已记 \(Encounter.durationText(minutes: minutes))"
+    }
+
+    private func setRounds(_ value: Int?) {
+        draft.rounds = value
+        guard let value else { return }
+        if value >= 2 {
+            draft.activities.insert(.multipleRounds)
+        } else {
+            draft.activities.remove(.multipleRounds)
+        }
+    }
+
+    // MARK: - 套
 
     private var safetySection: some View {
         Section {
@@ -444,19 +637,24 @@ struct EncounterEditor: View {
     private var activitySection: some View {
         Section {
             ForEach(IntimacyActivityGroup.allCases) { group in
+                let options = group.activities
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(group.label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    ChoiceGroupHeader(
+                        title: group.label,
+                        systemImage: group.symbolName,
+                        selectedCount: options.filter { draft.activities.contains($0) }.count,
+                        tint: group == .heat || group == .place || group == .rhythm ? Palette.coral : Palette.accent
+                    )
                     FlowLayout(spacing: 7, lineSpacing: 8) {
-                        ForEach(IntimacyActivity.allCases.filter { $0.group == group }) { activity in
+                        ForEach(options) { activity in
                             RecordChoice(
                                 title: activity.label,
+                                systemImage: activity.symbolName,
                                 isOn: draft.activities.contains(activity),
-                                tint: group == .heat || group == .place ? Palette.coral : Palette.accent,
+                                tint: group == .heat || group == .place || group == .rhythm ? Palette.coral : Palette.accent,
                                 compact: true
                             ) {
-                                draft.activities = toggled(activity, in: draft.activities)
+                                toggleActivity(activity)
                             }
                         }
                     }
@@ -469,6 +667,7 @@ struct EncounterEditor: View {
                 Spacer()
                 if !draft.activities.isEmpty {
                     Text("\(draft.activities.count) 项")
+                        .contentTransition(.numericText())
                 }
             }
         } footer: {
@@ -476,13 +675,26 @@ struct EncounterEditor: View {
         }
     }
 
+    private func toggleActivity(_ activity: IntimacyActivity) {
+        draft.activities = toggled(activity, in: draft.activities)
+        // 勾了「多轮」但还没选几轮时，默认按 2 轮记；取消「多轮」不动已经明确选好的轮数。
+        if activity == .multipleRounds, draft.activities.contains(.multipleRounds), draft.rounds == nil {
+            draft.rounds = 2
+        }
+    }
+
     private var climaxSection: some View {
         Section {
             ForEach(ClimaxDetailGroup.allCases) { group in
+                let options = group.details
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(group.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    ChoiceGroupHeader(
+                        title: group.label,
+                        selectedCount: options.filter { draft.climaxDetails.contains($0) }.count,
+                        tint: Palette.coral
+                    )
                     FlowLayout(spacing: 7, lineSpacing: 8) {
-                        ForEach(ClimaxDetail.allCases.filter { $0.group == group }) { detail in
+                        ForEach(options) { detail in
                             RecordChoice(title: detail.label, isOn: draft.climaxDetails.contains(detail), tint: detail.tint, compact: true) {
                                 draft.toggleClimax(detail)
                             }
@@ -518,11 +730,26 @@ struct EncounterEditor: View {
                 labels: ["很差", "不太好", "一般", "开心", "很开心"]
             )
 
-            Picker(draft.kind.isIntimate ? "还想再上吗" : "还想再约吗", selection: $draft.meetAgainIntent) {
-                ForEach(MeetAgainIntent.allCases) { intent in
-                    Text(intent.label).tag(intent)
+            VStack(alignment: .leading, spacing: 8) {
+                ChoiceGroupHeader(
+                    title: draft.kind.isIntimate ? "还想再上吗" : "还想再约吗",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    selectedCount: draft.meetAgainIntent == .notRecorded ? 0 : 1
+                )
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(MeetAgainIntent.allCases.filter { $0 != .notRecorded }) { intent in
+                        RecordChoice(
+                            title: intent.label,
+                            isOn: draft.meetAgainIntent == intent,
+                            tint: intent == .no ? Color.secondary : Palette.accent,
+                            compact: true
+                        ) {
+                            draft.meetAgainIntent = draft.meetAgainIntent == intent ? .notRecorded : intent
+                        }
+                    }
                 }
             }
+            .padding(.vertical, 4)
         } header: {
             Text(draft.kind.isIntimate ? "爽不爽，还想不想" : "感觉与下一步")
         } footer: {
@@ -550,7 +777,11 @@ struct EncounterEditor: View {
                 )
             }
         } header: {
-            Text("这次的照片")
+            HStack {
+                Text("这次的照片")
+                Spacer()
+                Text("\(draft.photoIDs.count) / \(maxPhotos)")
+            }
         } footer: {
             Text("最多 \(maxPhotos) 张，会一起进她的艳照私藏。不进系统相册。")
         }
@@ -577,7 +808,7 @@ struct EncounterEditor: View {
             }
             TextField(
                 draft.kind.isIntimate
-                    ? "这次体验、其他行为、下次要注意什么"
+                    ? "她说了什么、哪一下最带劲、下次想试什么"
                     : "为什么没上床、下次要不要换时间或地点",
                 text: $draft.note,
                 axis: .vertical

@@ -151,6 +151,28 @@ struct EncounterInsights: Hashable, Sendable {
     var averageEmotional: Double?
     var meetAgainCounts: [MeetAgainIntent: Int] = [:]
 
+    // MARK: 节奏
+
+    /// 记了时长的上床记录的平均分钟数。
+    var averageDurationMinutes: Double?
+    /// 记了几轮的上床记录的平均轮数。
+    var averageRounds: Double?
+    var initiatorCounts: [Initiator: Int] = [:]
+    /// 谁更常先动手；没记过就为 nil。
+    var dominantInitiator: Initiator? {
+        initiatorCounts.filter { $0.key.isRecorded && $0.value > 0 }
+            .max { lhs, rhs in
+                if lhs.value != rhs.value { return lhs.value < rhs.value }
+                return lhs.key.rawValue > rhs.key.rawValue
+            }?.key
+    }
+
+    // MARK: 里程碑
+
+    var firstHookupDate: Date?
+    /// 身体感受最高的那次；同分取最近。
+    var bestHookupID: UUID?
+
     var wantAgainRate: Double? {
         let decided = MeetAgainIntent.allCases
             .filter { $0 != .notRecorded }
@@ -195,6 +217,11 @@ struct EncounterInsights: Hashable, Sendable {
         var physicalCount = 0
         var emotionalTotal = 0
         var emotionalCount = 0
+        var durationTotal = 0
+        var durationCount = 0
+        var roundsTotal = 0
+        var roundsCount = 0
+        var best: (rating: Int, date: Date, id: UUID)?
 
         for encounter in hookups {
             perCompanion[encounter.companionID, default: 0] += 1
@@ -208,6 +235,17 @@ struct EncounterInsights: Hashable, Sendable {
             result.protectionCounts[encounter.protectionStatus, default: 0] += 1
             for activity in encounter.activities { activityCounts[activity, default: 0] += 1 }
             for detail in encounter.climaxDetails { climaxCounts[detail, default: 0] += 1 }
+            if encounter.initiator.isRecorded {
+                result.initiatorCounts[encounter.initiator, default: 0] += 1
+            }
+            if let minutes = encounter.durationMinutes {
+                durationTotal += minutes
+                durationCount += 1
+            }
+            if let rounds = encounter.rounds {
+                roundsTotal += rounds
+                roundsCount += 1
+            }
 
             let hour = calendar.component(.hour, from: encounter.date)
             dayPartCounts[DayPart.of(hour: hour), default: 0] += 1
@@ -216,12 +254,22 @@ struct EncounterInsights: Hashable, Sendable {
             if encounter.physicalRating > 0 {
                 physicalTotal += encounter.physicalRating
                 physicalCount += 1
+                if let current = best, encounter.physicalRating < current.rating {
+                    // 保留更高分的那次
+                } else {
+                    best = (encounter.physicalRating, encounter.date, encounter.id)
+                }
             }
             if encounter.emotionalRating > 0 {
                 emotionalTotal += encounter.emotionalRating
                 emotionalCount += 1
             }
         }
+
+        result.firstHookupDate = hookups.first?.date
+        result.bestHookupID = best?.id
+        if durationCount > 0 { result.averageDurationMinutes = Double(durationTotal) / Double(durationCount) }
+        if roundsCount > 0 { result.averageRounds = Double(roundsTotal) / Double(roundsCount) }
 
         for encounter in encounters where encounter.meetAgainIntent != .notRecorded {
             result.meetAgainCounts[encounter.meetAgainIntent, default: 0] += 1

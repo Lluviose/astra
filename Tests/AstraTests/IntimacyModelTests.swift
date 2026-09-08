@@ -287,4 +287,113 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertTrue(draft.climaxDetails.contains(.pullOut))
     }
 
+    // MARK: 节奏：谁主动、几轮、多久
+
+    func testRhythmFieldsRoundTripAndNormalize() throws {
+        let original = Encounter(companionID: UUID(), initiator: .her, rounds: 3, durationMinutes: 45)
+        let decoded = try JSONDecoder().decode(Encounter.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(decoded, original)
+        XCTAssertEqual(decoded.rhythmSummary, "她主动 · 3 轮 · 45 分钟")
+
+        let odd = Encounter(companionID: UUID(), rounds: 0, durationMinutes: -5)
+        XCTAssertNil(odd.rounds)
+        XCTAssertNil(odd.durationMinutes)
+        XCTAssertTrue(odd.rhythmSummary.isEmpty)
+
+        let capped = Encounter(companionID: UUID(), rounds: 40, durationMinutes: 99_999)
+        XCTAssertEqual(capped.rounds, 9)
+        XCTAssertEqual(capped.durationMinutes, 12 * 60)
+    }
+
+    func testMissedOutcomeDropsRhythmFields() {
+        var draft = Encounter(companionID: UUID(), initiator: .me, rounds: 2, durationMinutes: 30)
+        draft.kind = .missed
+        draft.normalizeForOutcome()
+        XCTAssertEqual(draft.initiator, .notRecorded)
+        XCTAssertNil(draft.rounds)
+        XCTAssertNil(draft.durationMinutes)
+    }
+
+    func testOldEncounterWithoutRhythmDecodesAsNotRecorded() throws {
+        let old = #"{"companionID":"00000000-0000-0000-0000-000000000001","kind":"intimacy","activities":["doggy"]}"#
+        let encounter = try JSONDecoder().decode(Encounter.self, from: Data(old.utf8))
+        XCTAssertEqual(encounter.initiator, .notRecorded)
+        XCTAssertNil(encounter.rounds)
+        XCTAssertNil(encounter.durationMinutes)
+        XCTAssertEqual(encounter.activities, [.doggy])
+    }
+
+    func testDurationTextReadsNaturally() {
+        XCTAssertEqual(Encounter.durationText(minutes: 20), "20 分钟")
+        XCTAssertEqual(Encounter.durationText(minutes: 60), "1 小时")
+        XCTAssertEqual(Encounter.durationText(minutes: 90), "1.5 小时")
+        XCTAssertEqual(Encounter.durationText(minutes: 75), "1 小时 15 分")
+        XCTAssertEqual(DurationPreset.twoHoursPlus.minutes, 120)
+    }
+
+    func testNewActivitiesAndSquirtBelongToTheirGroups() {
+        XCTAssertEqual(IntimacyActivity.reverseCowgirl.group, .position)
+        XCTAssertEqual(IntimacyActivity.prone.group, .position)
+        XCTAssertEqual(IntimacyActivity.overnight.group, .rhythm)
+        XCTAssertEqual(IntimacyActivity.quickie.group, .rhythm)
+        XCTAssertEqual(IntimacyActivity.spanking.group, .heat)
+        XCTAssertEqual(IntimacyActivity.footjob.group, .touch)
+        XCTAssertEqual(IntimacyActivity.rimming.group, .oral)
+        XCTAssertEqual(ClimaxDetail.sheSquirted.group, .partner)
+        XCTAssertEqual(
+            Set(IntimacyActivityGroup.allCases.flatMap(\.activities)),
+            Set(IntimacyActivity.allCases)
+        )
+        XCTAssertEqual(
+            Set(ClimaxDetailGroup.allCases.flatMap(\.details)),
+            Set(ClimaxDetail.allCases)
+        )
+    }
+
+    func testSquirtDoesNotCancelUncertaintyAboutOrgasm() {
+        var draft = Encounter(companionID: UUID(), climaxDetails: [.sheNotSure])
+        draft.toggleClimax(.sheSquirted)
+        XCTAssertTrue(draft.climaxDetails.contains(.sheNotSure))
+        XCTAssertTrue(draft.climaxDetails.contains(.sheSquirted))
+    }
+
+    // MARK: 人物：偏好与约法
+
+    func testCompanionPlaybookFieldsDecodeMissingAsEmpty() throws {
+        let old = #"{"name":"旧档案","cityID":"310000"}"#
+        let companion = try JSONDecoder().decode(Companion.self, from: Data(old.utf8))
+        XCTAssertEqual(companion.turnOns, "")
+        XCTAssertEqual(companion.approachNotes, "")
+        XCTAssertFalse(companion.hasPlaybook)
+
+        let filled = Companion(name: "她", turnOns: "喜欢后入", approachNotes: "周末才有空")
+        XCTAssertTrue(filled.hasPlaybook)
+        let decoded = try JSONDecoder().decode(Companion.self, from: JSONEncoder().encode(filled))
+        XCTAssertEqual(decoded.turnOns, "喜欢后入")
+        XCTAssertEqual(decoded.approachNotes, "周末才有空")
+    }
+
+    func testDaysKnownCountsCalendarDays() {
+        let calendar = Calendar.current
+        let now = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+        let met = calendar.date(byAdding: .day, value: -10, to: now) ?? now
+        let companion = Companion(name: "她", metDate: met)
+        XCTAssertEqual(companion.daysKnown(asOf: now, calendar: calendar), 10)
+        XCTAssertNil(Companion(name: "她").daysKnown(asOf: now, calendar: calendar))
+    }
+
+    func testQuickDateChoicesNeverPointToTheFuture() {
+        let calendar = Calendar.current
+        let now = Date()
+        for choice in QuickDateChoice.allCases {
+            XCTAssertLessThanOrEqual(choice.date(now: now, calendar: calendar), now, choice.label)
+        }
+        XCTAssertEqual(QuickDateChoice.matching(now, now: now, calendar: calendar), .now)
+        XCTAssertEqual(
+            QuickDateChoice.matching(QuickDateChoice.lastNight.date(now: now, calendar: calendar), now: now, calendar: calendar),
+            .lastNight
+        )
+        XCTAssertNil(QuickDateChoice.matching(now.addingTimeInterval(-7 * 86_400), now: now, calendar: calendar))
+    }
+
 }

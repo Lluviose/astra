@@ -14,7 +14,7 @@ struct CompanionEditor: View {
         var label: String {
             switch self {
             case .basics: "基本资料"
-            case .preferences: "约法与标签"
+            case .preferences: "偏好与约法"
             case .photos: "照片"
             }
         }
@@ -145,6 +145,7 @@ struct CompanionEditor: View {
                     statusSection
                     optionalInfoSection
                 case .preferences:
+                    playbookSection
                     intimacySection
                     tagsSection
                     scoreSection
@@ -162,7 +163,7 @@ struct CompanionEditor: View {
     private var editorSteps: [NativeEditorStep] {
         [
             NativeEditorStep(title: "基本资料", subtitle: "先记她是谁，再选常驻城市或国家。", symbol: "person.crop.circle"),
-            NativeEditorStep(title: "约法与标签", subtitle: "关系期待、已沟通的规矩和你的印象。", symbol: "checkmark.bubble"),
+            NativeEditorStep(title: "偏好与约法", subtitle: "她喜欢什么、怎么约最顺、说清楚的规矩和你的印象。", symbol: "heart.text.square"),
             NativeEditorStep(title: "照片", subtitle: "人物照和私密照片分开存放。", symbol: "photo.on.rectangle")
         ]
     }
@@ -250,14 +251,24 @@ struct CompanionEditor: View {
 
     private var profilePhotosEditorSection: some View {
         Section {
-            Label(
-                "已存 \(draft.profilePhotoIDs.count) · 待保存 \(pendingProfilePhotoIDs.count)",
-                systemImage: "person.crop.rectangle.stack.fill"
-            )
-            .font(.subheadline)
+            if !draft.profilePhotoIDs.isEmpty {
+                PhotoStrip(ids: Array(draft.profilePhotoIDs.prefix(12)))
+            }
+
+            if !pendingProfilePhotoIDs.isEmpty {
+                PhotoStrip(
+                    ids: pendingProfilePhotoIDs,
+                    editable: true,
+                    onDelete: { id in
+                        MediaStore.delete(id: id)
+                        pendingProfilePhotoIDs.removeAll { $0 == id }
+                    }
+                )
+            }
 
             PhotoAddBar { importedIDs in
                 pendingProfilePhotoIDs.append(contentsOf: importedIDs)
+                Haptics.shared.play(.toggleOn)
             }
 
             if !pendingProfilePhotoIDs.isEmpty {
@@ -267,22 +278,36 @@ struct CompanionEditor: View {
                 }
             }
         } header: {
-            Text("人物照")
+            HStack {
+                Text("人物照")
+                Spacer()
+                Text(photoCountText(saved: draft.profilePhotoIDs.count, pending: pendingProfilePhotoIDs.count))
+            }
         } footer: {
-            Text("普通照片放这里，和艳照分开；不限数量，原图保存。")
+            Text("普通照片放这里，和艳照分开；不限数量，原图保存。已保存的照片在档案页里删。")
         }
     }
 
     private var privatePhotosEditorSection: some View {
         Section {
-            Label(
-                "已存 \(draft.albumPhotoIDs.count) · 待保存 \(pendingAlbumPhotoIDs.count)",
-                systemImage: "photo.on.rectangle.angled"
-            )
-            .font(.subheadline)
+            if !draft.albumPhotoIDs.isEmpty {
+                PhotoStrip(ids: Array(draft.albumPhotoIDs.prefix(12)))
+            }
+
+            if !pendingAlbumPhotoIDs.isEmpty {
+                PhotoStrip(
+                    ids: pendingAlbumPhotoIDs,
+                    editable: true,
+                    onDelete: { id in
+                        MediaStore.delete(id: id)
+                        pendingAlbumPhotoIDs.removeAll { $0 == id }
+                    }
+                )
+            }
 
             PhotoAddBar { importedIDs in
                 pendingAlbumPhotoIDs.append(contentsOf: importedIDs)
+                Haptics.shared.play(.toggleOn)
             }
 
             if !pendingAlbumPhotoIDs.isEmpty {
@@ -292,10 +317,18 @@ struct CompanionEditor: View {
                 }
             }
         } header: {
-            Text("艳照私藏")
+            HStack {
+                Text("艳照私藏")
+                Spacer()
+                Text(photoCountText(saved: draft.albumPhotoIDs.count, pending: pendingAlbumPhotoIDs.count))
+            }
         } footer: {
             Text("只放私密照片；不限数量，原图保存，代号打码时会一起糊掉。")
         }
+    }
+
+    private func photoCountText(saved: Int, pending: Int) -> String {
+        pending > 0 ? "已存 \(saved) · 待保存 \(pending)" : "已存 \(saved)"
     }
 
     private func commitPendingPhotos() {
@@ -379,6 +412,29 @@ struct CompanionEditor: View {
             Text("我对她的评分")
         } footer: {
             Text("颜值、身材、床上默契、主动感、欲望值和回味欲；不了解的项可以不打分。")
+        }
+    }
+
+    // MARK: 见她之前看一眼
+
+    private var playbookSection: some View {
+        Section {
+            SuggestedNotesField(
+                title: "她在床上喜欢什么",
+                placeholder: "敏感点、喜欢的节奏和姿势，可自己写",
+                text: $draft.turnOns,
+                suggestions: ProfileSuggestions.turnOns
+            )
+            SuggestedNotesField(
+                title: "怎么约她最顺",
+                placeholder: "开口方式、她方便的时间、要避开的雷",
+                text: $draft.approachNotes,
+                suggestions: ProfileSuggestions.approach
+            )
+        } header: {
+            Text("见她之前看一眼")
+        } footer: {
+            Text("这两条会显示在她的档案最上面，也会在记上床时提示。只写你真的观察到的。")
         }
     }
 

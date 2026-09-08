@@ -143,3 +143,98 @@ private struct NativeChoicePressStyle: ButtonStyle {
                        value: configuration.isPressed)
     }
 }
+
+// MARK: - 结果卡
+
+/// 结果页的两张大卡：上床了 / 没上床。未选中的那张是玻璃，选中的那张实色。
+struct OutcomeCard: View {
+    let kind: EncounterKind
+    let isOn: Bool
+    let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 20, style: .continuous) }
+
+    var body: some View {
+        Button {
+            Haptics.shared.play(kind.isIntimate ? .mediumTap : .lightTap)
+            withAnimation(NativeEditorMotion.animation(reduceMotion: reduceMotion)) { action() }
+        } label: {
+            decorated(cardContent)
+                .contentShape(shape)
+        }
+        .buttonStyle(NativeChoicePressStyle())
+        .accessibilityLabel(kind.label)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
+    }
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: kind.symbolName)
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 36, height: 36)
+                    .background(isOn ? Color.white.opacity(0.22) : kind.tint.opacity(0.14), in: Circle())
+                    .foregroundStyle(isOn ? Color.white : kind.tint)
+                Spacer(minLength: 0)
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.body.weight(.semibold))
+                    .opacity(isOn ? 1 : 0.35)
+                    .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+            }
+            Text(kind.label)
+                .font(.headline)
+            Text(kind.isIntimate ? "接着补玩法、收尾、套和感受" : "记到了哪一步、为什么没成")
+                .font(.caption)
+                .opacity(0.78)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+        }
+        .foregroundStyle(isOn ? Color.white : Color.primary)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func decorated<V: View>(_ content: V) -> some View {
+        if isOn {
+            content
+                .background(kind.tint.gradient, in: shape)
+                .shadow(color: kind.tint.opacity(0.30), radius: 12, y: 6)
+        } else {
+            content
+                .liquidGlass(in: shape, interactive: true, fallback: .regularMaterial, shadowRadius: 6)
+        }
+    }
+}
+
+/// 表单分组小标题：图标 + 标题 + 已选数量。
+struct ChoiceGroupHeader: View {
+    let title: String
+    var systemImage: String?
+    var selectedCount = 0
+    var tint: Color = Palette.accent
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(tint)
+            }
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            if selectedCount > 0 {
+                Text("\(selectedCount)")
+                    .font(.caption2.weight(.bold).monospacedDigit())
+                    .foregroundStyle(tint)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(tint.opacity(0.12), in: Capsule())
+                    .contentTransition(.numericText())
+            }
+        }
+    }
+}

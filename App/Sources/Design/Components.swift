@@ -336,18 +336,7 @@ struct HeroButtonLabel: View {
             .minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background {
-                if prominent {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white)
-                } else {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.white.opacity(0.13))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(.white.opacity(0.20), lineWidth: 0.8)
-                        }
-                }
-            }
+            .heroGlass(cornerRadius: 14, prominent: prominent)
             .foregroundStyle(prominent ? Palette.accentDeep : .white)
     }
 }

@@ -45,6 +45,7 @@ struct TimelineScreen: View {
         }
         if encounter.activities.contains(where: { $0.label.lowercased().contains(q) }) { return true }
         if encounter.climaxDetails.contains(where: { $0.label.lowercased().contains(q) }) { return true }
+        if encounter.rhythmSummary.lowercased().contains(q) { return true }
         return false
     }
 

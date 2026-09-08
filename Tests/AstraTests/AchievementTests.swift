@@ -6,7 +6,7 @@ final class AchievementTests: XCTestCase {
     func testEmptyRosterUnlocksNothing() {
         let items = AchievementCatalog.evaluate(companions: [], encounters: [], cityCount: 0)
         XCTAssertFalse(items.contains(where: \.isUnlocked))
-        XCTAssertEqual(items.count, 50)
+        XCTAssertEqual(items.count, 60)
         XCTAssertEqual(Set(items.map(\.id)).count, 50)
         XCTAssertEqual(Set(items.map(\.category)).count, AchievementCategory.allCases.count)
     }
@@ -197,7 +197,7 @@ final class AchievementTests: XCTestCase {
             cityCount: 1
         )
 
-        XCTAssertEqual(items.count, 50)
+        XCTAssertEqual(items.count, 60)
         XCTAssertTrue(unlocked(items, "first_hookup"))
     }
 
@@ -244,6 +244,71 @@ final class AchievementTests: XCTestCase {
         ]
 
         XCTAssertEqual(AchievementCatalog.nextUp(in: items).map(\.id), ["ordinary"])
+    }
+
+    func testRhythmAchievementsFollowRecordedFields() {
+        let girl = Companion(name: "她", turnOns: "喜欢后入")
+        let encounter = Encounter(
+            companionID: girl.id,
+            kind: .intimacy,
+            activities: [.overnight],
+            climaxDetails: [.sheSquirted],
+            initiator: .her,
+            rounds: 3,
+            durationMinutes: 95
+        )
+        let items = AchievementCatalog.evaluate(companions: [girl], encounters: [encounter], cityCount: 1)
+
+        XCTAssertTrue(unlocked(items, "her_move"))
+        XCTAssertFalse(unlocked(items, "her_move_5"))
+        XCTAssertTrue(unlocked(items, "marathon"))
+        XCTAssertTrue(unlocked(items, "rounds_3"))
+        XCTAssertTrue(unlocked(items, "overnight"))
+        XCTAssertTrue(unlocked(items, "squirt"))
+        XCTAssertTrue(unlocked(items, "playbook"))
+        XCTAssertFalse(unlocked(items, "country_hookup"))
+    }
+
+    func testRhythmAchievementsStayDarkWithoutRhythmData() {
+        let girl = Companion(name: "她")
+        let encounter = Encounter(companionID: girl.id, kind: .intimacy, rounds: 2, durationMinutes: 60)
+        let items = AchievementCatalog.evaluate(companions: [girl], encounters: [encounter], cityCount: 1)
+        XCTAssertFalse(unlocked(items, "her_move"))
+        XCTAssertFalse(unlocked(items, "marathon"))
+        XCTAssertFalse(unlocked(items, "rounds_3"))
+        XCTAssertFalse(unlocked(items, "playbook"))
+    }
+
+    func testCountryHookupsCountOnlyForeignLocations() {
+        let girl = Companion(name: "她", cityID: "310000")
+        let encounters = [
+            Encounter(companionID: girl.id, kind: .intimacy, cityID: "country:JP"),
+            Encounter(companionID: girl.id, kind: .intimacy, cityID: "country:TH"),
+            Encounter(companionID: girl.id, kind: .intimacy, cityID: "110000"),
+            Encounter(companionID: girl.id, kind: .intimacy),
+        ]
+        let items = AchievementCatalog.evaluate(companions: [girl], encounters: encounters, cityCount: 4)
+        XCTAssertTrue(unlocked(items, "country_hookup"))
+        XCTAssertEqual(items.first { $0.id == "countries_3" }?.current, 2)
+        XCTAssertFalse(unlocked(items, "countries_3"))
+    }
+
+    func testMonthlyStreakCountsConsecutiveMonthsOnly() {
+        let calendar = Calendar.current
+        let base = calendar.date(from: DateComponents(year: 2025, month: 1, day: 15, hour: 12)) ?? Date()
+        func month(_ offset: Int) -> Date { calendar.date(byAdding: .month, value: offset, to: base) ?? base }
+        let girl = Companion(name: "她")
+        let hookups = [0, 1, 2, 5, 6].map { Encounter(companionID: girl.id, date: month($0), kind: .intimacy) }
+        XCTAssertEqual(AchievementCatalog.longestMonthlyStreak(hookups, calendar: calendar), 3)
+        XCTAssertEqual(AchievementCatalog.longestMonthlyStreak([], calendar: calendar), 0)
+
+        // 跨年也算连续
+        let yearEnd = calendar.date(from: DateComponents(year: 2024, month: 12, day: 3, hour: 12)) ?? Date()
+        let acrossYear = [
+            Encounter(companionID: girl.id, date: yearEnd, kind: .intimacy),
+            Encounter(companionID: girl.id, date: base, kind: .intimacy),
+        ]
+        XCTAssertEqual(AchievementCatalog.longestMonthlyStreak(acrossYear, calendar: calendar), 2)
     }
 
     private func unlocked(_ items: [Achievement], _ id: String) -> Bool {

@@ -327,6 +327,10 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     var boundaries: String
     /// 由本人选择记录的检测、防护或其他安全备忘。
     var safetyNotes: String
+    /// 她在床上喜欢什么：敏感点、偏好的节奏与姿势，下次见她之前看一眼。
+    var turnOns: String
+    /// 怎么约她最顺：开口方式、她方便的时间、要避开的雷。
+    var approachNotes: String
     var tags: [String]
     var notes: String
     var isPinned: Bool
@@ -361,6 +365,8 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         expectations: String = "",
         boundaries: String = "",
         safetyNotes: String = "",
+        turnOns: String = "",
+        approachNotes: String = "",
         tags: [String] = [],
         notes: String = "",
         isPinned: Bool = false,
@@ -394,6 +400,8 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         self.expectations = expectations
         self.boundaries = boundaries
         self.safetyNotes = safetyNotes
+        self.turnOns = turnOns
+        self.approachNotes = approachNotes
         self.tags = tags
         self.notes = notes
         self.isPinned = isPinned
@@ -432,6 +440,8 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         expectations = try c.decodeIfPresent(String.self, forKey: .expectations) ?? ""
         boundaries = try c.decodeIfPresent(String.self, forKey: .boundaries) ?? ""
         safetyNotes = try c.decodeIfPresent(String.self, forKey: .safetyNotes) ?? ""
+        turnOns = try c.decodeIfPresent(String.self, forKey: .turnOns) ?? ""
+        approachNotes = try c.decodeIfPresent(String.self, forKey: .approachNotes) ?? ""
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         isPinned = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
@@ -489,6 +499,20 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     var isBirthdayApproaching: Bool {
         guard let days = daysUntilBirthday else { return false }
         return days <= 14
+    }
+
+    /// 见她之前值得先看一眼的私密备忘：偏好、约法、规矩、安全。
+    var hasPlaybook: Bool {
+        !turnOns.isEmpty || !approachNotes.isEmpty || !expectations.isEmpty
+            || !boundaries.isEmpty || !safetyNotes.isEmpty
+    }
+
+    /// 从认识那天到现在过了多少天；没记认识日期就返回 nil。
+    func daysKnown(asOf now: Date = Date(), calendar: Calendar = .current) -> Int? {
+        guard let metDate else { return nil }
+        let from = calendar.startOfDay(for: metDate)
+        let to = calendar.startOfDay(for: now)
+        return max(0, calendar.dateComponents([.day], from: from, to: to).day ?? 0)
     }
 }
 
@@ -595,24 +619,35 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
     case fingering
     case handjob
     case titjob
+    case footjob
     case oralGiving
     case oralReceiving
     case sixtyNine
+    case rimming
     case vaginalPenetration
     case analInsertive
     case analReceptive
     case cowgirl
+    case reverseCowgirl
     case doggy
+    case prone
     case missionary
+    case lotus
     case standing
     case spooning
     case shower
     case car
     case outdoor
     case hotel
-    case toys
+    case quickie
     case multipleRounds
+    case morning
+    case overnight
+    case toys
     case dirtyTalk
+    case spanking
+    case roleplay
+    case lingerie
     case recorded
     case other
 
@@ -625,44 +660,73 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
         case .fingering: "手指进去"
         case .handjob: "她用手"
         case .titjob: "乳交"
+        case .footjob: "足交"
         case .oralGiving: "口 · 我给她"
         case .oralReceiving: "口 · 她给我"
         case .sixtyNine: "69"
+        case .rimming: "舔后庭"
         case .vaginalPenetration: "阴道性交"
         case .analInsertive: "肛 · 我在上"
         case .analReceptive: "肛 · 我在下"
         case .cowgirl: "她骑上来"
+        case .reverseCowgirl: "背对着骑"
         case .doggy: "后入"
+        case .prone: "趴着后入"
         case .missionary: "正面"
+        case .lotus: "面对面坐着"
         case .standing: "站着做"
         case .spooning: "侧躺"
         case .shower: "浴室"
         case .car: "车震"
         case .outdoor: "外面做"
         case .hotel: "开房"
-        case .toys: "玩具"
+        case .quickie: "速战速决"
         case .multipleRounds: "多轮"
+        case .morning: "晨炮"
+        case .overnight: "过夜"
+        case .toys: "玩具"
         case .dirtyTalk: "叫床 / 说骚话"
+        case .spanking: "打屁股"
+        case .roleplay: "角色扮演"
+        case .lingerie: "内衣丝袜不脱"
         case .recorded: "拍了"
         case .other: "其他"
         }
     }
 
+    /// 芯片上的小图标；没有贴切符号的行为留空。
+    var symbolName: String? {
+        switch self {
+        case .kissing: "mouth.fill"
+        case .shower: "shower.fill"
+        case .car: "car.fill"
+        case .outdoor: "leaf.fill"
+        case .hotel: "bed.double.fill"
+        case .quickie: "bolt.fill"
+        case .multipleRounds: "repeat"
+        case .morning: "sunrise.fill"
+        case .overnight: "moon.stars.fill"
+        case .recorded: "camera.fill"
+        case .toys: "wand.and.stars"
+        default: nil
+        }
+    }
+
     var group: IntimacyActivityGroup {
         switch self {
-        case .kissing, .touching, .fingering, .handjob, .titjob:
+        case .kissing, .touching, .fingering, .handjob, .titjob, .footjob:
             .touch
-        case .oralGiving, .oralReceiving, .sixtyNine:
+        case .oralGiving, .oralReceiving, .sixtyNine, .rimming:
             .oral
         case .vaginalPenetration, .analInsertive, .analReceptive:
             .body
-        case .toys, .other:
-            .heat
-        case .cowgirl, .doggy, .missionary, .standing, .spooning:
+        case .cowgirl, .reverseCowgirl, .doggy, .prone, .missionary, .lotus, .standing, .spooning:
             .position
         case .shower, .car, .outdoor, .hotel:
             .place
-        case .multipleRounds, .dirtyTalk, .recorded:
+        case .quickie, .multipleRounds, .morning, .overnight:
+            .rhythm
+        case .toys, .dirtyTalk, .spanking, .roleplay, .lingerie, .recorded, .other:
             .heat
         }
     }
@@ -673,6 +737,7 @@ enum IntimacyActivityGroup: String, CaseIterable, Identifiable {
     case oral
     case body
     case position
+    case rhythm
     case place
     case heat
 
@@ -681,11 +746,84 @@ enum IntimacyActivityGroup: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .touch: "接吻与手上动作"
-        case .oral: "口交"
+        case .oral: "口"
         case .body: "性交"
         case .position: "姿势"
+        case .rhythm: "节奏"
         case .place: "场景"
-        case .heat: "其他行为"
+        case .heat: "情趣与玩法"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .touch: "hand.raised.fingers.spread.fill"
+        case .oral: "mouth.fill"
+        case .body: "flame.fill"
+        case .position: "figure.2.arms.open"
+        case .rhythm: "metronome.fill"
+        case .place: "mappin.and.ellipse"
+        case .heat: "sparkles"
+        }
+    }
+
+    var activities: [IntimacyActivity] {
+        IntimacyActivity.allCases.filter { $0.group == self }
+    }
+}
+
+/// 这次谁先动的手。
+enum Initiator: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case notRecorded
+    case me
+    case her
+    case mutual
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .notRecorded: "未记录"
+        case .me: "我主动"
+        case .her: "她主动"
+        case .mutual: "一拍即合"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .notRecorded: "minus.circle"
+        case .me: "arrow.right.circle.fill"
+        case .her: "arrow.left.circle.fill"
+        case .mutual: "arrow.left.arrow.right.circle.fill"
+        }
+    }
+
+    var isRecorded: Bool { self != .notRecorded }
+}
+
+/// 时长快捷档位；存的是分钟数，统计时可直接求平均。
+enum DurationPreset: Int, CaseIterable, Identifiable {
+    case tenMinutes = 10
+    case twentyMinutes = 20
+    case halfHour = 30
+    case fortyFive = 45
+    case oneHour = 60
+    case ninetyMinutes = 90
+    case twoHoursPlus = 120
+
+    var id: Int { rawValue }
+    var minutes: Int { rawValue }
+
+    var label: String {
+        switch self {
+        case .tenMinutes: "10 分钟内"
+        case .twentyMinutes: "20 分钟"
+        case .halfHour: "半小时"
+        case .fortyFive: "45 分钟"
+        case .oneHour: "1 小时"
+        case .ninetyMinutes: "1.5 小时"
+        case .twoHoursPlus: "2 小时以上"
         }
     }
 }
@@ -694,6 +832,7 @@ enum IntimacyActivityGroup: String, CaseIterable, Identifiable {
 enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
     case sheCame
     case sheMultiple
+    case sheSquirted
     case creampie
     case pullOut
     case condomFinish
@@ -713,6 +852,7 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
         switch self {
         case .sheCame: "她高潮了"
         case .sheMultiple: "她高潮好几次"
+        case .sheSquirted: "她潮吹了"
         case .creampie: "内射"
         case .pullOut: "拔出来射"
         case .condomFinish: "射在套里"
@@ -731,7 +871,7 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
     var tint: Color {
         switch self {
         case .creampie, .swallow, .facial: Color(red: 0.94, green: 0.22, blue: 0.46)
-        case .sheCame, .sheMultiple: Color(red: 0.93, green: 0.39, blue: 0.60)
+        case .sheCame, .sheMultiple, .sheSquirted: Color(red: 0.93, green: 0.39, blue: 0.60)
         default: Color(red: 0.95, green: 0.56, blue: 0.30)
         }
     }
@@ -897,6 +1037,12 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     var emotionalRating: Int
     var activities: Set<IntimacyActivity>
     var climaxDetails: Set<ClimaxDetail>
+    /// 这次谁先动的手。
+    var initiator: Initiator
+    /// 做了几轮；nil 表示没记。
+    var rounds: Int?
+    /// 大概持续多久（分钟）；nil 表示没记。
+    var durationMinutes: Int?
     var boundaryFeeling: BoundaryFeeling
     var personalStates: Set<PersonalState>
     var protectionStatus: ProtectionStatus
@@ -926,6 +1072,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         emotionalRating: Int = 0,
         activities: Set<IntimacyActivity> = [],
         climaxDetails: Set<ClimaxDetail> = [],
+        initiator: Initiator = .notRecorded,
+        rounds: Int? = nil,
+        durationMinutes: Int? = nil,
         boundaryFeeling: BoundaryFeeling = .notRecorded,
         personalStates: Set<PersonalState> = [],
         protectionStatus: ProtectionStatus = .notRecorded,
@@ -953,6 +1102,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.emotionalRating = min(max(emotionalRating, 0), 5)
         self.activities = activities
         self.climaxDetails = climaxDetails
+        self.initiator = initiator
+        self.rounds = Self.normalizedRounds(rounds)
+        self.durationMinutes = Self.normalizedDuration(durationMinutes)
         self.boundaryFeeling = boundaryFeeling
         self.personalStates = personalStates
         self.protectionStatus = protectionStatus
@@ -984,6 +1136,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         emotionalRating = min(max(try c.decodeIfPresent(Int.self, forKey: .emotionalRating) ?? 0, 0), 5)
         activities = try c.decodeIfPresent(Set<IntimacyActivity>.self, forKey: .activities) ?? []
         climaxDetails = try c.decodeIfPresent(Set<ClimaxDetail>.self, forKey: .climaxDetails) ?? []
+        initiator = try c.decodeIfPresent(Initiator.self, forKey: .initiator) ?? .notRecorded
+        rounds = Self.normalizedRounds(try c.decodeIfPresent(Int.self, forKey: .rounds))
+        durationMinutes = Self.normalizedDuration(try c.decodeIfPresent(Int.self, forKey: .durationMinutes))
         boundaryFeeling = try c.decodeIfPresent(BoundaryFeeling.self, forKey: .boundaryFeeling) ?? .notRecorded
         personalStates = try c.decodeIfPresent(Set<PersonalState>.self, forKey: .personalStates) ?? []
         protectionStatus = try c.decodeIfPresent(ProtectionStatus.self, forKey: .protectionStatus) ?? .notRecorded
@@ -1009,6 +1164,9 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
 
         activities = []
         climaxDetails = []
+        initiator = .notRecorded
+        rounds = nil
+        durationMinutes = nil
         boundaryFeeling = .notRecorded
         personalStates = []
         protectionStatus = .notApplicable
@@ -1054,6 +1212,37 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
             .filter { climaxDetails.contains($0) }
             .map(\.label)
             .joined(separator: "、")
+    }
+
+    /// 「她主动 · 2 轮 · 45 分钟」这类一句话节奏摘要；没记的部分不出现。
+    var rhythmSummary: String {
+        guard kind.isIntimate else { return "" }
+        var parts: [String] = []
+        if initiator.isRecorded { parts.append(initiator.label) }
+        if let rounds { parts.append("\(rounds) 轮") }
+        if let durationMinutes { parts.append(Self.durationText(minutes: durationMinutes)) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 只允许 1...9 轮；0 或负数视为没记。
+    static func normalizedRounds(_ value: Int?) -> Int? {
+        guard let value, value > 0 else { return nil }
+        return min(value, 9)
+    }
+
+    /// 只允许 1 分钟到 12 小时；异常值视为没记，不猜。
+    static func normalizedDuration(_ value: Int?) -> Int? {
+        guard let value, value > 0 else { return nil }
+        return min(value, 12 * 60)
+    }
+
+    static func durationText(minutes: Int) -> String {
+        guard minutes >= 60 else { return "\(minutes) 分钟" }
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if rest == 0 { return "\(hours) 小时" }
+        if rest == 30 { return "\(hours).5 小时" }
+        return "\(hours) 小时 \(rest) 分"
     }
 
 }

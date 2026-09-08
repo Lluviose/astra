@@ -9,6 +9,20 @@ import SwiftUI
 //   1. `#if compiler(>=6.2)` —— 让 Xcode 16（无 iOS 26 SDK）也能编译通过；
 //   2. `if #available(iOS 26.0, *)` —— 运行在 iOS 18 上时降级为 Material。
 
+// MARK: - 运行时判断
+
+enum LiquidGlass {
+    /// 当前设备是否真的在跑 iOS 26 Liquid Glass。给需要在玻璃与实色之间切换排版的视图用。
+    static var isAvailable: Bool {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) { return true }
+        return false
+        #else
+        return false
+        #endif
+    }
+}
+
 // MARK: - 玻璃背景
 
 struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
@@ -206,5 +220,39 @@ extension View {
 
     func minimizableTabBar() -> some View {
         modifier(MinimizableTabBarModifier())
+    }
+
+    /// 深色渐变封面上的半透明按钮：iOS 26 走真玻璃，低版本用白色半透明 + 描边。
+    func heroGlass(cornerRadius: CGFloat = 14, prominent: Bool = false) -> some View {
+        modifier(HeroGlassModifier(cornerRadius: cornerRadius, prominent: prominent))
+    }
+}
+
+private struct HeroGlassModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let prominent: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if prominent {
+            content.background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.white)
+            }
+        } else if LiquidGlass.isAvailable {
+            content.liquidGlass(
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                interactive: true,
+                shadowRadius: 0
+            )
+        } else {
+            content.background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.white.opacity(0.13))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(.white.opacity(0.20), lineWidth: 0.8)
+                    }
+            }
+        }
     }
 }

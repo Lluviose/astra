@@ -248,6 +248,17 @@ enum AchievementCatalog {
         let hookupCityCount = Set(hookups.compactMap { encounter in
             encounter.cityID ?? byID[encounter.companionID]?.cityID
         }).count
+        let hookupCountryCount = Set(hookups.compactMap { encounter -> String? in
+            let id = encounter.cityID ?? byID[encounter.companionID]?.cityID
+            return id.flatMap { $0.hasPrefix("country:") ? $0 : nil }
+        }).count
+        let herMoves = hookups.filter { $0.initiator == .her }
+        let marathons = hookups.filter { ($0.durationMinutes ?? 0) >= 90 }
+        let tripleRounds = hookups.filter { ($0.rounds ?? 0) >= 3 }
+        let overnights = hookups.filter { $0.activities.contains(.overnight) }
+        let squirts = hookups.filter { $0.climaxDetails.contains(.sheSquirted) }
+        let playbooks = active.filter { !$0.turnOns.isEmpty || !$0.approachNotes.isEmpty }.count
+        let monthStreak = longestMonthlyStreak(hookups)
 
         return [
             make("first_girl", "猎场开门", "记下第一个她", "名册翻开第一页。", "person.fill.badge.plus", .hunt, .bronze, 0.93, 0.39, 0.60, active.count, 1),
@@ -262,6 +273,7 @@ enum AchievementCatalog {
             make("fwbs_3", "三个炮友", "同时有 3 个炮友或固定", "猎场开始拥挤。", "person.3.fill", .hunt, .gold, 0.94, 0.22, 0.46, casuals, 3),
             make("repeater", "回头客", "同一个人上床 3 次", "她也还想来。", "arrow.triangle.2.circlepath", .hunt, .bronze, 0.94, 0.28, 0.52, maxRepeats, 3),
             make("repeater_5", "老主顾", "同一个人上床 5 次", "熟门熟路。", "heart.circle.fill", .hunt, .silver, 0.93, 0.39, 0.60, maxRepeats, 5),
+            make("playbook", "摸清她", "给一个她写下床上偏好或约法", "下次见她之前先看一眼。", "heart.text.square.fill", .hunt, .bronze, 0.96, 0.29, 0.50, playbooks, 1),
 
             make("first_hookup", "开张大吉", "第一次上床", "猎场正式开张。", "flame.fill", .hookup, .bronze, 0.94, 0.28, 0.52, hookups.count, 1),
             make("hookups_3", "连约三回", "累计上床 3 次", "手感回来了。", "bolt.fill", .hookup, .bronze, 0.95, 0.62, 0.25, hookups.count, 3),
@@ -269,6 +281,7 @@ enum AchievementCatalog {
             make("hookups_30", "身经百战", "累计上床 30 次", "不是碰巧，是常态。", "crown.fill", .hookup, .gold, 0.95, 0.72, 0.22, hookups.count, 30),
             make("hookups_50", "猎神", "累计上床 50 次", "这本册子可以合上再敬一杯。", "trophy.fill", .hookup, .gold, 0.95, 0.72, 0.22, hookups.count, 50),
             make("month_4", "月度丰收", "单月上床 4 次", "这个月没闲着。", "calendar.badge.plus", .hookup, .silver, 0.95, 0.62, 0.25, monthHookups, 4),
+            make("streak_months_3", "连绵不断", "连续 3 个月都有上床", "没有空窗的季度。", "calendar.badge.checkmark", .hookup, .gold, 0.95, 0.62, 0.25, monthStreak, 3),
             make("double_header", "连轴转", "同一天上床两次", "日程排得够满。", "clock.badge.checkmark", .hookup, .bronze, 0.95, 0.62, 0.25, sameDay >= 2 ? 1 : 0, 1),
             make("hat_trick", "帽子戏法", "同一天上床三次", "一天三次，时间线会记得。", "flame.fill", .hookup, .gold, 0.94, 0.28, 0.52, sameDay >= 3 ? 1 : 0, 1),
 
@@ -281,6 +294,8 @@ enum AchievementCatalog {
             make("cities_15", "全球足迹", "点亮 15 个地点", "版图已经铺开了。", "globe.asia.australia.fill", .trail, .gold, 0.38, 0.60, 0.96, cityCount, 15),
             make("first_tier", "一线猎场", "北上广深留下过人", "一线也不是进不去。", "building.2.fill", .trail, .silver, 0.95, 0.62, 0.25, firstTier ? 1 : 0, 1),
             make("cross_city", "跨地出击", "去她常驻地点以外上床", "车票没白买。", "airplane", .trail, .bronze, 0.38, 0.60, 0.96, crossCity ? 1 : 0, 1),
+            make("country_hookup", "出境战绩", "在境外国家上过床", "护照上多了一页。", "airplane.departure", .trail, .silver, 0.22, 0.70, 0.56, hookupCountryCount, 1),
+            make("countries_3", "三国版图", "在 3 个国家上过床", "地球仪转起来了。", "globe.europe.africa.fill", .trail, .gold, 0.95, 0.72, 0.22, hookupCountryCount, 3),
 
             make("first_photo", "第一张私藏", "存下第一张照片", "时间线有了插图。", "camera.fill", .album, .bronze, 0.94, 0.28, 0.52, photos.count, 1),
             make("album_10", "相册丰收", "私藏照片满 10 张", "翻起来有点危险。", "photo.on.rectangle.angled", .album, .silver, 0.88, 0.35, 0.70, photos.count, 10),
@@ -289,15 +304,21 @@ enum AchievementCatalog {
             make("weekend", "周末选手", "周末上床过", "周六周日有安排。", "sun.max.fill", .play, .bronze, 0.95, 0.62, 0.25, weekendHookups.count, 1),
             make("night_owl", "深夜局", "晚上 10 点后上床过", "夜才刚刚开始。", "moon.stars.fill", .play, .bronze, 0.58, 0.34, 0.92, nightHookups.count, 1),
             make("morning", "清晨局", "早上 5 到 9 点还在约", "天亮了也不急着走。", "sunrise.fill", .play, .silver, 0.95, 0.72, 0.22, morningHookups.count, 1),
+            make("overnight", "过夜", "她留下过夜", "第二天早上还在。", "moon.zzz.fill", .play, .bronze, 0.58, 0.34, 0.92, overnights.count, 1),
             make("comeback", "后来上了", "同一个人先没上、后来上了", "一次没成不是句号。", "arrow.triangle.2.circlepath", .play, .bronze, 0.93, 0.39, 0.60, comeback ? 1 : 0, 1),
             make("want_again", "还想约", "约完还想再约", "这次不是句号。", "arrow.forward.circle.fill", .play, .bronze, 0.94, 0.28, 0.52, wantAgain ? 1 : 0, 1),
             make("sex_logged", "记到床上", "勾过做爱", "该记的都记下了。", "heart.fill", .play, .bronze, 0.94, 0.28, 0.52, sexLogged ? 1 : 0, 1),
+            make("her_move", "她主动", "记下过她主动", "这次是她先动的手。", "arrow.left.circle.fill", .play, .bronze, 0.93, 0.39, 0.60, herMoves.count, 1),
+            make("her_move_5", "她停不下来", "她主动 5 次", "已经不用你开口了。", "flame.circle.fill", .play, .silver, 0.94, 0.22, 0.46, herMoves.count, 5),
+            make("marathon", "持久战", "单次 1.5 小时以上", "谁也没看表。", "timer", .play, .silver, 0.96, 0.58, 0.24, marathons.count, 1),
+            make("rounds_3", "三连发", "单次做了 3 轮以上", "一次不够。", "repeat.circle.fill", .play, .gold, 0.94, 0.28, 0.52, tripleRounds.count, 1),
             make("bareback", "无套", "第一次无套", "皮肤贴着皮肤。", "exclamationmark.shield.fill", .play, .bronze, 0.94, 0.42, 0.34, barebacks.count, 1),
             make("bareback_5", "无套常客", "无套 5 次", "已经不怕了。", "flame.fill", .play, .silver, 0.94, 0.22, 0.46, barebacks.count, 5),
             make("creampie", "内射", "第一次内射", "射进去了。", "drop.fill", .play, .bronze, 0.94, 0.22, 0.46, creampies.count, 1),
             make("creampie_5", "灌满", "内射 5 次", "她里面都熟了。", "drop.fill", .play, .gold, 0.94, 0.22, 0.46, creampies.count, 5),
             make("swallow", "口爆", "她咽下去过", "嘴也记下了。", "ellipsis.bubble.fill", .play, .silver, 0.93, 0.39, 0.60, swallows.count, 1),
             make("facial", "颜射", "射在脸上过", "那张脸记得很清楚。", "sparkles", .play, .silver, 0.95, 0.62, 0.25, facials.count, 1),
+            make("squirt", "潮吹", "记下过她潮吹", "床单换了一次。", "drop.triangle.fill", .play, .silver, 0.93, 0.39, 0.60, squirts.count, 1),
             make("multi_round", "多轮", "一次做了好几轮", "停不下来。", "arrow.2.squarepath", .play, .silver, 0.94, 0.28, 0.52, multiRounds.count, 1),
             make("car_sex", "车震", "在车里做过", "后座也算猎场。", "car.fill", .play, .bronze, 0.38, 0.60, 0.96, carSex.count, 1),
             make("shower_sex", "浴室", "在浴室做过", "水还没停。", "drop.fill", .play, .bronze, 0.30, 0.75, 0.60, showerSex.count, 1),
@@ -306,6 +327,27 @@ enum AchievementCatalog {
             make("she_came", "把她弄高潮", "记下过她高潮", "她也爽到了。", "waveform.path.ecg", .play, .silver, 0.94, 0.28, 0.52, sheCame.count, 1),
             make("hookup_cities_3", "三地上床", "在 3 个地点上过床", "猎场真的铺开了。", "map.fill", .play, .gold, 0.38, 0.60, 0.96, hookupCityCount, 3),
         ]
+    }
+
+    /// 连续多少个自然月都有上床记录（取最长一段）。
+    static func longestMonthlyStreak(_ hookups: [Encounter], calendar: Calendar = .current) -> Int {
+        let months = Set(hookups.map { encounter -> Int in
+            let components = calendar.dateComponents([.year, .month], from: encounter.date)
+            return (components.year ?? 0) * 12 + (components.month ?? 1) - 1
+        }).sorted()
+        var best = 0
+        var run = 0
+        var previous: Int?
+        for month in months {
+            if let previous, month == previous + 1 {
+                run += 1
+            } else {
+                run = 1
+            }
+            previous = month
+            best = max(best, run)
+        }
+        return best
     }
 
     /// 同一个对象先出现「没上床」，之后又有「上床了」。

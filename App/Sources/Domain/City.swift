@@ -42,6 +42,20 @@ struct City: Identifiable, Codable, Hashable, Sendable {
 
     var locationLevelLabel: String { isCountry ? "国家" : "城市" }
 
+    /// 国家用国旗 emoji 表示；中国城市返回 nil，让地图气泡继续用结果图标。
+    var flagEmoji: String? {
+        guard isCountry else { return nil }
+        let code = countryCode
+        guard code.count == 2, code.allSatisfy({ $0.isLetter && $0.isASCII }) else { return nil }
+        let base: UInt32 = 0x1F1E6 - 65 // 区域指示符 A 对应 U+1F1E6
+        var flag = ""
+        for scalar in code.unicodeScalars {
+            guard let indicator = Unicode.Scalar(base + scalar.value) else { return nil }
+            flag.unicodeScalars.append(indicator)
+        }
+        return flag
+    }
+
     /// 用于选择器和详情页的辅助说明。境外不暴露一个虚构的“城市等级”。
     var locationSubtitle: String {
         return isCountry
