@@ -7,7 +7,7 @@ final class AchievementTests: XCTestCase {
         let items = AchievementCatalog.evaluate(companions: [], encounters: [], cityCount: 0)
         XCTAssertFalse(items.contains(where: \.isUnlocked))
         XCTAssertEqual(items.count, 60)
-        XCTAssertEqual(Set(items.map(\.id)).count, 50)
+        XCTAssertEqual(Set(items.map(\.id)).count, items.count)
         XCTAssertEqual(Set(items.map(\.category)).count, AchievementCategory.allCases.count)
     }
 
