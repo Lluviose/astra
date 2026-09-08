@@ -65,11 +65,10 @@ private struct DesignShowcase: View {
     DesignShowcase().preferredColorScheme(.dark)
 }
 
-#Preview("大字体 · 减少透明度与动态效果") {
+// Reduce Motion, Reduce Transparency and Increase Contrast are read-only environment
+// values. Toggle them in Simulator Settings when reviewing the running app.
+#Preview("大字体") {
     DesignShowcase()
         .dynamicTypeSize(.accessibility3)
-        .environment(\.accessibilityReduceTransparency, true)
-        .environment(\.accessibilityReduceMotion, true)
-        .environment(\.colorSchemeContrast, .increased)
 }
 #endif

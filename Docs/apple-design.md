@@ -26,7 +26,7 @@ The overview leads with the date and page identity, then the summary and recordi
 
 ## Review in Xcode
 
-`App/Sources/Design/DesignPreviews.swift` includes interactive light, dark and accessibility component previews. They use fixture text and do not access the local data store.
+`App/Sources/Design/DesignPreviews.swift` includes interactive light, dark and large-text component previews. They use fixture text and do not access the local data store. Reduce Motion, Reduce Transparency and Increase Contrast are read-only SwiftUI environment values; enable them in Simulator Settings → Accessibility → Display & Text Size / Motion to review those modes.
 
 Run the existing `make test` / PR validation workflow for SwiftUI compilation and the domain / data safety suite. Visual review should cover a small iPhone and iPad, empty and populated data, all tabs, recording and profile sheets, press / selection responses, light / dark appearance, large text, Reduce Motion and Reduce Transparency. A successful unit-test run alone does not verify those visual states.
 
