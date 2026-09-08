@@ -14,6 +14,7 @@ final class MapInsightTests: XCTestCase {
         XCTAssertNil(city("country:", lat: 0, lon: 0).flagEmoji)
     }
 
+    @MainActor
     func testRouteDistanceSumsConsecutiveLegs() {
         let shanghai = city("310000", lat: 31.23, lon: 121.47)
         let beijing = city("110000", lat: 39.90, lon: 116.40)
