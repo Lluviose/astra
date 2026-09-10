@@ -46,7 +46,7 @@ struct InsightsScreen: View {
     // MARK: 封面
 
     private var cover: some View {
-        HeroPanel(watermark: "chart.bar.xaxis") {
+        HeroPanel(cover: .tide, watermark: "chart.bar.xaxis") {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     HeroBadge(title: "只按你的记录算")

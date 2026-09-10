@@ -154,9 +154,8 @@ struct CompanionDetailView: View {
         let storyline = storylineText(companion)
         return Section {
             HeroPanel(
-                gradient: Palette.dossierGradient(companion.paletteIndex),
+                cover: .dossier(companion.paletteIndex),
                 cornerRadius: 26,
-                glow: Palette.avatarColors(companion.paletteIndex)[1],
                 padding: 18
             ) {
                 VStack(alignment: .leading, spacing: 16) {

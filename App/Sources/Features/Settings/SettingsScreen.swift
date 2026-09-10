@@ -151,7 +151,6 @@ struct SettingsScreen: View {
                     Text("App 锁")
                 } icon: {
                     Image(systemName: lock.biometrySymbol)
-                        .foregroundStyle(Palette.accent)
                 }
             }
             .onChange(of: app.settings.appLockEnabled) { _, enabled in
@@ -202,6 +201,7 @@ struct SettingsScreen: View {
         } footer: {
             Text("星图帮你记得住，不替你下判断，更不替代医生。")
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.coral))
     }
 
     // MARK: 触感
@@ -236,6 +236,7 @@ struct SettingsScreen: View {
         } footer: {
             Text("记一笔、切状态、打开版图和保存档案都有对应的原生触感。")
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.warning))
     }
 
     // MARK: 外观
@@ -258,6 +259,7 @@ struct SettingsScreen: View {
                 Label("地点光晕", systemImage: "sparkles")
             }
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.iris))
     }
 
     private var appearancePicker: some View {
@@ -302,6 +304,7 @@ struct SettingsScreen: View {
         } footer: {
             Text("\(app.companions.count) 个人 · \(app.encounters.count) 条记录 · \(app.stats.photoCount) 张照片。备份是明文 JSON，照片会一起打进去，请放在只有你能打开的地方。")
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.safe))
     }
 
     // MARK: 关于
@@ -319,6 +322,7 @@ struct SettingsScreen: View {
                 Label("关于星图", systemImage: "info.circle")
             }
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Color(uiColor: .systemGray)))
     }
 
     private func finishImport(replace: Bool) {

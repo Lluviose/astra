@@ -134,15 +134,8 @@ struct LockScreen: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.07, green: 0.08, blue: 0.15),
-                    Color(red: 0.15, green: 0.10, blue: 0.20),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            CoverBackground(style: .midnight)
+                .ignoresSafeArea()
 
             StarfieldBackground()
                 .ignoresSafeArea()
@@ -152,6 +145,7 @@ struct LockScreen: View {
                 Image(systemName: lock.biometrySymbol)
                     .font(.system(size: 46, weight: .light))
                     .foregroundStyle(.white)
+                    .symbolEffect(.pulse, options: .repeating, isActive: lock.isAuthenticating)
                     .frame(width: 104, height: 104)
                     .glassCircle()
 

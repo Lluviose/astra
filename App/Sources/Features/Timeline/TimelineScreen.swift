@@ -66,7 +66,17 @@ struct TimelineScreen: View {
                     if typeSize.isAccessibilitySize {
                         scopePicker.pickerStyle(.menu)
                     } else {
-                        scopePicker.pickerStyle(.segmented)
+                        PillPicker(
+                            options: RecordScope.allCases.map {
+                                PillOption(value: $0, title: $0.label, systemImage: $0.symbolName)
+                            },
+                            selection: $scope,
+                            scrollable: false,
+                            fillsWidth: true
+                        )
+                        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 6, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
                 }
 
@@ -346,6 +356,15 @@ private enum RecordScope: String, CaseIterable, Identifiable {
         case .hookedUp: "上床"
         case .missed: "没上"
         case .followUp: "跟进"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .all: "square.stack"
+        case .hookedUp: "flame.fill"
+        case .missed: "xmark.circle"
+        case .followUp: "checklist"
         }
     }
 

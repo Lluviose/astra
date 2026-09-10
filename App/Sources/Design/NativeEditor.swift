@@ -38,8 +38,7 @@ struct NativeEditorHeader: View {
                 Picker("切换步骤", selection: $selection) { stepOptions }
                     .pickerStyle(.segmented)
             }
-            ProgressView(value: Double(selection + 1), total: Double(steps.count))
-                .tint(Palette.accent)
+            StepMeter(count: steps.count, current: selection)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 20)
@@ -55,6 +54,28 @@ struct NativeEditorHeader: View {
         ForEach(steps.indices, id: \.self) { index in
             Text(steps[index].title).tag(index)
         }
+    }
+}
+
+/// One capsule per step; the completed ones fill with the accent.
+struct StepMeter: View {
+    let count: Int
+    let current: Int
+    var tint: Color = Palette.accent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<max(count, 1), id: \.self) { index in
+                ZStack {
+                    Capsule().fill(Color.primary.opacity(0.10))
+                    Capsule().fill(tint.gradient).opacity(index <= current ? 1 : 0)
+                }
+                .frame(height: 4)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .animation(AstraMotion.settle(reduceMotion: reduceMotion), value: current)
     }
 }
 

@@ -121,7 +121,15 @@ struct AvatarView: View {
         .overlay {
             if let ringColor {
                 Circle()
-                    .strokeBorder(ringColor, lineWidth: max(1.6, size * 0.05))
+                    .strokeBorder(
+                        AngularGradient(
+                            colors: [ringColor, ringColor.opacity(0.55), ringColor],
+                            center: .center,
+                            startAngle: .degrees(0),
+                            endAngle: .degrees(360)
+                        ),
+                        lineWidth: max(1.6, size * 0.05)
+                    )
                     .padding(-max(2.4, size * 0.06))
             }
         }
@@ -225,15 +233,281 @@ struct StageBadge: View {
     }
 }
 
+// MARK: - 分段胶囊选择器
+
+struct PillOption<Value: Hashable>: Identifiable {
+    let value: Value
+    let title: String
+    var systemImage: String? = nil
+    var detail: String? = nil
+    var tint: Color? = nil
+
+    var id: Value { value }
+}
+
+/// A row of capsules with one sliding, filled selection. Replaces tinted-chip pickers.
+struct PillPicker<Value: Hashable>: View {
+    let options: [PillOption<Value>]
+    @Binding var selection: Value
+    var tint: Color = Palette.accent
+    var scrollable = true
+    var fillsWidth = false
+    var cue: HapticCue = .selection
+
+    @Namespace private var namespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if scrollable {
+            ScrollView(.horizontal, showsIndicators: false) {
+                row
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollClipDisabled()
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
+        HStack(spacing: 6) {
+            ForEach(options) { option in
+                pill(option)
+            }
+        }
+        .frame(maxWidth: fillsWidth ? .infinity : nil)
+    }
+
+    private func pill(_ option: PillOption<Value>) -> some View {
+        let isOn = option.value == selection
+        let fill = option.tint ?? tint
+        return Button {
+            guard !isOn else { return }
+            withAnimation(AstraMotion.response(reduceMotion: reduceMotion)) {
+                selection = option.value
+            }
+        } label: {
+            HStack(spacing: 5) {
+                if let systemImage = option.systemImage {
+                    Image(systemName: systemImage)
+                        .font(.caption.weight(.semibold))
+                }
+                Text(option.title)
+                if let detail = option.detail {
+                    Text(detail)
+                        .font(.caption2.weight(.semibold).monospacedDigit())
+                        .opacity(0.72)
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .foregroundStyle(isOn ? Color.white : Color.primary)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 36)
+            .background {
+                if isOn {
+                    Capsule(style: .continuous)
+                        .fill(fill.gradient)
+                        .matchedGeometryEffect(id: "selection", in: namespace)
+                }
+            }
+            .background(Palette.surface, in: Capsule(style: .continuous))
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.primary.opacity(isOn ? 0 : 0.08), lineWidth: 0.5)
+            }
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(HapticButtonStyle(cue: cue, scale: 0.96))
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
+    }
+}
+
+// MARK: - 进度条
+
+/// A thin capsule meter with a springing fill and a small highlight at its tip.
+struct MeterBar: View {
+    var value: Double
+    var tint: Color = Palette.accent
+    var height: CGFloat = 6
+    var onDark = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var fraction: CGFloat {
+        let safe = value.isFinite ? value : 0
+        return CGFloat(min(max(safe, 0), 1))
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(onDark ? Color.white.opacity(0.16) : tint.opacity(0.12))
+                Capsule()
+                    .fill(onDark ? AnyShapeStyle(Color.white) : AnyShapeStyle(tint.gradient))
+                    .frame(width: max(fraction > 0 ? height : 0, proxy.size.width * fraction))
+                    .overlay(alignment: .trailing) {
+                        if fraction > 0, fraction < 1 {
+                            Circle()
+                                .fill(.white.opacity(onDark ? 0.9 : 0.6))
+                                .frame(width: max(2, height - 3), height: max(2, height - 3))
+                                .padding(.trailing, 1.5)
+                        }
+                    }
+            }
+        }
+        .frame(height: height)
+        .animation(AstraMotion.settle(reduceMotion: reduceMotion), value: fraction)
+        .accessibilityElement()
+        .accessibilityValue(Text("\(Int((Double(fraction) * 100).rounded()))%"))
+    }
+}
+
+// MARK: - 徽章
+
+/// A medallion for achievements: a tinted disc, a tier ring, and a lock when it is still dark.
+struct Medallion: View {
+    let systemImage: String
+    var tint: Color
+    var ring: Color
+    var size: CGFloat = 44
+    var isLit = true
+    /// Change this value to bounce the symbol once.
+    var bounceTrigger = 0
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isLit ? AnyShapeStyle(tint.opacity(0.16)) : AnyShapeStyle(Color.secondary.opacity(0.10)))
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [.white.opacity(isLit ? 0.30 : 0.10), .clear],
+                        center: UnitPoint(x: 0.35, y: 0.28),
+                        startRadius: 0,
+                        endRadius: size * 0.6
+                    )
+                )
+            Circle()
+                .strokeBorder(
+                    AngularGradient(
+                        colors: [
+                            ring.opacity(isLit ? 1 : 0.30),
+                            ring.opacity(isLit ? 0.45 : 0.14),
+                            ring.opacity(isLit ? 1 : 0.30),
+                        ],
+                        center: .center,
+                        startAngle: .degrees(0),
+                        endAngle: .degrees(360)
+                    ),
+                    lineWidth: max(1.2, size * 0.04)
+                )
+            Image(systemName: systemImage)
+                .font(.system(size: size * 0.40, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(isLit ? tint : Color.secondary)
+                .symbolEffect(.bounce, value: bounceTrigger)
+        }
+        .frame(width: size, height: size)
+        .overlay(alignment: .bottomTrailing) {
+            if !isLit {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: size * 0.22, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .padding(size * 0.07)
+                    .background(Palette.surface, in: Circle())
+                    .offset(x: size * 0.06, y: size * 0.06)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Hero 面板（首页 / 图鉴 / 成就册 / 排行共用）
+
+/// The mesh behind a cover. Only the overview cover drifts, at a low frame rate, and it pauses
+/// under Reduce Motion, Low Power Mode, or when the scene is not active.
+struct CoverBackground: View {
+    let style: CoverStyle
+    var watermark: String? = nil
+    var animated = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var drifts: Bool {
+        animated && !reduceMotion && scenePhase == .active && !ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            if drifts {
+                TimelineView(.animation(minimumInterval: 1.0 / 20)) { context in
+                    mesh(phase: context.date.timeIntervalSinceReferenceDate)
+                }
+            } else {
+                mesh(phase: 0)
+            }
+            decoration
+        }
+    }
+
+    private func mesh(phase: TimeInterval) -> some View {
+        let cycle = phase.truncatingRemainder(dividingBy: 14) / 14 * 2 * Double.pi
+        let dx = Float(sin(cycle)) * 0.07
+        let dy = Float(cos(cycle * 0.8)) * 0.06
+        return MeshGradient(
+            width: 3,
+            height: 3,
+            points: [
+                [0, 0], [0.5, 0], [1, 0],
+                [0, 0.5], [0.5 + dx, 0.5 + dy], [1, 0.5],
+                [0, 1], [0.5, 1], [1, 1],
+            ],
+            colors: style.meshColors,
+            smoothsColors: true
+        )
+    }
+
+    private var decoration: some View {
+        ZStack(alignment: .topTrailing) {
+            RadialGradient(
+                colors: [.white.opacity(0.10), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 320
+            )
+            ZStack {
+                Circle().strokeBorder(.white.opacity(0.09), lineWidth: 0.75)
+                Circle().strokeBorder(.white.opacity(0.05), lineWidth: 0.75).padding(28)
+                Circle()
+                    .fill(.white.opacity(0.4))
+                    .frame(width: 4, height: 4)
+                    .offset(y: -110)
+                if let watermark {
+                    Image(systemName: watermark)
+                        .font(.system(size: 66, weight: .ultraLight))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.white.opacity(0.07))
+                }
+            }
+            .frame(width: 220, height: 220)
+            .offset(x: 70, y: -100)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
 
 /// A single quiet cover anchors each page; decorative rings stay behind content.
 struct HeroPanel<Content: View>: View {
-    var gradient: LinearGradient = Palette.heroGradient
-    var cornerRadius: CGFloat = 30
-    var glow: Color = Palette.midnight
+    var cover: CoverStyle = .midnight
+    var cornerRadius: CGFloat = AstraLayout.coverRadius
     var watermark: String? = nil
     var padding: CGFloat = 24
+    var animated = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -242,38 +516,19 @@ struct HeroPanel<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(padding)
             .background {
-                ZStack(alignment: .topTrailing) {
-                    gradient
-                    decoration
-                }
+                CoverBackground(style: cover, watermark: watermark, animated: animated)
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.24), .white.opacity(0.04)],
+                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.26), .white.opacity(0.04)],
                                                  startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 0.75)
                     .allowsHitTesting(false)
             }
-            .shadow(color: glow.opacity(0.12), radius: 20, y: 10)
+            .shadow(color: cover.glow.opacity(0.22), radius: 22, y: 12)
+            .shadow(color: .black.opacity(0.06), radius: 1, y: 0.5)
             .environment(\.colorScheme, .dark)
             .accessibilityElement(children: .contain)
-    }
-
-    private var decoration: some View {
-        ZStack {
-            Circle().strokeBorder(.white.opacity(0.08), lineWidth: 0.75)
-            Circle().strokeBorder(.white.opacity(0.05), lineWidth: 0.75).padding(28)
-            if let watermark {
-                Image(systemName: watermark)
-                    .font(.system(size: 66, weight: .ultraLight))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.white.opacity(0.07))
-            }
-        }
-        .frame(width: 220, height: 220)
-        .offset(x: 70, y: -100)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }
 
@@ -299,6 +554,10 @@ struct HeroMetric: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(11)
         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(.white.opacity(0.06), lineWidth: 0.5)
+        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -349,6 +608,34 @@ struct HeroButtonLabel: View {
             .padding(.vertical, 5)
             .heroGlass(cornerRadius: 18, prominent: prominent)
             .foregroundStyle(prominent ? Palette.accentDeep : .white)
+    }
+}
+
+/// A full-width action on a light surface: filled for the primary, tinted for the secondary.
+struct SurfaceButtonLabel: View {
+    let title: String
+    let systemImage: String
+    var prominent: Bool = false
+    var tint: Color = Palette.accent
+
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 16, style: .continuous) }
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .padding(.horizontal, 12)
+            .foregroundStyle(prominent ? Color.white : tint)
+            .background {
+                if prominent {
+                    shape.fill(tint.gradient)
+                } else {
+                    shape.fill(tint.opacity(0.10))
+                }
+            }
+            .contentShape(shape)
     }
 }
 
@@ -451,10 +738,11 @@ struct EntryTile: View {
             HStack(alignment: .top) {
                 SymbolTile(systemImage: systemImage, tint: tint, size: 46)
                 Spacer(minLength: 0)
-                Image(systemName: "arrow.up.right")
-                    .font(.caption2.weight(.semibold))
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(.tertiary)
-                    .padding(6)
+                    .frame(width: 24, height: 24)
+                    .background(Color.primary.opacity(0.05), in: Circle())
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 6) {
@@ -470,6 +758,15 @@ struct EntryTile: View {
         }
         .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
         .padding(18)
+        .background(alignment: .topLeading) {
+            RadialGradient(
+                colors: [tint.opacity(0.10), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 150
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AstraLayout.cardRadius, style: .continuous))
+        }
         .contentSurface()
         .contentShape(RoundedRectangle(cornerRadius: AstraLayout.cardRadius, style: .continuous))
         .accessibilityElement(children: .combine)
@@ -484,6 +781,7 @@ struct InsightBarRow: View {
     var tint: Color = Palette.coral
     var systemImage: String?
     var trailing: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -501,16 +799,9 @@ struct InsightBarRow: View {
                     .font(.subheadline.weight(.bold))
                     .monospacedDigit()
                     .foregroundStyle(tint)
+                    .contentTransition(reduceMotion ? .opacity : .numericText())
             }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(tint.opacity(0.12))
-                    Capsule()
-                        .fill(tint.gradient)
-                        .frame(width: max(6, proxy.size.width * CGFloat(count) / CGFloat(max(peak, 1))))
-                }
-            }
-            .frame(height: 7)
+            MeterBar(value: Double(count) / Double(max(peak, 1)), tint: tint, height: 7)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(trailing ?? "\(count)")")
@@ -537,8 +828,9 @@ struct StatTile: View {
             .foregroundStyle(.secondary)
 
             Text(value)
-                .font(.title2.weight(.bold))
+                .font(.system(.title2, design: .rounded).weight(.bold))
                 .foregroundStyle(tint)
+                .monospacedDigit()
                 .contentTransition(reduceMotion ? .opacity : .numericText())
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
@@ -565,10 +857,11 @@ struct EmptyStateView: View {
     let message: String
     var actionTitle: String?
     var action: (() -> Void)?
+    @State private var bounce = 0
 
     var body: some View {
         VStack(spacing: 12) {
-            SymbolTile(systemImage: symbol, size: 68)
+            SymbolTile(systemImage: symbol, size: 68, bounceTrigger: bounce)
                 .padding(.bottom, 8)
             Text(title).font(.title3.weight(.semibold))
             Text(message)
@@ -589,6 +882,10 @@ struct EmptyStateView: View {
         .padding(.horizontal, 32)
         .padding(.vertical, 48)
         .frame(maxWidth: .infinity)
+        .task {
+            try? await Task.sleep(for: .milliseconds(260))
+            bounce += 1
+        }
     }
 }
 
@@ -628,4 +925,3 @@ struct GlassIconButton: View {
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 }
-

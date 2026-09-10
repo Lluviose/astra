@@ -4,33 +4,39 @@ struct ScoreRing: View {
     let score: Int
     var size: CGFloat = 56
     var showsLabel: Bool = true
+    @State private var revealed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var progress: CGFloat {
         CGFloat(min(max(score, 0), 100)) / 100
     }
 
+    private var lineWidth: CGFloat { max(5, size * 0.09) }
+
     var body: some View {
         ZStack {
             Circle()
-                .stroke(.white.opacity(0.14), lineWidth: max(5, size * 0.09))
+                .stroke(.white.opacity(0.14), lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: progress)
+                .trim(from: 0, to: revealed ? progress : 0)
                 .stroke(
-                    LinearGradient(
-                        colors: [Color.white, Color(red: 1, green: 0.58, blue: 0.72)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                    AngularGradient(
+                        colors: [Color.white, Color(red: 1, green: 0.58, blue: 0.72), Color.white],
+                        center: .center,
+                        startAngle: .degrees(0),
+                        endAngle: .degrees(360)
                     ),
-                    style: StrokeStyle(lineWidth: max(5, size * 0.09), lineCap: .round)
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
+                .shadow(color: .white.opacity(0.25), radius: 3)
 
             if showsLabel {
                 VStack(spacing: -2) {
                     Text("\(score)")
                         .font(.system(size: size * 0.30, weight: .heavy, design: .rounded))
                         .monospacedDigit()
-                        .contentTransition(.numericText())
+                        .contentTransition(reduceMotion ? .opacity : .numericText())
                     Text("分")
                         .font(.system(size: size * 0.13, weight: .semibold))
                         .opacity(0.64)
@@ -38,6 +44,13 @@ struct ScoreRing: View {
             }
         }
         .frame(width: size, height: size)
+        .animation(AstraMotion.settle(reduceMotion: reduceMotion), value: progress)
+        .onAppear {
+            guard !revealed else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.8, dampingFraction: 0.86).delay(0.1)) {
+                revealed = true
+            }
+        }
         .accessibilityLabel("综合评分 \(score) 分")
     }
 }
@@ -148,8 +161,7 @@ struct CompanionScoreSummaryView: View {
                                 .font(.caption.weight(.bold))
                                 .monospacedDigit()
                         }
-                        ProgressView(value: Double(value), total: 10)
-                            .tint(dimension.tint)
+                        MeterBar(value: Double(value) / 10, tint: dimension.tint, height: 5)
                     }
                 }
             }
@@ -206,7 +218,7 @@ struct CompanionScoreEditor: View {
     }
 
     private var hero: some View {
-        HeroPanel(cornerRadius: 26, glow: Palette.coral, padding: 18) {
+        HeroPanel(cover: .velvet, cornerRadius: 26, padding: 18) {
         HStack(spacing: 18) {
             ScoreRing(score: scorecard.overallScore, size: 82)
 

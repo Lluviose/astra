@@ -12,6 +12,8 @@ struct HomeScreen: View {
     @State private var showMap = false
     @State private var quickLogTarget: Companion?
     @State private var followUpTarget: Encounter?
+    /// Overscroll distance at the top of the page; drives the cover stretch and the mark's spin.
+    @State private var pull: CGFloat = 0
 
     /// 快速记一笔条：最近互动过的人排前面。
     private var quickLogCompanions: [Companion] {
@@ -54,25 +56,32 @@ struct HomeScreen: View {
                         overviewHeading
                             .entranceMotion()
                         hero
+                            .coverStretch(pull: pull)
                             .entranceMotion(delay: 0.04)
 
                         if !quickLogCompanions.isEmpty {
                             quickLogStrip
+                                .scrollReveal()
                         }
 
                         if !app.pendingFollowUps.isEmpty || !app.needsAttention.isEmpty {
                             todoCard
+                                .scrollReveal()
                         }
 
                         entryGrid
                             .entranceMotion(delay: 0.08)
+                            .scrollReveal()
 
                         focusCard
+                            .scrollReveal()
 
                         safetyCard
+                            .scrollReveal()
 
                         if !recentEncounters.isEmpty {
                             recordsCard
+                                .scrollReveal()
                         }
                     }
                     .padding(.horizontal, AstraLayout.pageInset)
@@ -80,6 +89,11 @@ struct HomeScreen: View {
                     .padding(.bottom, 32)
                     .frame(maxWidth: AstraLayout.contentWidth)
                     .frame(maxWidth: .infinity)
+                }
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    max(0, -(geometry.contentOffset.y + geometry.contentInsets.top))
+                } action: { _, newValue in
+                    pull = newValue
                 }
             }
             .navigationTitle("星图")
@@ -150,7 +164,9 @@ struct HomeScreen: View {
             }
             Spacer(minLength: 0)
             if !typeSize.isAccessibilitySize {
-                AstraMark(size: 52).foregroundStyle(Palette.accent)
+                AstraMark(size: 52)
+                    .foregroundStyle(Palette.accent)
+                    .rotationEffect(.degrees(reduceMotion ? 0 : Double(min(pull, 160)) * 0.5))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -163,8 +179,8 @@ struct HomeScreen: View {
 
     private var hero: some View {
         let rank = app.royalRank
-        return HeroPanel {
-            VStack(alignment: .leading, spacing: 24) {
+        return HeroPanel(animated: true) {
+            VStack(alignment: .leading, spacing: 22) {
                 ViewThatFits(in: .horizontal) {
                     HStack {
                         HeroBadge(title: "只在这台手机上")
@@ -185,6 +201,22 @@ struct HomeScreen: View {
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.78))
                         .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    MeterBar(value: rank.progressInBand, tint: Palette.gold, height: 5, onDark: true)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(rank.nextRankText)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        if let next = rank.nextThreshold {
+                            Text("\(rank.unlockedCount) / \(next)")
+                                .monospacedDigit()
+                                .contentTransition(reduceMotion ? .opacity : .numericText())
+                        }
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.70))
                 }
 
                 LazyVGrid(columns: metricColumns, alignment: .leading, spacing: 8) {
@@ -297,72 +329,77 @@ struct HomeScreen: View {
     @ViewBuilder
     private var focusCard: some View {
         if let companion = focusCompanion {
-            HeroPanel(gradient: Palette.velvetGradient, cornerRadius: 26, glow: Palette.coral, padding: 18) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Label(focusKicker, systemImage: "sparkles")
-                            .font(.caption.weight(.bold))
-                        Spacer()
-                        Label("按你的记录", systemImage: "lock.fill")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-
-                    HStack(spacing: 14) {
-                        AvatarView(companion: companion, size: 58)
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            MaskedName(
-                                name: companion.displayName,
-                                revealed: app.namesRevealed,
-                                font: .title3.weight(.bold)
-                            )
-                            Text(focusHeadline(for: companion))
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.76))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-
-                    FlowLayout(spacing: 8, lineSpacing: 8) {
-                        focusPill(companion.stage.label, symbol: companion.stage.symbolName)
-                        if companion.overallScore > 0 {
-                            focusPill("综合 \(companion.overallScore)", symbol: "crown.fill")
-                        }
-                        focusPill("上床 \(app.hookupCount(for: companion.id))", symbol: "flame.fill")
-                        let photoCount = app.albumIDs(for: companion.id).count
-                        if photoCount > 0 {
-                            focusPill("私藏 \(photoCount)", symbol: "photo.fill")
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("升温轨迹")
-                            Spacer()
-                            Text(focusRecency(for: companion))
-                        }
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label(focusKicker, systemImage: "sparkles")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Palette.coral)
+                    Spacer()
+                    Label("按你的记录", systemImage: "lock.fill")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.68))
+                        .foregroundStyle(.tertiary)
+                }
 
-                        ProgressView(value: Double(companion.stage.weight), total: 7)
-                            .tint(.white)
+                HStack(spacing: 14) {
+                    AvatarView(companion: companion, size: 60)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        MaskedName(
+                            name: companion.displayName,
+                            revealed: app.namesRevealed,
+                            font: .title3.weight(.bold)
+                        )
+                        Text(focusHeadline(for: companion))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    HStack(spacing: 10) {
-                        NavigationLink(value: companion.id) {
-                            HeroButtonLabel(title: "打开档案", systemImage: "book.pages.fill")
-                        }
-                        .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
+                    Spacer(minLength: 0)
+                }
 
-                        HeroButton(title: "记录结果", systemImage: "plus.circle.fill", prominent: true, cue: .waveSent) {
-                            quickLogTarget = companion
-                        }
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    TagLabel(title: companion.stage.label, systemImage: companion.stage.symbolName, tint: companion.stage.tint)
+                    if companion.overallScore > 0 {
+                        TagLabel(title: "综合 \(companion.overallScore)", systemImage: "crown.fill", tint: Palette.goldDeep)
+                    }
+                    TagLabel(title: "上床 \(app.hookupCount(for: companion.id))", systemImage: "flame.fill", tint: Palette.coral)
+                    let photoCount = app.albumIDs(for: companion.id).count
+                    if photoCount > 0 {
+                        TagLabel(title: "私藏 \(photoCount)", systemImage: "photo.fill", tint: Palette.accent)
                     }
                 }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack {
+                        Text("升温轨迹")
+                        Spacer()
+                        Text(focusRecency(for: companion))
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                    MeterBar(value: Double(companion.stage.weight) / 7, tint: companion.stage.tint, height: 5)
+                }
+
+                HStack(spacing: 10) {
+                    NavigationLink(value: companion.id) {
+                        SurfaceButtonLabel(title: "打开档案", systemImage: "book.pages.fill")
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
+
+                    Button {
+                        quickLogTarget = companion
+                    } label: {
+                        SurfaceButtonLabel(title: "记录结果", systemImage: "plus.circle.fill", prominent: true)
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .waveSent, scale: 0.97))
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background { focusAura(for: companion) }
+            .contentSurface()
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 Label("下一次，从一个名字开始", systemImage: "sparkles")
@@ -375,19 +412,34 @@ struct HomeScreen: View {
                 Button {
                     flow.beginAddingCompanion(app: app)
                 } label: {
-                    Label("加第一个人", systemImage: "person.badge.plus")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(Palette.accentDeep.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .foregroundStyle(.white)
+                    SurfaceButtonLabel(title: "加第一个人", systemImage: "person.badge.plus", prominent: true)
                 }
                 .buttonStyle(HapticButtonStyle(cue: .mediumTap, scale: 0.97))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
+            .padding(18)
             .contentSurface()
         }
+    }
+
+    /// Her own palette, faded into the corners of the card.
+    private func focusAura(for companion: Companion) -> some View {
+        let colors = Palette.avatarColors(companion.paletteIndex)
+        return ZStack {
+            RadialGradient(
+                colors: [colors[0].opacity(0.20), .clear],
+                center: UnitPoint(x: 0.1, y: 0.2),
+                startRadius: 0,
+                endRadius: 240
+            )
+            RadialGradient(
+                colors: [colors[1].opacity(0.14), .clear],
+                center: UnitPoint(x: 0.95, y: 0.05),
+                startRadius: 0,
+                endRadius: 200
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AstraLayout.cardRadius, style: .continuous))
     }
 
     private var focusKicker: String {
@@ -415,16 +467,6 @@ struct HomeScreen: View {
             return "上次上床 \(Format.relativeDay(last.date))"
         }
         return "最近互动 \(Format.relativeDay(app.lastContact(for: companion)))"
-    }
-
-    private func focusPill(_ title: String, symbol: String) -> some View {
-        Label(title, systemImage: symbol)
-            .font(.caption2.weight(.semibold))
-            .lineLimit(1)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(.black.opacity(0.16), in: Capsule())
-            .foregroundStyle(.white.opacity(0.84))
     }
 
     // MARK: - 待处理
