@@ -125,3 +125,108 @@ struct InsightFigure: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+/// 一天四段的上床分布：柱子上标数字，轴上带时段图标与钟点。
+struct DayPartChart: View {
+    let items: [EncounterInsights.Count<EncounterInsights.DayPart>]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var labels: [String] { items.map(\.item.label) }
+    private var peak: Double { Double(max(1, items.map(\.count).max() ?? 1)) }
+
+    var body: some View {
+        Chart {
+            ForEach(items) { entry in
+                BarMark(
+                    x: .value("时段", entry.item.label),
+                    y: .value("次数", Double(entry.count)),
+                    width: .ratio(0.55)
+                )
+                .foregroundStyle(Palette.accent.gradient)
+                .cornerRadius(5)
+                .opacity(entry.count > 0 ? 1 : 0.18)
+                .annotation(position: .top, spacing: 4) {
+                    Text("\(entry.count)")
+                        .font(.caption.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(entry.count > 0 ? Palette.accent : Color.secondary)
+                }
+            }
+        }
+        .chartXScale(domain: labels)
+        .chartYScale(domain: 0...peak)
+        .chartYAxis(.hidden)
+        .chartXAxis {
+            AxisMarks { value in
+                AxisValueLabel(centered: true) {
+                    if let label = value.as(String.self),
+                       let part = EncounterInsights.DayPart.allCases.first(where: { $0.label == label }) {
+                        VStack(spacing: 3) {
+                            Image(systemName: part.symbolName)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(part.label)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text(part.hoursLabel)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(height: 150)
+        .animation(AstraMotion.response(reduceMotion: reduceMotion), value: items.map(\.count))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(items.map { "\($0.item.label) \($0.count) 次" }.joined(separator: "，"))
+    }
+}
+
+/// 周几的上床分布。
+struct WeekdayChart: View {
+    let items: [EncounterInsights.Count<Int>]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var labels: [String] { items.map { EncounterInsights.weekdayLabel($0.item) } }
+    private var peak: Double { Double(max(1, items.map(\.count).max() ?? 1)) }
+
+    var body: some View {
+        Chart {
+            ForEach(items) { entry in
+                BarMark(
+                    x: .value("周几", EncounterInsights.weekdayLabel(entry.item)),
+                    y: .value("次数", Double(entry.count)),
+                    width: .ratio(0.5)
+                )
+                .foregroundStyle(Palette.coral.gradient)
+                .cornerRadius(4)
+                .opacity(entry.count > 0 ? 1 : 0.18)
+                .annotation(position: .top, spacing: 3) {
+                    if entry.count > 0 {
+                        Text("\(entry.count)")
+                            .font(.caption2.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Palette.coral)
+                    }
+                }
+            }
+        }
+        .chartXScale(domain: labels)
+        .chartYScale(domain: 0...peak)
+        .chartYAxis(.hidden)
+        .chartXAxis {
+            AxisMarks { _ in
+                AxisValueLabel(centered: true)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+        .frame(height: 96)
+        .animation(AstraMotion.response(reduceMotion: reduceMotion), value: items.map(\.count))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            items.map { "\(EncounterInsights.weekdayLabel($0.item)) \($0.count) 次" }.joined(separator: "，")
+        )
+    }
+}

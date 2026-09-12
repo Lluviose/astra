@@ -285,11 +285,35 @@ struct HomeScreen: View {
     // MARK: - 快速记一笔
 
     private var quickLogStrip: some View {
-        SectionCard("快速记录", systemImage: "square.and.pencil", tint: Palette.accent) {
-            Text("最近的人")
-        } content: {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading("快速记录", subtitle: "点头像，两步记下这次")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
+                    Button {
+                        flow.beginAddingCompanion(app: app)
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Palette.accent)
+                                .frame(width: 54, height: 54)
+                                .background(Palette.accent.opacity(0.10), in: Circle())
+                                .overlay {
+                                    Circle().strokeBorder(
+                                        Palette.accent.opacity(0.4),
+                                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                                    )
+                                }
+                            Text("新的人")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Palette.accent)
+                                .frame(width: 62)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.94))
+                    .accessibilityLabel("加个人")
+
                     ForEach(quickLogCompanions) { companion in
                         Button {
                             quickLogTarget = companion
@@ -308,8 +332,10 @@ struct HomeScreen: View {
                         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.94))
                     }
                 }
-                .padding(.vertical, 2)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
             }
+            .contentSurface(cornerRadius: 22)
         }
     }
 
@@ -520,7 +546,9 @@ struct HomeScreen: View {
         let rank = app.royalRank
         let next = AchievementCatalog.nextUp(in: app.achievements, limit: 1).first
         let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: typeSize.isAccessibilitySize ? 1 : 2)
-        return LazyVGrid(columns: columns, spacing: 14) {
+        return VStack(alignment: .leading, spacing: 12) {
+            SectionHeading("探索", subtitle: "图鉴、成就、统计与版图")
+            LazyVGrid(columns: columns, spacing: 14) {
             NavigationLink {
                 HaremGalleryScreen()
             } label: {
@@ -573,6 +601,7 @@ struct HomeScreen: View {
                 )
             }
             .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
+            }
         }
     }
 

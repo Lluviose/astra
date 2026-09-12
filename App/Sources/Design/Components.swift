@@ -641,6 +641,46 @@ struct SurfaceButtonLabel: View {
 
 // MARK: - 玻璃卡片区块
 
+/// A bare heading above a group of cards, in the style of the system summary pages.
+struct SectionHeading<Accessory: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var accessory: () -> Accessory
+
+    init(_ title: String, subtitle: String? = nil, @ViewBuilder accessory: @escaping () -> Accessory) {
+        self.title = title
+        self.subtitle = subtitle
+        self.accessory = accessory
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .accessibilityAddTraits(.isHeader)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+            accessory()
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.accent)
+        }
+        .padding(.horizontal, 4)
+    }
+}
+
+extension SectionHeading where Accessory == EmptyView {
+    init(_ title: String, subtitle: String? = nil) {
+        self.init(title, subtitle: subtitle, accessory: { EmptyView() })
+    }
+}
+
 /// A legible grouped content card with a consistent symbol and heading hierarchy.
 struct SectionCard<Content: View, Trailing: View>: View {
     let title: String
