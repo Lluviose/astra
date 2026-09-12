@@ -28,6 +28,7 @@ struct SettingsScreen: View {
 
     @Environment(AppState.self) private var app
     @Environment(AppLock.self) private var lock
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var isExporting = false
     @State private var exportDocument: BackupDocument?
@@ -42,13 +43,16 @@ struct SettingsScreen: View {
     var body: some View {
         NavigationStack {
             Form {
+                identitySection
                 privacySection
-                principlesSection
-                hapticsSection
                 appearanceSection
+                hapticsSection
                 dataSection
+                principlesSection
                 aboutSection
             }
+            .labelStyle(SettingsIconLabelStyle())
+            .astraListBackground()
             .navigationTitle("设置")
         }
         .fileExporter(
@@ -117,6 +121,27 @@ struct SettingsScreen: View {
         }
     }
 
+    private var identitySection: some View {
+        Section {
+            HStack(spacing: 18) {
+                AstraMark(size: 58)
+                    .foregroundStyle(Palette.accent)
+                    .padding(10)
+                    .contentSurface(cornerRadius: 24)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("星图").font(.title2.weight(.semibold))
+                    Text("你的记录，只属于你")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Text("版本 \(Bundle.main.appVersion)")
+                        .font(.caption).foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.vertical, 12)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
+        }
+    }
+
     // MARK: 隐私
 
     private var privacySection: some View {
@@ -126,7 +151,6 @@ struct SettingsScreen: View {
                     Text("App 锁")
                 } icon: {
                     Image(systemName: lock.biometrySymbol)
-                        .foregroundStyle(Palette.accent)
                 }
             }
             .onChange(of: app.settings.appLockEnabled) { _, enabled in
@@ -177,6 +201,7 @@ struct SettingsScreen: View {
         } footer: {
             Text("星图帮你记得住，不替你下判断，更不替代医生。")
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.coral))
     }
 
     // MARK: 触感
@@ -211,18 +236,18 @@ struct SettingsScreen: View {
         } footer: {
             Text("记一笔、切状态、打开版图和保存档案都有对应的原生触感。")
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.warning))
     }
 
     // MARK: 外观
 
     private var appearanceSection: some View {
         Section("外观") {
-            Picker("外观", selection: app.settingsBinding(\.appearance)) {
-                ForEach(AppearancePreference.allCases) { preference in
-                    Text(preference.label).tag(preference)
-                }
+            if typeSize.isAccessibilitySize {
+                appearancePicker.pickerStyle(.menu)
+            } else {
+                appearancePicker.pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
 
             Picker("地图样式", selection: app.settingsBinding(\.mapSkin)) {
                 ForEach(MapSkin.allCases) { skin in
@@ -232,6 +257,15 @@ struct SettingsScreen: View {
 
             Toggle(isOn: app.settingsBinding(\.showHeatGlow)) {
                 Label("地点光晕", systemImage: "sparkles")
+            }
+        }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.iris))
+    }
+
+    private var appearancePicker: some View {
+        Picker("外观", selection: app.settingsBinding(\.appearance)) {
+            ForEach(AppearancePreference.allCases) { preference in
+                Text(preference.label).tag(preference)
             }
         }
     }
@@ -270,6 +304,7 @@ struct SettingsScreen: View {
         } footer: {
             Text("\(app.companions.count) 个人 · \(app.encounters.count) 条记录 · \(app.stats.photoCount) 张照片。备份是明文 JSON，照片会一起打进去，请放在只有你能打开的地方。")
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Palette.safe))
     }
 
     // MARK: 关于
@@ -287,6 +322,7 @@ struct SettingsScreen: View {
                 Label("关于星图", systemImage: "info.circle")
             }
         }
+        .labelStyle(SettingsIconLabelStyle(tint: Color(uiColor: .systemGray)))
     }
 
     private func finishImport(replace: Bool) {
@@ -307,11 +343,8 @@ struct AboutView: View {
         List {
             Section {
                 VStack(spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 34, weight: .light))
+                    AstraMark(size: 76)
                         .foregroundStyle(Palette.accent)
-                        .frame(width: 76, height: 76)
-                        .glassCircle()
 
                     Text("星图")
                         .font(.title2.weight(.bold))
@@ -439,3 +472,4 @@ private extension Bundle {
         return "\(short) (\(build))"
     }
 }
+

@@ -97,7 +97,9 @@ struct RankingScreen: View {
                     rankingList
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -125,21 +127,14 @@ struct RankingScreen: View {
     }
 
     private var cover: some View {
-        HeroPanel(cornerRadius: 28, watermark: "crown.fill") {
+        HeroPanel(cover: .gilded, cornerRadius: 28, watermark: "crown.fill") {
             HStack(spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(.white.opacity(0.13))
-                        .frame(width: 72, height: 72)
-                    Image(systemName: "crown.fill")
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(Palette.gold)
-                }
+                Medallion(systemImage: "crown.fill", tint: Palette.gold, ring: Palette.gold, size: 72)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("你的私密榜单")
                         .font(.title2.weight(.bold))
-                    Text("只按你留下的分数和次数在本机排，(ranked.count) 人上榜。")
+                    Text("只按你留下的分数和次数在本机排，\(ranked.count) 人上榜。")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.72))
                 }
@@ -155,29 +150,12 @@ struct RankingScreen: View {
     }
 
     private var metricPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(CompanionRankingMetric.allCases) { item in
-                    Button {
-                        metric = item
-                    } label: {
-                        Label(item.label, systemImage: item.symbolName)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(metric == item ? .white : Color.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background {
-                                if metric == item {
-                                    Capsule().fill(item.tint.gradient)
-                                }
-                            }
-                            .glassCapsule(interactive: true, shadowRadius: 6)
-                    }
-                    .buttonStyle(HapticButtonStyle(cue: .selection, scale: 0.96))
-                }
-            }
-            .padding(.vertical, 2)
-        }
+        PillPicker(
+            options: CompanionRankingMetric.allCases.map { item in
+                PillOption(value: item, title: item.label, systemImage: item.symbolName, tint: item.tint)
+            },
+            selection: $metric
+        )
     }
 
     private var podium: some View {
@@ -198,6 +176,7 @@ struct RankingScreen: View {
                         podiumCard(companion, rank: index + 1)
                     }
                     .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.96))
+                    .entranceMotion(delay: AstraMotion.stagger(index, step: 0.06))
                 }
             }
         }
@@ -230,7 +209,7 @@ struct RankingScreen: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, rank == 1 ? 16 : 13)
         .padding(.horizontal, 6)
-        .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+        .contentSurface(cornerRadius: 20)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
@@ -257,7 +236,7 @@ struct RankingScreen: View {
                 }
             }
             .padding(.horizontal, 14)
-            .glassCard(cornerRadius: 22, shadowRadius: 9)
+            .contentSurface(cornerRadius: 22)
         }
     }
 
@@ -307,5 +286,6 @@ private struct RankingRow: View {
         .contentShape(Rectangle())
     }
 }
+
 
 

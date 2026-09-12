@@ -18,7 +18,7 @@ struct InsightsScreen: View {
                         title: "还没有可统计的记录",
                         message: "记下几次上床或没上床，这里会自动算出上床率、套的情况、最常做的和最常约的时段。"
                     )
-                    .glassCard(cornerRadius: 24, shadowRadius: 10)
+                    .contentSurface(cornerRadius: 24)
                 } else {
                     trendCard
                     if insights.hookupCount > 0 {
@@ -33,7 +33,9 @@ struct InsightsScreen: View {
                     if insights.wantAgainRate != nil { meetAgainCard }
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -44,7 +46,7 @@ struct InsightsScreen: View {
     // MARK: 封面
 
     private var cover: some View {
-        HeroPanel(watermark: "chart.bar.xaxis") {
+        HeroPanel(cover: .tide, watermark: "chart.bar.xaxis") {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     HeroBadge(title: "只按你的记录算")
@@ -193,61 +195,17 @@ struct InsightsScreen: View {
     // MARK: 时段与节奏
 
     private var rhythmCard: some View {
-        let dayPeak = max(1, insights.dayParts.map(\.count).max() ?? 1)
-        let weekPeak = max(1, insights.weekdays.map(\.count).max() ?? 1)
-        return SectionCard("什么时候上", systemImage: "clock.fill", tint: Palette.accent) {
+        SectionCard("什么时候上", systemImage: "clock.fill", tint: Palette.accent) {
             if let part = insights.favoriteDayPart {
                 Text("偏爱\(part.label)")
             }
         } content: {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .bottom, spacing: 10) {
-                    ForEach(insights.dayParts) { item in
-                        VStack(spacing: 6) {
-                            Text("\(item.count)")
-                                .font(.caption.weight(.bold))
-                                .monospacedDigit()
-                                .foregroundStyle(item.count > 0 ? Palette.accent : .secondary)
-                            Capsule()
-                                .fill(Palette.accent.gradient)
-                                .frame(height: item.count > 0 ? max(10, CGFloat(item.count) / CGFloat(dayPeak) * 56) : 4)
-                                .opacity(item.count > 0 ? 1 : 0.18)
-                                .frame(maxWidth: .infinity)
-                            Image(systemName: item.item.symbolName)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(item.item.label)
-                                .font(.caption2.weight(.semibold))
-                            Text(item.item.hoursLabel)
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
+                DayPartChart(items: insights.dayParts)
 
                 Divider()
 
-                HStack(alignment: .bottom, spacing: 8) {
-                    ForEach(insights.weekdays) { item in
-                        VStack(spacing: 5) {
-                            Text("\(item.count)")
-                                .font(.caption2.weight(.semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(item.count > 0 ? Palette.coral : .secondary)
-                            Capsule()
-                                .fill(Palette.coral.gradient)
-                                .frame(width: 10, height: item.count > 0 ? max(8, CGFloat(item.count) / CGFloat(weekPeak) * 40) : 4)
-                                .opacity(item.count > 0 ? 1 : 0.18)
-                            Text(EncounterInsights.weekdayLabel(item.item))
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.6)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
+                WeekdayChart(items: insights.weekdays)
 
                 HStack(spacing: 12) {
                     InsightFigure(value: days(insights.daysSinceLastHookup), caption: "距上次上床")
@@ -386,3 +344,4 @@ struct InsightsScreen: View {
         return "\(value) 天"
     }
 }
+

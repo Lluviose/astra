@@ -78,6 +78,7 @@ enum AppTab: Hashable {
 }
 
 struct RootView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Environment(AppState.self) private var app
     @Environment(AppLock.self) private var lock
@@ -87,11 +88,11 @@ struct RootView: View {
     var body: some View {
         ZStack {
             TabView(selection: tabSelection) {
-                Tab("猎场", systemImage: "flame.fill", value: AppTab.home) {
+                Tab("星图", systemImage: "sparkles", value: AppTab.home) {
                     HomeScreen()
                 }
 
-                Tab("名册", systemImage: "person.2.fill", value: AppTab.roster) {
+                Tab("名册", systemImage: "person.2", value: AppTab.roster) {
                     RosterScreen()
                 }
                 .badge(app.needsAttention.count)
@@ -100,17 +101,18 @@ struct RootView: View {
                     TimelineScreen()
                 }
 
-                Tab("成就册", systemImage: "crown.fill", value: AppTab.achievements) {
+                Tab("成就册", systemImage: "crown", value: AppTab.achievements) {
                     NavigationStack {
                         AchievementsScreen()
                     }
                 }
                 .badge(app.unseenUnlockCount)
 
-                Tab("设置", systemImage: "gearshape.fill", value: AppTab.settings) {
+                Tab("设置", systemImage: "gearshape", value: AppTab.settings) {
                     SettingsScreen()
                 }
             }
+            .tabViewStyle(.sidebarAdaptable)
             .minimizableTabBar()
 
             if !lock.isConfigured {
@@ -141,7 +143,7 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.22), value: lock.isLocked)
         .animation(.easeInOut(duration: 0.12), value: lock.isObscured)
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.pendingUnlocks.isEmpty)
+        .animation(AstraMotion.response(reduceMotion: reduceMotion), value: app.pendingUnlocks.isEmpty)
     }
 
     /// 切换 Tab 时给一记轻反馈
@@ -155,3 +157,4 @@ struct RootView: View {
         )
     }
 }
+

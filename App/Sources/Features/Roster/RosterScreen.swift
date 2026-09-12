@@ -4,6 +4,7 @@ import SwiftUI
 struct RosterScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var flow = RecordingFlow()
     @State private var showFilter = false
@@ -24,6 +25,7 @@ struct RosterScreen: View {
                     rosterList
                 }
             }
+            .background(Palette.background.ignoresSafeArea())
             .navigationTitle("名册")
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
@@ -107,18 +109,17 @@ struct RosterScreen: View {
     private var rosterList: some View {
         List {
             Section {
-                HStack(spacing: 12) {
-                    digestChip("\(app.stats.activeCount)", "在册")
-                    digestChip("\(app.conqueredCompanions.count)", "上过")
-                    digestChip("\(app.stats.repeatGirlCount)", "回头客")
-                    digestChip("\(app.stats.cityCount)", "地点")
-                }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                .listRowBackground(Color.clear)
+                digestStrip
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
 
             Section {
-                HStack(spacing: 12) {
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: 14))
+                    : AnyLayout(HStackLayout(spacing: 14))
+                layout {
                     NavigationLink {
                         HaremGalleryScreen()
                     } label: {
@@ -225,6 +226,7 @@ struct RosterScreen: View {
             }
         }
         .listStyle(.insetGrouped)
+        .astraListBackground()
         .haptic(.selection, trigger: app.filter.activeConditionCount)
     }
 
@@ -237,16 +239,54 @@ struct RosterScreen: View {
         return "\(name) 综合 \(top.overallScore) 分领先"
     }
 
-    private func digestChip(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
+    private var digestCells: [(value: String, label: String, tint: Color)] {
+        [
+            ("\(app.stats.activeCount)", "在册", Palette.accent),
+            ("\(app.conqueredCompanions.count)", "上过", Palette.coral),
+            ("\(app.stats.repeatGirlCount)", "回头客", Palette.iris),
+            ("\(app.stats.cityCount)", "地点", Palette.safe),
+        ]
+    }
+
+    /// Four figures on one surface, separated by hairlines; stacks two-up at accessibility sizes.
+    @ViewBuilder
+    private var digestStrip: some View {
+        let cells = digestCells
+        if typeSize.isAccessibilitySize {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                ForEach(0..<cells.count, id: \.self) { index in
+                    digestChip(cells[index].value, cells[index].label, tint: cells[index].tint)
+                }
+            }
+            .padding(14)
+            .contentSurface(cornerRadius: 22)
+        } else {
+            HStack(spacing: 0) {
+                ForEach(0..<cells.count, id: \.self) { index in
+                    if index > 0 {
+                        Divider().frame(height: 28)
+                    }
+                    digestChip(cells[index].value, cells[index].label, tint: cells[index].tint)
+                }
+            }
+            .padding(.vertical, 14)
+            .contentSurface(cornerRadius: 22)
+        }
+    }
+
+    private func digestChip(_ value: String, _ label: String, tint: Color) -> some View {
+        VStack(spacing: 3) {
             Text(value)
-                .font(.headline.weight(.bold))
+                .font(.system(.title2, design: .rounded).weight(.semibold))
                 .monospacedDigit()
+                .foregroundStyle(tint)
+                .contentTransition(.numericText())
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -371,3 +411,4 @@ struct RosterFilterSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
+

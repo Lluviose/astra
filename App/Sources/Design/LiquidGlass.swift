@@ -26,6 +26,9 @@ enum LiquidGlass {
 // MARK: - 玻璃背景
 
 struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.colorScheme) private var colorScheme
     let shape: S
     var tint: Color?
     var interactive: Bool
@@ -35,15 +38,23 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            applyLiquidGlass(content)
+        if reduceTransparency || contrast == .increased {
+            content.background {
+                shape.fill(Palette.surface)
+                    .overlay { shape.fill(tint?.opacity(0.12) ?? .clear) }
+                    .overlay { shape.strokeBorder(Color.primary.opacity(0.24), lineWidth: 1) }
+            }
         } else {
+            #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                applyLiquidGlass(content)
+            } else {
+                fallbackBody(content)
+            }
+            #else
             fallbackBody(content)
+            #endif
         }
-        #else
-        fallbackBody(content)
-        #endif
     }
 
     #if compiler(>=6.2)
@@ -73,7 +84,7 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
     private var fallbackGlass: some View {
         let highlight = LinearGradient(
             colors: [
-                .white.opacity(strokeOpacity * 2.2),
+                .white.opacity(strokeOpacity * 1.8),
                 .white.opacity(strokeOpacity * 0.4),
             ],
             startPoint: .top,
@@ -85,7 +96,7 @@ struct LiquidGlassModifier<S: InsettableShape>: ViewModifier {
             .overlay { shape.fill(tint?.opacity(0.22) ?? .clear) }
             .overlay { shape.strokeBorder(highlight, lineWidth: 0.8) }
             .compositingGroup()
-            .shadow(color: .black.opacity(0.16), radius: shadowRadius, y: shadowRadius * 0.45)
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.16 : 0.06), radius: shadowRadius, y: shadowRadius * 0.35)
     }
 }
 
@@ -137,7 +148,7 @@ private struct GlassActionStyleModifier: ViewModifier {
             .padding(.vertical, 8)
             .background {
                 Capsule(style: .continuous)
-                    .fill(prominent ? AnyShapeStyle(Palette.accent.gradient) : AnyShapeStyle(Color.primary.opacity(0.10)))
+                    .fill(prominent ? AnyShapeStyle(Palette.accentDeep.gradient) : AnyShapeStyle(Color.primary.opacity(0.10)))
             }
             .foregroundStyle(prominent ? .white : Color.primary)
     }
@@ -145,11 +156,13 @@ private struct GlassActionStyleModifier: ViewModifier {
 
 /// iOS 26 上让 Tab Bar 随滚动收起，低版本忽略
 private struct MinimizableTabBarModifier: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ViewBuilder
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            content.tabBarMinimizeBehavior(.onScrollDown)
+            content.tabBarMinimizeBehavior(typeSize.isAccessibilitySize || reduceMotion ? .never : .onScrollDown)
         } else {
             content
         }
@@ -168,9 +181,9 @@ extension View {
         in shape: S,
         tint: Color? = nil,
         interactive: Bool = false,
-        fallback: Material = .ultraThinMaterial,
+        fallback: Material = .regularMaterial,
         strokeOpacity: Double = 0.18,
-        shadowRadius: CGFloat = 14
+        shadowRadius: CGFloat = 10
     ) -> some View {
         modifier(
             LiquidGlassModifier(
@@ -198,7 +211,7 @@ extension View {
         cornerRadius: CGFloat = 26,
         tint: Color? = nil,
         interactive: Bool = false,
-        shadowRadius: CGFloat = 18
+        shadowRadius: CGFloat = 12
     ) -> some View {
         liquidGlass(
             in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
@@ -229,6 +242,8 @@ extension View {
 }
 
 private struct HeroGlassModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
     let cornerRadius: CGFloat
     let prominent: Bool
 
@@ -238,12 +253,22 @@ private struct HeroGlassModifier: ViewModifier {
             content.background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.white)
             }
+        } else if reduceTransparency || contrast == .increased {
+            content.background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Palette.midnight)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(.white.opacity(0.45), lineWidth: 1)
+                    }
+            }
         } else if LiquidGlass.isAvailable {
             content.liquidGlass(
                 in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
                 interactive: true,
                 shadowRadius: 0
             )
+            .environment(\.colorScheme, .dark)
         } else {
             content.background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -256,3 +281,4 @@ private struct HeroGlassModifier: ViewModifier {
         }
     }
 }
+

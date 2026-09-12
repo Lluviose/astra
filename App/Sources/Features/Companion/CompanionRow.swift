@@ -23,6 +23,7 @@ struct CompanionRow: View {
     var showCity: Bool = true
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var isOverdue: Bool { app.isOverdue(companion) }
     private var intimateEncounters: [Encounter] {
@@ -30,11 +31,11 @@ struct CompanionRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 14) {
             AvatarView(companion: companion, size: 52)
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     MaskedName(name: companion.displayName, revealed: app.namesRevealed)
 
                     if companion.isPinned {
@@ -66,7 +67,7 @@ struct CompanionRow: View {
                     }
                 }
 
-                HStack(spacing: 6) {
+                FlowLayout(spacing: 6, lineSpacing: 6) {
                     StageBadge(stage: companion.stage)
                     if showCity {
                         Label(app.locationName(for: companion), systemImage: "mappin")
@@ -75,19 +76,29 @@ struct CompanionRow: View {
                             .labelStyle(.titleAndIcon)
                     }
                 }
+                if typeSize.isAccessibilitySize {
+                    scoreSummary
+                }
             }
 
-            Spacer(minLength: 6)
-
-            VStack(alignment: .trailing, spacing: 6) {
-                CompanionScoreBadge(score: companion.overallScore, compact: true)
-                Text(intimacySummary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: 6)
+                scoreSummary
+                    .multilineTextAlignment(.trailing)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 9)
         .contentShape(Rectangle())
+    }
+
+    private var scoreSummary: some View {
+        VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: 6) {
+            CompanionScoreBadge(score: companion.overallScore, compact: true)
+            Text(intimacySummary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var intimacySummary: String {
@@ -101,3 +112,4 @@ struct CompanionRow: View {
         return parts.joined(separator: " · ")
     }
 }
+

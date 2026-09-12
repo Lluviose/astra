@@ -17,11 +17,7 @@ struct NativeEditorHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Image(systemName: steps[selection].symbol)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Palette.accent)
-                    .frame(width: 42, height: 42)
-                    .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                SymbolTile(systemImage: steps[selection].symbol, size: 44)
                     .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(steps[selection].title).font(.headline)
@@ -42,14 +38,16 @@ struct NativeEditorHeader: View {
                 Picker("切换步骤", selection: $selection) { stepOptions }
                     .pickerStyle(.segmented)
             }
-            ProgressView(value: Double(selection + 1), total: Double(steps.count))
-                .tint(Palette.accent)
+            StepMeter(count: steps.count, current: selection)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 12)
-        .background(.regularMaterial)
+        .background(Palette.background)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 0.5)
+        }
     }
 
     private var stepOptions: some View {
@@ -59,9 +57,31 @@ struct NativeEditorHeader: View {
     }
 }
 
+/// One capsule per step; the completed ones fill with the accent.
+struct StepMeter: View {
+    let count: Int
+    let current: Int
+    var tint: Color = Palette.accent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<max(count, 1), id: \.self) { index in
+                ZStack {
+                    Capsule().fill(Color.primary.opacity(0.10))
+                    Capsule().fill(tint.gradient).opacity(index <= current ? 1 : 0)
+                }
+                .frame(height: 4)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .animation(AstraMotion.settle(reduceMotion: reduceMotion), value: current)
+    }
+}
+
 enum NativeEditorMotion {
     static func animation(reduceMotion: Bool) -> Animation {
-        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.46, dampingFraction: 0.88)
+        AstraMotion.response(reduceMotion: reduceMotion)
     }
 
     static func transition(forward: Bool, reduceMotion: Bool) -> AnyTransition {
@@ -139,14 +159,13 @@ private struct NativeChoicePressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.8 : 1)
-            .animation(reduceMotion ? .easeOut(duration: 0.1) : .spring(response: 0.24, dampingFraction: 0.78),
-                       value: configuration.isPressed)
+            .animation(AstraMotion.press(reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }
 
 // MARK: - 结果卡
 
-/// 结果页的两张大卡：上床了 / 没上床。未选中的那张是玻璃，选中的那张实色。
+/// Two content cards with a stable checkmark, a tinted selection and clear text.
 struct OutcomeCard: View {
     let kind: EncounterKind
     let isOn: Bool
@@ -174,8 +193,8 @@ struct OutcomeCard: View {
                 Image(systemName: kind.symbolName)
                     .font(.title3.weight(.semibold))
                     .frame(width: 36, height: 36)
-                    .background(isOn ? Color.white.opacity(0.22) : kind.tint.opacity(0.14), in: Circle())
-                    .foregroundStyle(isOn ? Color.white : kind.tint)
+                    .background(kind.tint.opacity(isOn ? 0.18 : 0.09), in: Circle())
+                    .foregroundStyle(kind.tint)
                 Spacer(minLength: 0)
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
                     .font(.body.weight(.semibold))
@@ -190,21 +209,23 @@ struct OutcomeCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.leading)
         }
-        .foregroundStyle(isOn ? Color.white : Color.primary)
+        .foregroundStyle(Color.primary)
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
     }
 
     @ViewBuilder
     private func decorated<V: View>(_ content: V) -> some View {
-        if isOn {
-            content
-                .background(kind.tint.gradient, in: shape)
-                .shadow(color: kind.tint.opacity(0.30), radius: 12, y: 6)
-        } else {
-            content
-                .liquidGlass(in: shape, interactive: true, fallback: .regularMaterial, shadowRadius: 6)
-        }
+        content
+            .contentSurface(cornerRadius: 20)
+            .overlay {
+                shape.fill(isOn ? kind.tint.opacity(0.07) : .clear)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                shape.strokeBorder(isOn ? kind.tint : .clear, lineWidth: 1.5)
+                    .allowsHitTesting(false)
+            }
     }
 }
 
@@ -238,3 +259,4 @@ struct ChoiceGroupHeader: View {
         }
     }
 }
+

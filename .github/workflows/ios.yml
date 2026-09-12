@@ -9,7 +9,7 @@ on:
         description: "用仓库 Secrets 签名（需要 Apple 开发者账号），off 则只产出免签名 IPA"
         type: choice
         default: "off"
-        options: [off, on]
+        options: ["off", "on"]
       publish_release:
         description: "把 IPA 挂到 GitHub Release"
         type: boolean

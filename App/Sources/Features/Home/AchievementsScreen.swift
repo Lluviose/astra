@@ -40,7 +40,9 @@ struct AchievementsScreen: View {
                     chapterBlock(chapter.category, items: chapter.items)
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 24)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -63,7 +65,7 @@ struct AchievementsScreen: View {
     }
 
     private var cover: some View {
-        HeroPanel(cornerRadius: 28, watermark: "medal.fill") {
+        HeroPanel(cover: .gilded, cornerRadius: 28, watermark: "medal.fill") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     HeroBadge(title: "只给你自己看")
@@ -77,7 +79,7 @@ struct AchievementsScreen: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Lv.\(rank.level) · \(rank.title)")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                     Text(rank.nextRankText)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.80))
@@ -87,9 +89,8 @@ struct AchievementsScreen: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    ProgressView(value: rank.progressInBand)
-                        .tint(Palette.gold)
+                VStack(alignment: .leading, spacing: 6) {
+                    MeterBar(value: rank.progressInBand, tint: Palette.gold, height: 5, onDark: true)
                     HStack {
                         Text("Lv.\(rank.level)")
                         Spacer()
@@ -170,7 +171,7 @@ struct AchievementsScreen: View {
                             }
                             .padding(14)
                             .frame(width: 276, alignment: .leading)
-                            .glassCard(cornerRadius: 20, interactive: true, shadowRadius: 8)
+                            .contentSurface(cornerRadius: 20)
                             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         }
                         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.98))
@@ -182,66 +183,50 @@ struct AchievementsScreen: View {
     }
 
     private var chapterPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            GlassStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    chapterChip(nil, title: "全册", symbol: "book.closed.fill", count: nil)
-                    ForEach(AchievementCategory.allCases) { item in
-                        let chapterItems = items.filter { $0.category == item }
-                        chapterChip(
-                            item,
-                            title: item.label,
-                            symbol: item.symbolName,
-                            count: "\(chapterItems.filter(\.isUnlocked).count)/\(chapterItems.count)"
-                        )
-                    }
-                    Divider().frame(height: 18)
-                    Button {
-                        Haptics.shared.play(hideUnlocked ? .toggleOff : .toggleOn)
-                        withAnimation(.easeInOut(duration: 0.2)) { hideUnlocked.toggle() }
-                    } label: {
-                        Label("只看未点亮", systemImage: hideUnlocked ? "eye.slash.fill" : "eye")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .foregroundStyle(hideUnlocked ? .white : .primary)
-                            .background {
-                                if hideUnlocked { Capsule().fill(Palette.accent.gradient) }
-                            }
-                            .glassCapsule(interactive: true, shadowRadius: 6)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(hideUnlocked ? [.isSelected] : [])
-                }
+        let options = [PillOption<AchievementCategory?>(value: nil, title: "全册", systemImage: "book.closed.fill")]
+            + AchievementCategory.allCases.map { item in
+                let chapterItems = items.filter { $0.category == item }
+                return PillOption<AchievementCategory?>(
+                    value: item,
+                    title: item.label,
+                    systemImage: item.symbolName,
+                    detail: "\(chapterItems.filter(\.isUnlocked).count)/\(chapterItems.count)"
+                )
             }
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                PillPicker(options: options, selection: $category, tint: Palette.coral, scrollable: false)
+                Divider().frame(height: 18)
+                unlockedToggle
+            }
+            .padding(.horizontal, 2)
+            .padding(.vertical, 2)
         }
+        .scrollClipDisabled()
     }
 
-    private func chapterChip(_ value: AchievementCategory?, title: String, symbol: String, count: String?) -> some View {
-        let on = category == value
-        return Button {
-            Haptics.shared.play(.selection)
-            category = value
+    private var unlockedToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { hideUnlocked.toggle() }
         } label: {
-            HStack(spacing: 5) {
-                Label(title, systemImage: symbol)
-                if let count {
-                    Text(count)
-                        .font(.caption2.weight(.bold).monospacedDigit())
-                        .foregroundStyle(on ? .white.opacity(0.85) : .secondary)
+            Label("只看未点亮", systemImage: hideUnlocked ? "eye.slash.fill" : "eye")
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .foregroundStyle(hideUnlocked ? Color.white : Color.primary)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .background(
+                    hideUnlocked ? AnyShapeStyle(Palette.accent.gradient) : AnyShapeStyle(Palette.surface),
+                    in: Capsule(style: .continuous)
+                )
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.primary.opacity(hideUnlocked ? 0 : 0.08), lineWidth: 0.5)
                 }
-            }
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .foregroundStyle(on ? .white : .primary)
-            .background {
-                if on { Capsule().fill(Palette.coral.gradient) }
-            }
-            .glassCapsule(interactive: true, shadowRadius: 6)
+                .contentShape(Capsule(style: .continuous))
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? [.isSelected] : [])
+        .buttonStyle(HapticButtonStyle(cue: hideUnlocked ? .toggleOff : .toggleOn, scale: 0.96))
+        .accessibilityAddTraits(hideUnlocked ? [.isSelected] : [])
     }
 
     private func chapterBlock(_ category: AchievementCategory, items: [Achievement]) -> some View {
@@ -273,6 +258,7 @@ struct AchievementsScreen: View {
                         AchievementCard(achievement: achievement)
                     }
                     .buttonStyle(.plain)
+                    .scrollReveal()
                 }
             }
         }
@@ -285,17 +271,13 @@ struct AchievementCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                ZStack {
-                    Circle()
-                        .fill(achievement.tint.opacity(achievement.isUnlocked ? 0.22 : 0.10))
-                        .frame(width: 44, height: 44)
-                    Circle()
-                        .strokeBorder(achievement.tier.tint.opacity(achievement.isUnlocked ? 0.9 : 0.25), lineWidth: 1.6)
-                        .frame(width: 44, height: 44)
-                    Image(systemName: achievement.symbolName)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(achievement.isUnlocked ? achievement.tint : Color.secondary)
-                }
+                Medallion(
+                    systemImage: achievement.symbolName,
+                    tint: achievement.tint,
+                    ring: achievement.tier.tint,
+                    size: 44,
+                    isLit: achievement.isUnlocked
+                )
                 Spacer()
                 Text(achievement.tier.label)
                     .font(.caption2.weight(.bold))
@@ -312,15 +294,14 @@ struct AchievementCard: View {
 
             Spacer(minLength: 0)
 
-            ProgressView(value: achievement.progress)
-                .tint(achievement.tint)
+            MeterBar(value: achievement.progress, tint: achievement.tint, height: 5)
             Text(achievement.progressText)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(achievement.isUnlocked ? achievement.tint : .secondary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 176, alignment: .topLeading)
-        .glassCard(cornerRadius: 20, shadowRadius: 8)
+        .contentSurface(cornerRadius: 20)
         .opacity(achievement.isUnlocked ? 1 : 0.7)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(achievement.title)，\(achievement.category.label) \(achievement.tier.label)，\(achievement.detail)，\(achievement.progressText)")
@@ -399,7 +380,7 @@ struct AchievementPreviewRow: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, interactive: true, shadowRadius: 10)
+        .contentSurface(cornerRadius: 22)
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
@@ -408,6 +389,8 @@ private struct AchievementDetailSheet: View {
     let achievement: Achievement
     /// 同一章的其余徽章，用来显示「本章 3/9」和下一枚。
     var siblings: [Achievement] = []
+
+    @State private var bounce = 0
 
     private var chapterProgressText: String? {
         guard !siblings.isEmpty else { return nil }
@@ -420,18 +403,19 @@ private struct AchievementDetailSheet: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(achievement.tint.opacity(achievement.isUnlocked ? 0.22 : 0.10))
-                    .frame(width: 84, height: 84)
-                Circle()
-                    .strokeBorder(achievement.tier.tint, lineWidth: 2)
-                    .frame(width: 84, height: 84)
-                Image(systemName: achievement.symbolName)
-                    .font(.system(size: 32, weight: .semibold))
-                    .foregroundStyle(achievement.isUnlocked ? achievement.tint : .secondary)
-            }
+            Medallion(
+                systemImage: achievement.symbolName,
+                tint: achievement.tint,
+                ring: achievement.tier.tint,
+                size: 84,
+                isLit: achievement.isUnlocked,
+                bounceTrigger: bounce
+            )
             .padding(.top, 12)
+            .task {
+                try? await Task.sleep(for: .milliseconds(260))
+                bounce += 1
+            }
 
             HStack(spacing: 8) {
                 TagLabel(title: achievement.category.label, systemImage: achievement.category.symbolName, tint: achievement.tint, filled: true)
@@ -446,8 +430,7 @@ private struct AchievementDetailSheet: View {
                 .multilineTextAlignment(.center)
 
             VStack(spacing: 6) {
-                ProgressView(value: achievement.progress)
-                    .tint(achievement.tint)
+                MeterBar(value: achievement.progress, tint: achievement.tint, height: 5)
                 Text(achievement.isUnlocked ? "已点亮 · \(achievement.detail)" : "\(achievement.progressText) · \(achievement.detail)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -473,7 +456,7 @@ private struct AchievementDetailSheet: View {
                     Spacer(minLength: 0)
                 }
                 .padding(12)
-                .glassCard(cornerRadius: 16, shadowRadius: 6)
+                .contentSurface(cornerRadius: 16)
             }
 
             Spacer(minLength: 0)
@@ -483,3 +466,4 @@ private struct AchievementDetailSheet: View {
         .presentationBackground(.ultraThinMaterial)
     }
 }
+

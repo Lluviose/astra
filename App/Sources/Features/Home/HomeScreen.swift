@@ -4,12 +4,16 @@ import SwiftUI
 struct HomeScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var flow = RecordingFlow()
     @State private var path = NavigationPath()
     @State private var showMap = false
     @State private var quickLogTarget: Companion?
     @State private var followUpTarget: Encounter?
+    /// Overscroll distance at the top of the page; drives the cover stretch and the mark's spin.
+    @State private var pull: CGFloat = 0
 
     /// 快速记一笔条：最近互动过的人排前面。
     private var quickLogCompanions: [Companion] {
@@ -48,33 +52,52 @@ struct HomeScreen: View {
                     .ignoresSafeArea()
 
                 ScrollView {
-                    LazyVStack(spacing: 16) {
+                    LazyVStack(spacing: AstraLayout.sectionSpacing) {
+                        overviewHeading
+                            .entranceMotion()
                         hero
+                            .coverStretch(pull: pull)
+                            .entranceMotion(delay: 0.04)
 
                         if !quickLogCompanions.isEmpty {
                             quickLogStrip
+                                .scrollReveal()
                         }
-
-                        focusCard
 
                         if !app.pendingFollowUps.isEmpty || !app.needsAttention.isEmpty {
                             todoCard
+                                .scrollReveal()
                         }
 
                         entryGrid
+                            .entranceMotion(delay: 0.08)
+                            .scrollReveal()
+
+                        focusCard
+                            .scrollReveal()
 
                         safetyCard
+                            .scrollReveal()
 
                         if !recentEncounters.isEmpty {
                             recordsCard
+                                .scrollReveal()
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, AstraLayout.pageInset)
+                    .padding(.top, 12)
+                    .padding(.bottom, 32)
+                    .frame(maxWidth: AstraLayout.contentWidth)
+                    .frame(maxWidth: .infinity)
+                }
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    max(0, -(geometry.contentOffset.y + geometry.contentInsets.top))
+                } action: { _, newValue in
+                    pull = newValue
                 }
             }
-            .navigationTitle("猎场")
+            .navigationTitle("星图")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
             }
@@ -93,6 +116,7 @@ struct HomeScreen: View {
                         app.toggleNamesRevealed()
                     } label: {
                         Image(systemName: app.namesRevealed ? "eye.slash" : "eye")
+                            .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                     }
                     .accessibilityLabel(app.namesRevealed ? "隐藏代号" : "显示代号")
                 }
@@ -127,62 +151,121 @@ struct HomeScreen: View {
 
     // MARK: - 首屏主卡
 
+    private var overviewHeading: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(Date.now.formatted(.dateTime.month(.wide).day().weekday(.wide)))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text("你的私人星图")
+                    .font(.largeTitle.weight(.bold))
+                    .tracking(-0.8)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Spacer(minLength: 0)
+            if !typeSize.isAccessibilitySize {
+                AstraMark(size: 52)
+                    .foregroundStyle(Palette.accent)
+                    .rotationEffect(.degrees(reduceMotion ? 0 : Double(min(pull, 160)) * 0.5))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 2)
+    }
+
+    private var metricColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 8), count: typeSize.isAccessibilitySize ? 2 : 4)
+    }
+
     private var hero: some View {
         let rank = app.royalRank
-        return HeroPanel {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    HeroBadge(title: "只在这台手机上")
-                    Spacer()
-                    Label("Lv.\(rank.level)", systemImage: "crown.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Palette.gold)
+        return HeroPanel(animated: true) {
+            VStack(alignment: .leading, spacing: 22) {
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        HeroBadge(title: "只在这台手机上")
+                        Spacer(minLength: 8)
+                        rankLabel(level: rank.level)
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        HeroBadge(title: "只在这台手机上")
+                        rankLabel(level: rank.level)
+                    }
                 }
 
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text(rank.title)
-                        .font(.system(size: 29, weight: .bold, design: .rounded))
-                        .tracking(-0.6)
+                        .font(.system(.title, design: .rounded).weight(.semibold))
+                        .tracking(-0.5)
                     Text(monthLine)
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.76))
+                        .foregroundStyle(.white.opacity(0.78))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 7) {
+                    MeterBar(value: rank.progressInBand, tint: Palette.gold, height: 5, onDark: true)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(rank.nextRankText)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        if let next = rank.nextThreshold {
+                            Text("\(rank.unlockedCount) / \(next)")
+                                .monospacedDigit()
+                                .contentTransition(reduceMotion ? .opacity : .numericText())
+                        }
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.70))
+                }
+
+                LazyVGrid(columns: metricColumns, alignment: .leading, spacing: 8) {
                     HeroMetric(value: "\(app.conqueredCompanions.count)", label: "女人")
                     HeroMetric(value: "\(app.stats.totalIntimacyCount)", label: "上床")
                     HeroMetric(value: "\(app.stats.repeatGirlCount)", label: "回头客")
                     HeroMetric(value: "\(app.conquestLocationCount)", label: "战绩地")
                 }
 
-                HStack(spacing: 10) {
-                    Menu {
-                        Button {
-                            flow.begin(kind: .intimacy, app: app)
+                GlassStack(spacing: 12) {
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(spacing: 12))
+                        : AnyLayout(HStackLayout(spacing: 12))
+                    layout {
+                        Menu {
+                            Button {
+                                flow.begin(kind: .intimacy, app: app)
+                            } label: {
+                                Label("上床了", systemImage: EncounterKind.intimacy.symbolName)
+                            }
+                            Button {
+                                flow.begin(kind: .missed, app: app)
+                            } label: {
+                                Label("没上床", systemImage: EncounterKind.missed.symbolName)
+                            }
                         } label: {
-                            Label("上床了", systemImage: EncounterKind.intimacy.symbolName)
+                            HeroButtonLabel(title: "记一笔", systemImage: "plus", prominent: true)
                         }
-                        Button {
-                            flow.begin(kind: .missed, app: app)
-                        } label: {
-                            Label("没上床", systemImage: EncounterKind.missed.symbolName)
-                        }
-                    } label: {
-                        HeroButtonLabel(title: "记一笔", systemImage: "plus.circle.fill", prominent: true)
-                    }
-                    .buttonStyle(.plain)
+                        .buttonStyle(HapticButtonStyle())
 
-                    HeroButton(title: "巡视版图", systemImage: "map.fill", cue: .cityFocus) {
-                        showMap = true
+                        HeroButton(title: "打开版图", systemImage: "map", cue: .cityFocus) {
+                            showMap = true
+                        }
                     }
                 }
 
                 Text("私藏 \(app.privateCollectionCount) 张 · 成就 \(rank.unlockedCount)/\(rank.totalCount) · 名册 \(app.stats.activeCount) 人")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func rankLabel(level: Int) -> some View {
+        Label("Lv.\(level)", systemImage: "crown")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Palette.gold)
+            .fixedSize()
     }
 
     private var monthLine: String {
@@ -202,14 +285,37 @@ struct HomeScreen: View {
     // MARK: - 快速记一笔
 
     private var quickLogStrip: some View {
-        SectionCard("点她，直接记", systemImage: "hand.tap.fill", tint: Palette.coral) {
-            Text("最近的人")
-        } content: {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading("快速记录", subtitle: "点头像，两步记下这次")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
+                    Button {
+                        flow.beginAddingCompanion(app: app)
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Palette.accent)
+                                .frame(width: 54, height: 54)
+                                .background(Palette.accent.opacity(0.10), in: Circle())
+                                .overlay {
+                                    Circle().strokeBorder(
+                                        Palette.accent.opacity(0.4),
+                                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                                    )
+                                }
+                            Text("新的人")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Palette.accent)
+                                .frame(width: 62)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.94))
+                    .accessibilityLabel("加个人")
+
                     ForEach(quickLogCompanions) { companion in
                         Button {
-                            Haptics.shared.play(.selection)
                             quickLogTarget = companion
                         } label: {
                             VStack(spacing: 6) {
@@ -226,8 +332,10 @@ struct HomeScreen: View {
                         .buttonStyle(HapticButtonStyle(cue: .lightTap, scale: 0.94))
                     }
                 }
-                .padding(.vertical, 2)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
             }
+            .contentSurface(cornerRadius: 22)
         }
     }
 
@@ -247,72 +355,77 @@ struct HomeScreen: View {
     @ViewBuilder
     private var focusCard: some View {
         if let companion = focusCompanion {
-            HeroPanel(gradient: Palette.velvetGradient, cornerRadius: 26, glow: Palette.coral, padding: 18) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Label(focusKicker, systemImage: "sparkles")
-                            .font(.caption.weight(.bold))
-                        Spacer()
-                        Label("按你的记录", systemImage: "lock.fill")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-
-                    HStack(spacing: 14) {
-                        AvatarView(companion: companion, size: 58)
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            MaskedName(
-                                name: companion.displayName,
-                                revealed: app.namesRevealed,
-                                font: .title3.weight(.bold)
-                            )
-                            Text(focusHeadline(for: companion))
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.76))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-
-                    FlowLayout(spacing: 8, lineSpacing: 8) {
-                        focusPill(companion.stage.label, symbol: companion.stage.symbolName)
-                        if companion.overallScore > 0 {
-                            focusPill("综合 \(companion.overallScore)", symbol: "crown.fill")
-                        }
-                        focusPill("上床 \(app.hookupCount(for: companion.id))", symbol: "flame.fill")
-                        let photoCount = app.albumIDs(for: companion.id).count
-                        if photoCount > 0 {
-                            focusPill("私藏 \(photoCount)", symbol: "photo.fill")
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("升温轨迹")
-                            Spacer()
-                            Text(focusRecency(for: companion))
-                        }
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label(focusKicker, systemImage: "sparkles")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Palette.coral)
+                    Spacer()
+                    Label("按你的记录", systemImage: "lock.fill")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.68))
+                        .foregroundStyle(.tertiary)
+                }
 
-                        ProgressView(value: Double(companion.stage.weight), total: 7)
-                            .tint(.white)
+                HStack(spacing: 14) {
+                    AvatarView(companion: companion, size: 60)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        MaskedName(
+                            name: companion.displayName,
+                            revealed: app.namesRevealed,
+                            font: .title3.weight(.bold)
+                        )
+                        Text(focusHeadline(for: companion))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    HStack(spacing: 10) {
-                        NavigationLink(value: companion.id) {
-                            HeroButtonLabel(title: "打开档案", systemImage: "book.pages.fill")
-                        }
-                        .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
+                    Spacer(minLength: 0)
+                }
 
-                        HeroButton(title: "记录结果", systemImage: "plus.circle.fill", prominent: true, cue: .waveSent) {
-                            quickLogTarget = companion
-                        }
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    TagLabel(title: companion.stage.label, systemImage: companion.stage.symbolName, tint: companion.stage.tint)
+                    if companion.overallScore > 0 {
+                        TagLabel(title: "综合 \(companion.overallScore)", systemImage: "crown.fill", tint: Palette.goldDeep)
+                    }
+                    TagLabel(title: "上床 \(app.hookupCount(for: companion.id))", systemImage: "flame.fill", tint: Palette.coral)
+                    let photoCount = app.albumIDs(for: companion.id).count
+                    if photoCount > 0 {
+                        TagLabel(title: "私藏 \(photoCount)", systemImage: "photo.fill", tint: Palette.accent)
                     }
                 }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack {
+                        Text("升温轨迹")
+                        Spacer()
+                        Text(focusRecency(for: companion))
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                    MeterBar(value: Double(companion.stage.weight) / 7, tint: companion.stage.tint, height: 5)
+                }
+
+                HStack(spacing: 10) {
+                    NavigationLink(value: companion.id) {
+                        SurfaceButtonLabel(title: "打开档案", systemImage: "book.pages.fill")
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
+
+                    Button {
+                        quickLogTarget = companion
+                    } label: {
+                        SurfaceButtonLabel(title: "记录结果", systemImage: "plus.circle.fill", prominent: true)
+                    }
+                    .buttonStyle(HapticButtonStyle(cue: .waveSent, scale: 0.97))
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background { focusAura(for: companion) }
+            .contentSurface()
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 Label("下一次，从一个名字开始", systemImage: "sparkles")
@@ -325,19 +438,34 @@ struct HomeScreen: View {
                 Button {
                     flow.beginAddingCompanion(app: app)
                 } label: {
-                    Label("加第一个人", systemImage: "person.badge.plus")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(Palette.accent.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .foregroundStyle(.white)
+                    SurfaceButtonLabel(title: "加第一个人", systemImage: "person.badge.plus", prominent: true)
                 }
                 .buttonStyle(HapticButtonStyle(cue: .mediumTap, scale: 0.97))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .glassCard(cornerRadius: 22, shadowRadius: 10)
+            .padding(18)
+            .contentSurface()
         }
+    }
+
+    /// Her own palette, faded into the corners of the card.
+    private func focusAura(for companion: Companion) -> some View {
+        let colors = Palette.avatarColors(companion.paletteIndex)
+        return ZStack {
+            RadialGradient(
+                colors: [colors[0].opacity(0.20), .clear],
+                center: UnitPoint(x: 0.1, y: 0.2),
+                startRadius: 0,
+                endRadius: 240
+            )
+            RadialGradient(
+                colors: [colors[1].opacity(0.14), .clear],
+                center: UnitPoint(x: 0.95, y: 0.05),
+                startRadius: 0,
+                endRadius: 200
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AstraLayout.cardRadius, style: .continuous))
     }
 
     private var focusKicker: String {
@@ -365,16 +493,6 @@ struct HomeScreen: View {
             return "上次上床 \(Format.relativeDay(last.date))"
         }
         return "最近互动 \(Format.relativeDay(app.lastContact(for: companion)))"
-    }
-
-    private func focusPill(_ title: String, symbol: String) -> some View {
-        Label(title, systemImage: symbol)
-            .font(.caption2.weight(.semibold))
-            .lineLimit(1)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(.black.opacity(0.16), in: Capsule())
-            .foregroundStyle(.white.opacity(0.84))
     }
 
     // MARK: - 待处理
@@ -427,7 +545,10 @@ struct HomeScreen: View {
     private var entryGrid: some View {
         let rank = app.royalRank
         let next = AchievementCatalog.nextUp(in: app.achievements, limit: 1).first
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: typeSize.isAccessibilitySize ? 1 : 2)
+        return VStack(alignment: .leading, spacing: 12) {
+            SectionHeading("探索", subtitle: "图鉴、成就、统计与版图")
+            LazyVGrid(columns: columns, spacing: 14) {
             NavigationLink {
                 HaremGalleryScreen()
             } label: {
@@ -480,6 +601,7 @@ struct HomeScreen: View {
                 )
             }
             .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.97))
+            }
         }
     }
 
@@ -551,3 +673,4 @@ struct HomeScreen: View {
         }
     }
 }
+

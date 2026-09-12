@@ -4,6 +4,7 @@ import SwiftUI
 struct TimelineScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var flow = RecordingFlow()
     @State private var path = NavigationPath()
@@ -62,12 +63,21 @@ struct TimelineScreen: View {
                 }
 
                 Section {
-                    Picker("显示范围", selection: $scope) {
-                        ForEach(RecordScope.allCases) { item in
-                            Text(item.label).tag(item)
-                        }
+                    if typeSize.isAccessibilitySize {
+                        scopePicker.pickerStyle(.menu)
+                    } else {
+                        PillPicker(
+                            options: RecordScope.allCases.map {
+                                PillOption(value: $0, title: $0.label, systemImage: $0.symbolName)
+                            },
+                            selection: $scope,
+                            scrollable: false,
+                            fillsWidth: true
+                        )
+                        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 6, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
-                    .pickerStyle(.segmented)
                 }
 
                 if normalizedQuery.isEmpty, scope == .all, !app.pendingFollowUps.isEmpty {
@@ -157,6 +167,7 @@ struct TimelineScreen: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .astraListBackground()
             .navigationTitle("时间线")
             .navigationDestination(for: UUID.self) { id in
                 CompanionDetailView(companionID: id)
@@ -178,6 +189,15 @@ struct TimelineScreen: View {
         .sheet(item: $encounterTarget) { encounter in
             EncounterEditor(encounter: encounter)
         }
+    }
+
+    private var scopePicker: some View {
+        Picker("显示范围", selection: $scope) {
+            ForEach(RecordScope.allCases) { item in
+                Text(item.label).tag(item)
+            }
+        }
+        .haptic(.selection, trigger: scope)
     }
 
     private func beginRecording() {
@@ -336,6 +356,15 @@ private enum RecordScope: String, CaseIterable, Identifiable {
         case .hookedUp: "上床"
         case .missed: "没上"
         case .followUp: "跟进"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .all: "square.stack"
+        case .hookedUp: "flame.fill"
+        case .missed: "xmark.circle"
+        case .followUp: "checklist"
         }
     }
 
@@ -498,3 +527,4 @@ struct CompanionPickerSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
+

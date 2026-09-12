@@ -4,15 +4,16 @@ import SwiftUI
 struct HaremGalleryScreen: View {
 
     @Environment(AppState.self) private var app
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var sort: HaremSort = .hookups
     @State private var viewingPhotoIDs: [String] = []
     @State private var viewingPhotoIndex: Int?
+    @Namespace private var zoom
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 14), count: typeSize.isAccessibilitySize ? 1 : 2)
+    }
 
     private var companions: [Companion] {
         let photoCounts = Dictionary(
@@ -60,7 +61,9 @@ struct HaremGalleryScreen: View {
                     emptyState
                 }
             }
-            .padding(16)
+            .padding(AstraLayout.pageInset)
+            .frame(maxWidth: AstraLayout.contentWidth)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 28)
         }
         .background(Palette.screenGradient.ignoresSafeArea())
@@ -85,7 +88,7 @@ struct HaremGalleryScreen: View {
     }
 
     private var royalHeader: some View {
-        HeroPanel(gradient: Palette.velvetGradient, glow: Palette.coral, watermark: "crown.fill") {
+        HeroPanel(cover: .velvet, watermark: "crown.fill") {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     HeroBadge(title: "私人收藏")
@@ -97,7 +100,7 @@ struct HaremGalleryScreen: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("上过的，都在这里")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .font(.system(.title, design: .rounded).weight(.semibold))
                     Text("不是待办，也不是聊天列表。这里专门用来翻照片、数战绩、回味已经发生过的。")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.76))
@@ -127,6 +130,7 @@ struct HaremGalleryScreen: View {
     private func memoryHero(_ companion: Companion) -> some View {
         let photos = galleryPhotoIDs(for: companion)
         let last = app.lastHookup(for: companion.id)
+        let sourceID = "memory-" + companion.id.uuidString
         return VStack(spacing: 0) {
             Button {
                 openPhotos(photos)
@@ -175,7 +179,10 @@ struct HaremGalleryScreen: View {
             .buttonStyle(HapticButtonStyle(cue: .cityFocus, scale: 0.985))
             .disabled(photos.isEmpty)
 
-            NavigationLink(value: companion.id) {
+            NavigationLink {
+                CompanionDetailView(companionID: companion.id)
+                    .navigationTransition(.zoom(sourceID: sourceID, in: zoom))
+            } label: {
                 HStack {
                     Text(photos.isEmpty ? "打开档案，给她补上照片" : "点照片直接翻 · 打开档案看完整故事")
                         .font(.caption)
@@ -189,7 +196,8 @@ struct HaremGalleryScreen: View {
             }
             .buttonStyle(.plain)
         }
-        .glassCard(cornerRadius: 26, shadowRadius: 12)
+        .contentSurface(cornerRadius: 26)
+        .matchedTransitionSource(id: sourceID, in: zoom)
     }
 
     private var collectionControls: some View {
@@ -226,8 +234,10 @@ struct HaremGalleryScreen: View {
                     rank: index + 1,
                     coverPhotoID: coverPhotoID(for: companion),
                     photoIDs: galleryPhotoIDs(for: companion),
+                    zoom: zoom,
                     onOpenPhotos: { openPhotos($0) }
                 )
+                .scrollReveal()
             }
         }
     }
@@ -240,7 +250,7 @@ struct HaremGalleryScreen: View {
         )
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-        .glassCard(cornerRadius: 24, shadowRadius: 10)
+        .contentSurface(cornerRadius: 24)
     }
 
     private func coverPhotoID(for companion: Companion) -> String? {
@@ -299,6 +309,7 @@ private struct HaremCard: View {
     let rank: Int
     let coverPhotoID: String?
     let photoIDs: [String]
+    let zoom: Namespace.ID
     let onOpenPhotos: ([String]) -> Void
 
     @Environment(AppState.self) private var app
@@ -353,7 +364,10 @@ private struct HaremCard: View {
             .buttonStyle(.plain)
             .disabled(photoIDs.isEmpty)
 
-            NavigationLink(value: companion.id) {
+            NavigationLink {
+                CompanionDetailView(companionID: companion.id)
+                    .navigationTransition(.zoom(sourceID: companion.id, in: zoom))
+            } label: {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(spacing: 5) {
                         MaskedName(
@@ -388,7 +402,8 @@ private struct HaremCard: View {
             }
             .buttonStyle(.plain)
         }
-        .glassCard(cornerRadius: 20, shadowRadius: 9)
+        .contentSurface(cornerRadius: 20)
+        .matchedTransitionSource(id: companion.id, in: zoom)
         .opacity(companion.isArchived ? 0.72 : 1)
     }
 }
@@ -452,3 +467,4 @@ struct HaremPortrait: View {
         .accessibilityLabel(app.namesRevealed ? companion.displayName : "人物照片已隐藏")
     }
 }
+

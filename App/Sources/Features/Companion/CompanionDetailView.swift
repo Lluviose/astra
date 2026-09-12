@@ -140,6 +140,7 @@ struct CompanionDetailView: View {
             timelineSection(companion)
         }
         .listStyle(.insetGrouped)
+        .astraListBackground()
         .navigationTitle(app.namesRevealed ? companion.displayName : "档案")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -153,9 +154,8 @@ struct CompanionDetailView: View {
         let storyline = storylineText(companion)
         return Section {
             HeroPanel(
-                gradient: Palette.dossierGradient(companion.paletteIndex),
+                cover: .dossier(companion.paletteIndex),
                 cornerRadius: 26,
-                glow: Palette.avatarColors(companion.paletteIndex)[1],
                 padding: 18
             ) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -729,3 +729,4 @@ struct EncounterRow: View {
         .padding(.vertical, 2)
     }
 }
+
