@@ -112,6 +112,7 @@ struct RootView: View {
                     SettingsScreen()
                 }
             }
+            .tabViewStyle(.sidebarAdaptable)
             .minimizableTabBar()
 
             if !lock.isConfigured {
