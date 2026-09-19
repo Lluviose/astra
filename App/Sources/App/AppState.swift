@@ -55,6 +55,8 @@ struct ImportSummary: Sendable {
     let companionsAdded: Int
     let companionsUpdated: Int
     let encountersAdded: Int
+    /// 同一条记录两边都有、备份里那份改得更晚，就用备份覆盖。
+    var encountersUpdated: Int = 0
 }
 
 @MainActor
@@ -722,9 +724,12 @@ final class AppState {
 
     // MARK: - 修改：记录
 
+    func encounter(id: UUID) -> Encounter? { encounters.first { $0.id == id } }
+
     func upsert(_ encounter: Encounter) {
         var normalized = encounter
         normalized.normalizeForOutcome()
+        normalized.updatedAt = Date()
         var mediaCandidates = Set<String>()
         if let index = encounters.firstIndex(where: { $0.id == normalized.id }) {
             let removed = Set(encounters[index].photoIDs).subtracting(normalized.photoIDs)
@@ -747,6 +752,18 @@ final class AppState {
         persistEncounters()
         deleteUnreferencedMedia(mediaCandidates)
         Haptics.shared.play(.toggleOff)
+    }
+
+    /// 在列表里直接勾完成 / 取消完成，不打开整张表单。
+    func setFollowUpDone(_ done: Bool, encounterID: UUID) {
+        guard let index = encounters.firstIndex(where: { $0.id == encounterID }),
+              !encounters[index].followUpKinds.isEmpty,
+              encounters[index].isFollowUpDone != done
+        else { return }
+        encounters[index].setFollowUpDone(done)
+        encounters[index].updatedAt = Date()
+        persistEncounters()
+        Haptics.shared.play(done ? .success : .toggleOff)
     }
 
     /// 快捷记下这次有没有上床。
@@ -862,9 +879,21 @@ final class AppState {
             }
         }
 
-        let existingEncounterIDs = Set(encounters.map(\.id))
-        let newEncounters = payload.encounters.filter { !existingEncounterIDs.contains($0.id) }
-        let mergedEncounters = encounters + newEncounters
+        var mergedEncounters = encounters
+        var newEncounters: [Encounter] = []
+        var updatedEncounterCount = 0
+        for incoming in payload.encounters {
+            if let index = mergedEncounters.firstIndex(where: { $0.id == incoming.id }) {
+                // 同一条记录以改得更晚的一份为准；备份里的旧版本不会覆盖本机新改动。
+                if incoming.updatedAt > mergedEncounters[index].updatedAt {
+                    mergedEncounters[index] = incoming
+                    updatedEncounterCount += 1
+                }
+            } else {
+                mergedEncounters.append(incoming)
+                newEncounters.append(incoming)
+            }
+        }
         let referenced = Self.referencedIDs(
             companions: mergedCompanions,
             encounters: mergedEncounters
@@ -884,7 +913,8 @@ final class AppState {
         return ImportSummary(
             companionsAdded: added,
             companionsUpdated: updated,
-            encountersAdded: newEncounters.count
+            encountersAdded: newEncounters.count,
+            encountersUpdated: updatedEncounterCount
         )
     }
 

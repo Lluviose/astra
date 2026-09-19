@@ -64,7 +64,7 @@ struct EncounterEditor: View {
 
     private var availableFollowUps: [FollowUpKind] {
         if draft.kind.isIntimate { return FollowUpKind.allCases }
-        return [.message, .planMeet, .accountSafety, .other]
+        return FollowUpKind.missedCases
     }
 
     init(encounter: Encounter) {
@@ -205,10 +205,12 @@ struct EncounterEditor: View {
                         rhythmSection
                         activitySection
                         climaxSection
+                        afterglowSection
                         safetySection
                         boundarySection
                     }
                     experienceSection
+                    moodSection
                     notesSection
                     photosSection
                 case .followUp:
@@ -234,7 +236,7 @@ struct EncounterEditor: View {
             NativeEditorStep(title: "结果", subtitle: "上床了还是没上床，确认时间和地点就能存。", symbol: "checkmark.circle"),
             NativeEditorStep(
                 title: "细节",
-                subtitle: draft.kind.isIntimate ? "谁主动、几轮多久、玩法、收尾、套和感受，按需补。" : "记录感受、花费、备注和照片。",
+                subtitle: draft.kind.isIntimate ? "谁主动、几轮多久、玩法、收尾、事后、套和感受，按需补。" : "记录氛围、感受、花费、备注和照片。",
                 symbol: "slider.horizontal.3"
             ),
             NativeEditorStep(title: "跟进", subtitle: "看一眼记录，再决定要不要联系或处理后续。", symbol: "checklist")
@@ -473,11 +475,22 @@ struct EncounterEditor: View {
                 LabeledContent("戴套", value: draft.protectionStatus.label)
                 if !draft.activitySummary.isEmpty { Text(draft.activitySummary) }
                 if !draft.climaxSummary.isEmpty { Text(draft.climaxSummary) }
+                if !draft.afterglowSummary.isEmpty {
+                    LabeledContent("事后", value: draft.afterglowSummary)
+                }
             } else if !draft.missedSummary.isEmpty {
                 Text(draft.missedSummary)
             }
+            if draft.mood.isRecorded {
+                LabeledContent("氛围") {
+                    Label(draft.mood.label, systemImage: draft.mood.symbolName)
+                }
+            }
             if let cost = parsedCost, cost > 0 {
                 LabeledContent("花费", value: Format.money(cost))
+            }
+            if !draft.spendSummary.isEmpty {
+                LabeledContent("买单", value: draft.spendSummary)
             }
             if !draft.photoIDs.isEmpty {
                 LabeledContent("照片", value: "\(draft.photoIDs.count) 张")
@@ -710,6 +723,79 @@ struct EncounterEditor: View {
         }
     }
 
+    // MARK: - 事后
+
+    private var afterglowSection: some View {
+        Section {
+            FlowLayout(spacing: 7, lineSpacing: 8) {
+                ForEach(AfterglowDetail.allCases) { detail in
+                    RecordChoice(
+                        title: detail.label,
+                        systemImage: detail.symbolName,
+                        isOn: draft.afterglow.contains(detail),
+                        tint: Palette.coral,
+                        compact: true
+                    ) {
+                        toggleAfterglow(detail)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            HStack {
+                Text("做完之后 · 可多选")
+                Spacer()
+                if !draft.afterglow.isEmpty {
+                    Text("\(draft.afterglow.count) 项")
+                        .contentTransition(.numericText())
+                }
+            }
+        } footer: {
+            Text("抱着睡还是各回各家，回味时最先想起的往往是这些。")
+        }
+    }
+
+    private func toggleAfterglow(_ detail: AfterglowDetail) {
+        draft.afterglow = toggled(detail, in: draft.afterglow)
+        // 「我走」和「她走」互斥；勾了「一起睡到天亮」就不会是做完就走。
+        guard draft.afterglow.contains(detail) else { return }
+        switch detail {
+        case .leftRightAway:
+            draft.afterglow.subtract([.sheLeftRightAway, .sleptOver, .wentAgainNextMorning])
+        case .sheLeftRightAway:
+            draft.afterglow.subtract([.leftRightAway, .sleptOver, .wentAgainNextMorning])
+        case .sleptOver, .wentAgainNextMorning:
+            draft.afterglow.subtract([.leftRightAway, .sheLeftRightAway])
+        default:
+            break
+        }
+    }
+
+    // MARK: - 氛围
+
+    private var moodSection: some View {
+        Section {
+            FlowLayout(spacing: 7, lineSpacing: 8) {
+                ForEach(EncounterMood.choices) { mood in
+                    RecordChoice(
+                        title: mood.label,
+                        systemImage: mood.symbolName,
+                        isOn: draft.mood == mood,
+                        tint: draft.kind.isIntimate ? Palette.coral : Palette.accent,
+                        compact: true
+                    ) {
+                        draft.mood = draft.mood == mood ? .notRecorded : mood
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("这次的氛围 · 单选")
+        } footer: {
+            Text(draft.kind.isIntimate ? "整体感觉像哪种，选一个就行。" : "没上床也有氛围，尴尬还是愉快都值得记。")
+        }
+    }
+
     // MARK: - 感受与下一步
 
     private var experienceSection: some View {
@@ -806,6 +892,55 @@ struct EncounterEditor: View {
                 Text("花费用非负数字填写，可带小数；不记就留空。")
                     .font(.caption).foregroundStyle(Palette.warning)
             }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ChoiceGroupHeader(
+                    title: "谁买单",
+                    systemImage: "creditcard.fill",
+                    selectedCount: draft.payer.isRecorded ? 1 : 0,
+                    tint: Palette.warning
+                )
+                FlowLayout(spacing: 7, lineSpacing: 8) {
+                    ForEach(Payer.choices) { payer in
+                        RecordChoice(
+                            title: payer.label,
+                            systemImage: payer.symbolName,
+                            isOn: draft.payer == payer,
+                            tint: Palette.warning,
+                            compact: true
+                        ) {
+                            setPayer(draft.payer == payer ? .notRecorded : payer)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+
+            if draft.payer != .nobody {
+                VStack(alignment: .leading, spacing: 8) {
+                    ChoiceGroupHeader(
+                        title: "花在哪 · 可多选",
+                        systemImage: "list.bullet.rectangle",
+                        selectedCount: draft.costItems.count,
+                        tint: Palette.warning
+                    )
+                    FlowLayout(spacing: 7, lineSpacing: 8) {
+                        ForEach(CostItem.allCases) { item in
+                            RecordChoice(
+                                title: item.label,
+                                systemImage: item.symbolName,
+                                isOn: draft.costItems.contains(item),
+                                tint: Palette.warning,
+                                compact: true
+                            ) {
+                                draft.costItems = toggled(item, in: draft.costItems)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
             TextField(
                 draft.kind.isIntimate
                     ? "她说了什么、哪一下最带劲、下次想试什么"
@@ -1069,6 +1204,15 @@ struct EncounterEditor: View {
 
     private func removeBarrierMeasures() {
         draft.safetyMeasures = Set(draft.safetyMeasures.filter { !$0.isBarrier })
+    }
+
+    private func setPayer(_ payer: Payer) {
+        draft.payer = payer
+        // 「没花钱」就不该还挂着花费项目和金额。
+        if payer == .nobody {
+            draft.costItems = []
+            costText = ""
+        }
     }
 
     private func toggleFollowUp(_ kind: FollowUpKind) {

@@ -25,11 +25,13 @@ struct InsightsScreen: View {
                         protectionCard
                         if !insights.topActivities.isEmpty { activityCard }
                         if !insights.topClimaxDetails.isEmpty { climaxCard }
+                        if !insights.topAfterglow.isEmpty { afterglowCard }
                         rhythmCard
                         companionsCard
                         if !insights.topLocations.isEmpty { locationsCard }
                         spendCard
                     }
+                    if !insights.moodCounts.isEmpty { moodCard }
                     if insights.wantAgainRate != nil { meetAgainCard }
                 }
             }
@@ -192,6 +194,47 @@ struct InsightsScreen: View {
         }
     }
 
+    private var afterglowCard: some View {
+        let peak = insights.topAfterglow.first?.count ?? 1
+        return SectionCard("做完之后", systemImage: "moon.zzz.fill", tint: Palette.coral) {
+            VStack(spacing: 10) {
+                ForEach(insights.topAfterglow) { item in
+                    InsightBarRow(
+                        title: item.item.label,
+                        count: item.count,
+                        peak: peak,
+                        tint: Palette.coral,
+                        systemImage: item.item.symbolName
+                    )
+                }
+            }
+        }
+    }
+
+    private var moodCard: some View {
+        let ordered = EncounterMood.choices
+            .compactMap { mood in insights.moodCounts[mood].map { EncounterInsights.Count(item: mood, count: $0) } }
+            .sorted { $0.count > $1.count }
+        let peak = ordered.first?.count ?? 1
+        return SectionCard("什么氛围", systemImage: "theatermasks.fill", tint: Palette.accent) {
+            if let mood = insights.dominantMood {
+                Text("多半是\(mood.label)")
+            }
+        } content: {
+            VStack(spacing: 10) {
+                ForEach(ordered) { item in
+                    InsightBarRow(
+                        title: item.item.label,
+                        count: item.count,
+                        peak: peak,
+                        tint: Palette.accent,
+                        systemImage: item.item.symbolName
+                    )
+                }
+            }
+        }
+    }
+
     // MARK: 时段与节奏
 
     private var rhythmCard: some View {
@@ -308,7 +351,30 @@ struct InsightsScreen: View {
                     caption: "情绪感受"
                 )
             }
+            if insights.myTreatRate != nil || !insights.costItemCounts.isEmpty {
+                Divider()
+                HStack(spacing: 12) {
+                    InsightFigure(
+                        value: insights.myTreatRate.map { percent($0) } ?? "—",
+                        caption: "我买单的比例",
+                        tint: Palette.warning
+                    )
+                    InsightFigure(
+                        value: topCostItemsText,
+                        caption: "钱主要花在"
+                    )
+                }
+            }
         }
+    }
+
+    private var topCostItemsText: String {
+        let ordered = CostItem.allCases
+            .compactMap { item in insights.costItemCounts[item].map { EncounterInsights.Count(item: item, count: $0) } }
+            .sorted { $0.count > $1.count }
+            .prefix(2)
+            .map { $0.item.label }
+        return ordered.isEmpty ? "—" : ordered.joined(separator: "、")
     }
 
     private var meetAgainCard: some View {

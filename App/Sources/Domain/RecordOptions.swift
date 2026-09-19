@@ -189,7 +189,7 @@ enum QuickDateChoice: String, CaseIterable, Identifiable {
 extension ClimaxDetail {
     var group: ClimaxDetailGroup {
         switch self {
-        case .sheCame, .sheMultiple, .sheSquirted, .sheDidNotCome, .sheNotSure: .partner
+        case .sheCame, .sheMultiple, .sheSquirted, .sheCameFirst, .cameTogether, .sheDidNotCome, .sheNotSure: .partner
         case .multiple, .edging: .other
         default: .finish
         }
@@ -214,14 +214,157 @@ extension Encounter {
     mutating func toggleClimax(_ detail: ClimaxDetail) {
         if climaxDetails.remove(detail) != nil { return }
         let unknownOrNone: Set<ClimaxDetail> = [.sheDidNotCome, .sheNotSure]
+        let sheCame: Set<ClimaxDetail> = [.sheCame, .sheMultiple, .sheCameFirst, .cameTogether]
         if unknownOrNone.contains(detail) {
-            climaxDetails.subtract(unknownOrNone.union([.sheCame, .sheMultiple]))
-        } else if detail == .sheCame || detail == .sheMultiple {
+            climaxDetails.subtract(unknownOrNone.union(sheCame))
+        } else if sheCame.contains(detail) {
             climaxDetails.subtract(unknownOrNone)
         }
-        let finishes: Set<ClimaxDetail> = [.creampie, .pullOut, .condomFinish, .swallow, .facial, .onChest, .onBody, .multiple]
+        let finishes: Set<ClimaxDetail> = [.creampie, .pullOut, .condomFinish, .swallow, .facial, .onChest, .onBody, .onBack, .onFace, .inMouthSpit, .multiple, .cameTogether]
         if detail == .didNotFinish { climaxDetails.subtract(finishes) }
         if finishes.contains(detail) { climaxDetails.remove(.didNotFinish) }
         climaxDetails.insert(detail)
+    }
+}
+
+// MARK: - 氛围、事后、买单
+
+/// 这次整体是什么氛围。上床了、没上床都能记，用来回味，不参与任何评分。
+enum EncounterMood: String, Codable, CaseIterable, Identifiable, Sendable {
+    case notRecorded, passionate, tender, playful, wild, awkward, rushed, drunk, routine
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .notRecorded: "未记录"
+        case .passionate: "激情"
+        case .tender: "温柔"
+        case .playful: "玩闹"
+        case .wild: "放得开"
+        case .awkward: "有点尴尬"
+        case .rushed: "匆忙"
+        case .drunk: "微醺"
+        case .routine: "例行公事"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .notRecorded: "minus.circle"
+        case .passionate: "flame.fill"
+        case .tender: "heart.fill"
+        case .playful: "face.smiling.fill"
+        case .wild: "sparkles"
+        case .awkward: "face.dashed"
+        case .rushed: "hare.fill"
+        case .drunk: "wineglass.fill"
+        case .routine: "repeat"
+        }
+    }
+
+    var isRecorded: Bool { self != .notRecorded }
+
+    static var choices: [EncounterMood] { allCases.filter { $0 != .notRecorded } }
+}
+
+/// 做完之后是什么样。只在上床记录里出现。
+enum AfterglowDetail: String, Codable, CaseIterable, Identifiable, Sendable {
+    case cuddled, sleptOver, showeredTogether, talkedLong, ateTogether, smokedTogether
+    case leftRightAway, sheLeftRightAway, wentAgainNextMorning, exchangedGifts
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .cuddled: "抱着躺了会儿"
+        case .sleptOver: "一起睡到天亮"
+        case .showeredTogether: "一起洗了"
+        case .talkedLong: "聊了很久"
+        case .ateTogether: "一起吃了东西"
+        case .smokedTogether: "一起抽了根烟"
+        case .leftRightAway: "我做完就走"
+        case .sheLeftRightAway: "她做完就走"
+        case .wentAgainNextMorning: "第二天早上又来了一次"
+        case .exchangedGifts: "送了 / 收了小礼物"
+        }
+    }
+
+    var symbolName: String? {
+        switch self {
+        case .cuddled: "figure.2.arms.open"
+        case .sleptOver: "moon.zzz.fill"
+        case .showeredTogether: "shower.fill"
+        case .talkedLong: "bubble.left.and.bubble.right.fill"
+        case .ateTogether: "fork.knife"
+        case .leftRightAway, .sheLeftRightAway: "figure.walk.departure"
+        case .wentAgainNextMorning: "sunrise.fill"
+        case .exchangedGifts: "gift.fill"
+        default: nil
+        }
+    }
+}
+
+/// 这次谁买的单。
+enum Payer: String, Codable, CaseIterable, Identifiable, Sendable {
+    case notRecorded, me, her, split, nobody
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .notRecorded: "未记录"
+        case .me: "我买单"
+        case .her: "她买单"
+        case .split: "AA"
+        case .nobody: "没花钱"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .notRecorded: "minus.circle"
+        case .me: "person.fill"
+        case .her: "person.fill.badge.minus"
+        case .split: "person.2.fill"
+        case .nobody: "nosign"
+        }
+    }
+
+    var isRecorded: Bool { self != .notRecorded }
+
+    static var choices: [Payer] { allCases.filter { $0 != .notRecorded } }
+}
+
+/// 钱花在哪几项上；和金额分开记。
+enum CostItem: String, Codable, CaseIterable, Identifiable, Sendable {
+    case room, meal, drinks, transport, gift, condoms, tickets, other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .room: "房费"
+        case .meal: "吃饭"
+        case .drinks: "喝酒 / 饮品"
+        case .transport: "打车 / 交通"
+        case .gift: "礼物 / 红包"
+        case .condoms: "套 / 用品"
+        case .tickets: "票 / 门票"
+        case .other: "其他"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .room: "bed.double.fill"
+        case .meal: "fork.knife"
+        case .drinks: "wineglass.fill"
+        case .transport: "car.fill"
+        case .gift: "gift.fill"
+        case .condoms: "shield.fill"
+        case .tickets: "ticket.fill"
+        case .other: "ellipsis.circle.fill"
+        }
     }
 }

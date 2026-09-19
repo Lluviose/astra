@@ -11,6 +11,7 @@ struct CompanionDetailView: View {
 
     @State private var showEditor = false
     @State private var editingEncounter: Encounter?
+    @State private var pendingEncounterDeletion: Encounter?
     @State private var showDeleteConfirm = false
     @State private var viewingPhotoIndex: Int?
     @State private var viewingPhotoIDs: [String] = []
@@ -99,6 +100,24 @@ struct CompanionDetailView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("约过的记录和照片一起删掉，回不来。")
+        }
+        .confirmationDialog(
+            "删除这条记录？",
+            isPresented: Binding(
+                get: { pendingEncounterDeletion != nil },
+                set: { if !$0 { pendingEncounterDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingEncounterDeletion
+        ) { encounter in
+            Button("删除", role: .destructive) {
+                app.delete(encounterID: encounter.id)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { encounter in
+            Text(encounter.photoIDs.isEmpty
+                 ? "\(encounter.kind.label) · \(Format.relativeDay(encounter.date))，删除后不能恢复。"
+                 : "\(encounter.kind.label) · \(Format.relativeDay(encounter.date))，这次的 \(encounter.photoIDs.count) 张照片会一起删掉。")
         }
         .sheet(isPresented: Binding(
             get: { viewingPhotoIndex != nil },
@@ -306,6 +325,17 @@ struct CompanionDetailView: View {
                         .foregroundStyle(Palette.coral)
                 }
             }
+            if !insights.topAfterglow.isEmpty {
+                LabeledContent("做完之后") {
+                    Text(insights.topAfterglow.prefix(2).map(\.item.label).joined(separator: "、"))
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+            if let mood = insights.dominantMood {
+                LabeledContent("常见氛围") {
+                    Label(mood.label, systemImage: mood.symbolName)
+                }
+            }
             if insights.protectionRecordedCount > 0 {
                 LabeledContent("套") {
                     HStack(spacing: 6) {
@@ -319,6 +349,9 @@ struct CompanionDetailView: View {
             }
             if insights.spendRecordedCount > 0 {
                 LabeledContent("花费合计", value: Format.money(insights.totalSpend))
+            }
+            if let rate = insights.myTreatRate {
+                LabeledContent("谁买单", value: rate >= 0.5 ? "我买单 \(rate.formatted(.percent.precision(.fractionLength(0))))" : "她买单 / AA 居多")
             }
             if let physical = insights.averagePhysical {
                 LabeledContent("身体感受", value: String(format: "%.1f / 5", physical))
@@ -578,9 +611,20 @@ struct CompanionDetailView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        if encounter.hasPendingFollowUp {
+                            Button {
+                                app.setFollowUpDone(true, encounterID: encounter.id)
+                            } label: {
+                                Label("完成跟进", systemImage: "checkmark.circle.fill")
+                            }
+                            .tint(Palette.safe)
+                        }
+                    }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            app.delete(encounterID: encounter.id)
+                            Haptics.shared.play(.warning)
+                            pendingEncounterDeletion = encounter
                         } label: {
                             Label("删除", systemImage: "trash")
                         }
@@ -671,6 +715,12 @@ struct EncounterRow: View {
                     if let cost = encounter.cost, cost > 0 {
                         Label(Format.money(cost), systemImage: "yensign.circle")
                     }
+                    if encounter.payer.isRecorded {
+                        Text(encounter.payer.label)
+                    }
+                    if encounter.mood.isRecorded {
+                        Label(encounter.mood.label, systemImage: encounter.mood.symbolName)
+                    }
                     if !encounter.note.isEmpty {
                         Text("· \(encounter.note)")
                             .lineLimit(1)
@@ -683,6 +733,7 @@ struct EncounterRow: View {
                    !encounter.activities.isEmpty
                     || !encounter.climaxDetails.isEmpty
                     || !encounter.rhythmSummary.isEmpty
+                    || !encounter.afterglow.isEmpty
                     || encounter.boundaryFeeling.needsFollowUp
                     || encounter.hasPendingFollowUp {
                     HStack(spacing: 6) {
@@ -699,6 +750,10 @@ struct EncounterRow: View {
                             Text(encounter.climaxSummary)
                                 .lineLimit(1)
                                 .foregroundStyle(Palette.coral)
+                        }
+                        if !encounter.afterglowSummary.isEmpty {
+                            Text(encounter.afterglowSummary)
+                                .lineLimit(1)
                         }
                         if encounter.boundaryFeeling.needsFollowUp {
                             Label("边界待回看", systemImage: "exclamationmark.bubble.fill")

@@ -94,6 +94,37 @@ final class InsightsTests: XCTestCase {
         XCTAssertNil(empty.bestHookupID)
     }
 
+    func testMoodPayerAndAfterglowCounts() {
+        let her = Companion(name: "她")
+        let base = stableMidday()
+        let encounters = [
+            Encounter(companionID: her.id, date: base, kind: .intimacy,
+                      mood: .passionate, afterglow: [.cuddled, .sleptOver], payer: .me, costItems: [.room]),
+            Encounter(companionID: her.id, date: base.addingTimeInterval(86_400), kind: .intimacy,
+                      mood: .passionate, afterglow: [.cuddled], payer: .split, costItems: [.room, .meal]),
+            Encounter(companionID: her.id, date: base.addingTimeInterval(86_400 * 2), kind: .missed,
+                      mood: .awkward, afterglow: [.leftRightAway], payer: .me, costItems: [.drinks]),
+        ]
+        let insights = EncounterInsights.compute(encounters: encounters, companions: [her], now: base.addingTimeInterval(86_400 * 3))
+
+        XCTAssertEqual(insights.moodCounts[.passionate], 2)
+        XCTAssertEqual(insights.moodCounts[.awkward], 1, "没上床的氛围也算")
+        XCTAssertEqual(insights.dominantMood, .passionate)
+        XCTAssertEqual(insights.topAfterglow.first?.item, .cuddled)
+        XCTAssertEqual(insights.topAfterglow.first?.count, 2)
+        XCTAssertFalse(insights.topAfterglow.contains { $0.item == .leftRightAway }, "没上床的记录不该有事后细节")
+        XCTAssertEqual(insights.payerCounts[.me], 2)
+        XCTAssertEqual(insights.payerCounts[.split], 1)
+        XCTAssertEqual(insights.myTreatRate ?? 0, 2.0 / 3.0, accuracy: 0.001)
+        XCTAssertEqual(insights.costItemCounts[.room], 2)
+        XCTAssertEqual(insights.costItemCounts[.drinks], 1)
+
+        let empty = EncounterInsights.compute(encounters: [], companions: [])
+        XCTAssertNil(empty.dominantMood)
+        XCTAssertNil(empty.myTreatRate)
+        XCTAssertTrue(empty.topAfterglow.isEmpty)
+    }
+
     func testMissedRecordsNeverLeakIntoIntimateStatistics() {
         let her = Companion(name: "她")
         let missed = Encounter(

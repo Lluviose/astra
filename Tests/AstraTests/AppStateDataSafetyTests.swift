@@ -260,6 +260,84 @@ final class AppStateDataSafetyTests: XCTestCase {
         XCTAssertFalse(app.conqueredCompanions.contains { $0.id == missedOnly.id })
     }
 
+    @MainActor
+    func testFollowUpCanBeCompletedFromListWithoutOpeningEditor() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let her = Companion(name: "她")
+        let task = Encounter(companionID: her.id, followUpKinds: [.message], followUpDate: Date(timeIntervalSince1970: 0))
+        let plain = Encounter(companionID: her.id)
+        let store = LocalStore(defaults: defaults)
+        store.save([her], for: .companions)
+        store.save([task, plain], for: .encounters)
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+        XCTAssertEqual(app.pendingFollowUps.map(\.id), [task.id])
+
+        app.setFollowUpDone(true, encounterID: task.id)
+        XCTAssertTrue(app.pendingFollowUps.isEmpty)
+        XCTAssertEqual(app.encounter(id: task.id)?.isFollowUpDone, true)
+        XCTAssertEqual(store.load([Encounter].self, for: .encounters, default: []).first { $0.id == task.id }?.isFollowUpDone, true)
+
+        app.setFollowUpDone(true, encounterID: plain.id)
+        XCTAssertEqual(app.encounter(id: plain.id)?.isFollowUpDone, false, "没勾过事项的记录不该被标成已完成")
+
+        app.setFollowUpDone(false, encounterID: task.id)
+        XCTAssertEqual(app.pendingFollowUps.map(\.id), [task.id])
+    }
+
+    @MainActor
+    func testMergeImportReplacesOnlyEncountersEditedLaterInBackup() throws {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let her = Companion(name: "她")
+        let old = Date(timeIntervalSince1970: 1_000)
+        let new = Date(timeIntervalSince1970: 2_000)
+        let localStale = Encounter(companionID: her.id, note: "本机旧", updatedAt: old)
+        let localFresh = Encounter(companionID: her.id, note: "本机新", updatedAt: new)
+        let store = LocalStore(defaults: defaults)
+        store.save([her], for: .companions)
+        store.save([localStale, localFresh], for: .encounters)
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+
+        var backupNewer = localStale
+        backupNewer.note = "备份改过"
+        backupNewer.updatedAt = new
+        var backupOlder = localFresh
+        backupOlder.note = "备份过时"
+        backupOlder.updatedAt = old
+        let brandNew = Encounter(companionID: her.id, note: "备份独有", updatedAt: new)
+        let data = try BackupService.encode(companions: [her], encounters: [backupNewer, backupOlder, brandNew])
+
+        let summary = try app.importBackup(data, replaceExisting: false)
+
+        XCTAssertEqual(summary.encountersAdded, 1)
+        XCTAssertEqual(summary.encountersUpdated, 1)
+        XCTAssertEqual(app.encounter(id: localStale.id)?.note, "备份改过")
+        XCTAssertEqual(app.encounter(id: localFresh.id)?.note, "本机新")
+        XCTAssertEqual(app.encounter(id: brandNew.id)?.note, "备份独有")
+        XCTAssertEqual(app.encounters.count, 3)
+    }
+
+    @MainActor
+    func testSavingARecordStampsUpdatedAt() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let her = Companion(name: "她")
+        let store = LocalStore(defaults: defaults)
+        store.save([her], for: .companions)
+        store.save([Encounter](), for: .encounters)
+        let app = AppState(store: store, catalog: .shared, performsMediaMaintenance: false)
+
+        let before = Date()
+        app.upsert(Encounter(companionID: her.id, updatedAt: Date(timeIntervalSince1970: 0)))
+        let saved = app.encounters.first
+        XCTAssertNotNil(saved)
+        XCTAssertGreaterThanOrEqual(saved?.updatedAt ?? .distantPast, before.addingTimeInterval(-1))
+    }
+
     private func makeDefaults() -> (UserDefaults, String) {
         let suiteName = "AstraTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

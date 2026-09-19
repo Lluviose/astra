@@ -396,4 +396,104 @@ final class IntimacyModelTests: XCTestCase {
         XCTAssertNil(QuickDateChoice.matching(now.addingTimeInterval(-7 * 86_400), now: now, calendar: calendar))
     }
 
+    // MARK: 氛围、事后、买单
+
+    func testMoodAfterglowPayerRoundTripAndOldRecordsDecodeAsNotRecorded() throws {
+        let original = Encounter(
+            companionID: UUID(),
+            cost: 520,
+            mood: .passionate,
+            afterglow: [.cuddled, .showeredTogether],
+            payer: .me,
+            costItems: [.room, .meal]
+        )
+        let decoded = try JSONDecoder().decode(Encounter.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(decoded, original)
+        XCTAssertEqual(decoded.afterglowSummary, "抱着躺了会儿、一起洗了")
+        XCTAssertEqual(decoded.spendSummary, "我买单 · 房费、吃饭")
+
+        let old = #"{"companionID":"00000000-0000-0000-0000-000000000001","kind":"intimacy"}"#
+        let legacy = try JSONDecoder().decode(Encounter.self, from: Data(old.utf8))
+        XCTAssertEqual(legacy.mood, .notRecorded)
+        XCTAssertTrue(legacy.afterglow.isEmpty)
+        XCTAssertEqual(legacy.payer, .notRecorded)
+        XCTAssertTrue(legacy.costItems.isEmpty)
+        XCTAssertTrue(legacy.afterglowSummary.isEmpty)
+        XCTAssertTrue(legacy.spendSummary.isEmpty)
+    }
+
+    func testMissedOutcomeKeepsMoodAndPayerButDropsAfterglow() {
+        var draft = Encounter(
+            companionID: UUID(),
+            followUpKinds: [.gift, .testing, .returnItem],
+            mood: .awkward,
+            afterglow: [.leftRightAway],
+            payer: .split,
+            costItems: [.meal]
+        )
+        draft.kind = .missed
+        draft.normalizeForOutcome()
+        XCTAssertEqual(draft.mood, .awkward)
+        XCTAssertEqual(draft.payer, .split)
+        XCTAssertEqual(draft.costItems, [.meal])
+        XCTAssertTrue(draft.afterglow.isEmpty)
+        XCTAssertEqual(draft.followUpKinds, [.gift, .returnItem])
+    }
+
+    func testMissedFollowUpCasesNeverIncludeIntimateOnlyKinds() {
+        XCTAssertFalse(FollowUpKind.missedCases.contains(.testing))
+        XCTAssertFalse(FollowUpKind.missedCases.contains(.exposureConsult))
+        XCTAssertFalse(FollowUpKind.missedCases.contains(.pregnancy))
+        XCTAssertTrue(FollowUpKind.missedCases.contains(.message))
+        XCTAssertTrue(FollowUpKind.testing.isIntimateOnly)
+        XCTAssertFalse(FollowUpKind.gift.isIntimateOnly)
+        XCTAssertEqual(Set(FollowUpKind.missedCases).count, FollowUpKind.missedCases.count)
+    }
+
+    func testNewClimaxCasesFollowExistingExclusivityRules() {
+        var draft = Encounter(companionID: UUID(), climaxDetails: [.sheNotSure])
+        draft.toggleClimax(.sheCameFirst)
+        XCTAssertFalse(draft.climaxDetails.contains(.sheNotSure))
+        XCTAssertTrue(draft.climaxDetails.contains(.sheCameFirst))
+
+        draft.toggleClimax(.onBack)
+        draft.toggleClimax(.didNotFinish)
+        XCTAssertFalse(draft.climaxDetails.contains(.onBack))
+        XCTAssertTrue(draft.climaxDetails.contains(.didNotFinish))
+
+        draft.toggleClimax(.cameTogether)
+        XCTAssertFalse(draft.climaxDetails.contains(.didNotFinish), "一起到的意味着我射了")
+        XCTAssertEqual(ClimaxDetail.cameTogether.group, .partner)
+        XCTAssertEqual(ClimaxDetail.onFace.group, .finish)
+        XCTAssertEqual(IntimacyActivity.deepThroat.group, .oral)
+        XCTAssertEqual(IntimacyActivity.sofa.group, .place)
+        XCTAssertEqual(IntimacyActivity.slowBurn.group, .rhythm)
+        XCTAssertEqual(IntimacyActivity.blindfold.group, .heat)
+    }
+
+    func testFollowUpCompletionHelpersIgnoreRecordsWithoutTasks() {
+        var none = Encounter(companionID: UUID())
+        none.setFollowUpDone(true)
+        XCTAssertFalse(none.isFollowUpDone)
+
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        var task = Encounter(companionID: UUID(), followUpKinds: [.message], followUpDate: now.addingTimeInterval(-2 * 86_400))
+        XCTAssertTrue(task.isFollowUpOverdue(asOf: now, calendar: calendar))
+        task.setFollowUpDone(true)
+        XCTAssertFalse(task.hasPendingFollowUp)
+        XCTAssertFalse(task.isFollowUpOverdue(asOf: now, calendar: calendar))
+
+        let unscheduled = Encounter(companionID: UUID(), followUpKinds: [.planMeet])
+        XCTAssertFalse(unscheduled.isFollowUpOverdue(asOf: now, calendar: calendar))
+    }
+
+    func testUpdatedAtDefaultsToEventDateForOldBackups() throws {
+        let old = #"{"companionID":"00000000-0000-0000-0000-000000000001","kind":"intimacy","date":"2026-01-02T03:04:05Z"}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let legacy = try decoder.decode(Encounter.self, from: Data(old.utf8))
+        XCTAssertEqual(legacy.updatedAt, legacy.date)
+    }
+
 }

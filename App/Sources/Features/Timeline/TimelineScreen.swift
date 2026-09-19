@@ -9,6 +9,7 @@ struct TimelineScreen: View {
     @State private var flow = RecordingFlow()
     @State private var path = NavigationPath()
     @State private var encounterTarget: Encounter?
+    @State private var pendingDeletion: Encounter?
     @State private var scope: RecordScope = .all
     @State private var query = ""
 
@@ -39,9 +40,15 @@ struct TimelineScreen: View {
         if encounter.venueCategory != .notRecorded, encounter.venueCategory.label.lowercased().contains(q) { return true }
         if encounter.missedSummary.lowercased().contains(q) { return true }
         if encounter.followUpNote.lowercased().contains(q) { return true }
+        if encounter.followUpSummary.lowercased().contains(q) { return true }
+        if encounter.safetyNote.lowercased().contains(q) { return true }
+        if encounter.afterglowSummary.lowercased().contains(q) { return true }
+        if encounter.spendSummary.lowercased().contains(q) { return true }
+        if encounter.mood.isRecorded, encounter.mood.label.lowercased().contains(q) { return true }
         if app.locationName(for: encounter).lowercased().contains(q) { return true }
         if let companion = app.companion(id: encounter.companionID),
-           companion.displayName.lowercased().contains(q) {
+           companion.displayName.lowercased().contains(q)
+            || companion.tags.contains(where: { $0.lowercased().contains(q) }) {
             return true
         }
         if encounter.activities.contains(where: { $0.label.lowercased().contains(q) }) { return true }
@@ -91,11 +98,14 @@ struct TimelineScreen: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                followUpDoneButton(encounter)
+                            }
                         }
                     } header: {
                         Label("接下来", systemImage: "checklist")
                     } footer: {
-                        Text("点开记录就能改日期或勾完成。")
+                        Text("右滑直接勾完成；点开记录可以改日期。")
                     }
                 }
 
@@ -136,7 +146,7 @@ struct TimelineScreen: View {
                     ForEach(sections) { section in
                         Section(section.title) {
                             ForEach(section.encounters) { encounter in
-                                if app.companion(id: encounter.companionID) != nil {
+                                if let companion = app.companion(id: encounter.companionID) {
                                     Button {
                                         Haptics.shared.play(.selection)
                                         encounterTarget = encounter
@@ -145,14 +155,50 @@ struct TimelineScreen: View {
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
+                                    .contextMenu {
+                                        Button {
+                                            flow.record(encounter.kind, for: companion)
+                                        } label: {
+                                            Label("再记她一笔", systemImage: "square.and.pencil")
+                                        }
+                                        Button {
+                                            path.append(encounter.companionID)
+                                        } label: {
+                                            Label("打开档案", systemImage: "book.pages.fill")
+                                        }
+                                        if encounter.hasPendingFollowUp {
+                                            Button {
+                                                app.setFollowUpDone(true, encounterID: encounter.id)
+                                            } label: {
+                                                Label("跟进已完成", systemImage: "checkmark.circle.fill")
+                                            }
+                                        } else if !encounter.followUpKinds.isEmpty {
+                                            Button {
+                                                app.setFollowUpDone(false, encounterID: encounter.id)
+                                            } label: {
+                                                Label("重新待办", systemImage: "arrow.uturn.backward.circle")
+                                            }
+                                        }
+                                        Divider()
+                                        Button(role: .destructive) {
+                                            Haptics.shared.play(.warning)
+                                            pendingDeletion = encounter
+                                        } label: {
+                                            Label("删除", systemImage: "trash")
+                                        }
+                                    }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
-                                            app.delete(encounterID: encounter.id)
+                                            Haptics.shared.play(.warning)
+                                            pendingDeletion = encounter
                                         } label: {
                                             Label("删除", systemImage: "trash")
                                         }
                                     }
                                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        if encounter.hasPendingFollowUp {
+                                            followUpDoneButton(encounter)
+                                        }
                                         Button {
                                             path.append(encounter.companionID)
                                         } label: {
@@ -189,6 +235,40 @@ struct TimelineScreen: View {
         .sheet(item: $encounterTarget) { encounter in
             EncounterEditor(encounter: encounter)
         }
+        .confirmationDialog(
+            "删除这条记录？",
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDeletion
+        ) { encounter in
+            Button("删除", role: .destructive) {
+                app.delete(encounterID: encounter.id)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { encounter in
+            Text(deletionMessage(for: encounter))
+        }
+    }
+
+    private func deletionMessage(for encounter: Encounter) -> String {
+        var parts = ["\(encounter.kind.label) · \(encounter.date.formatted(date: .abbreviated, time: .shortened))"]
+        if !encounter.photoIDs.isEmpty {
+            parts.append("这次的 \(encounter.photoIDs.count) 张照片会一起删掉。")
+        }
+        parts.append("删除后不能恢复。")
+        return parts.joined(separator: "\n")
+    }
+
+    private func followUpDoneButton(_ encounter: Encounter) -> some View {
+        Button {
+            app.setFollowUpDone(true, encounterID: encounter.id)
+        } label: {
+            Label("完成", systemImage: "checkmark.circle.fill")
+        }
+        .tint(Palette.safe)
     }
 
     private var scopePicker: some View {
@@ -288,11 +368,7 @@ struct TimelineScreen: View {
     }
 
     private var overdueFollowUpCount: Int {
-        let today = Calendar.current.startOfDay(for: Date())
-        return app.pendingFollowUps.filter {
-            guard let due = $0.followUpDate else { return false }
-            return Calendar.current.startOfDay(for: due) < today
-        }.count
+        app.pendingFollowUps.filter { $0.isFollowUpOverdue() }.count
     }
 
     private var todayFollowUpCount: Int {
@@ -404,10 +480,7 @@ struct FollowUpRow: View {
 
     private var companion: Companion? { app.companion(id: encounter.companionID) }
 
-    private var isOverdue: Bool {
-        guard let due = encounter.followUpDate else { return false }
-        return Calendar.current.startOfDay(for: due) < Calendar.current.startOfDay(for: Date())
-    }
+    private var isOverdue: Bool { encounter.isFollowUpOverdue() }
 
     var body: some View {
         HStack(spacing: 12) {

@@ -513,6 +513,23 @@ struct HomeScreen: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            app.setFollowUpDone(true, encounterID: encounter.id)
+                        } label: {
+                            Label("已经处理完成", systemImage: "checkmark.circle.fill")
+                        }
+                        Button {
+                            followUpTarget = encounter
+                        } label: {
+                            Label("打开记录", systemImage: "square.and.pencil")
+                        }
+                        Button {
+                            path.append(encounter.companionID)
+                        } label: {
+                            Label("打开档案", systemImage: "book.pages.fill")
+                        }
+                    }
                 }
 
                 if !followUps.isEmpty, !attention.isEmpty {

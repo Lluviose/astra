@@ -98,7 +98,9 @@ struct SettingsScreen: View {
             Button("好", role: .cancel) {}
         } message: {
             if let summary = importSummary {
-                Text("新增 \(summary.companionsAdded) 个对象，更新 \(summary.companionsUpdated) 个对象，新增 \(summary.encountersAdded) 条记录。")
+                Text(summary.encountersUpdated > 0
+                     ? "新增 \(summary.companionsAdded) 个对象，更新 \(summary.companionsUpdated) 个对象；新增 \(summary.encountersAdded) 条记录，更新 \(summary.encountersUpdated) 条记录。"
+                     : "新增 \(summary.companionsAdded) 个对象，更新 \(summary.companionsUpdated) 个对象，新增 \(summary.encountersAdded) 条记录。")
             }
         }
         .alert("无法开启锁定", isPresented: $showLockUnavailable) {

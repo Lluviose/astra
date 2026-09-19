@@ -620,10 +620,13 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
     case handjob
     case titjob
     case footjob
+    case nipplePlay
+    case mutualMasturbation
     case oralGiving
     case oralReceiving
     case sixtyNine
     case rimming
+    case deepThroat
     case vaginalPenetration
     case analInsertive
     case analReceptive
@@ -635,11 +638,14 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
     case lotus
     case standing
     case spooning
+    case legsUp
     case shower
     case car
     case outdoor
     case hotel
+    case sofa
     case quickie
+    case slowBurn
     case multipleRounds
     case morning
     case overnight
@@ -648,6 +654,9 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
     case spanking
     case roleplay
     case lingerie
+    case blindfold
+    case mirror
+    case hairPull
     case recorded
     case other
 
@@ -661,10 +670,13 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
         case .handjob: "她用手"
         case .titjob: "乳交"
         case .footjob: "足交"
+        case .nipplePlay: "玩胸"
+        case .mutualMasturbation: "互相用手"
         case .oralGiving: "口 · 我给她"
         case .oralReceiving: "口 · 她给我"
         case .sixtyNine: "69"
         case .rimming: "舔后庭"
+        case .deepThroat: "深喉"
         case .vaginalPenetration: "阴道性交"
         case .analInsertive: "肛 · 我在上"
         case .analReceptive: "肛 · 我在下"
@@ -676,11 +688,14 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
         case .lotus: "面对面坐着"
         case .standing: "站着做"
         case .spooning: "侧躺"
+        case .legsUp: "架起腿"
         case .shower: "浴室"
         case .car: "车震"
         case .outdoor: "外面做"
         case .hotel: "开房"
+        case .sofa: "沙发 / 桌上"
         case .quickie: "速战速决"
+        case .slowBurn: "慢慢磨"
         case .multipleRounds: "多轮"
         case .morning: "晨炮"
         case .overnight: "过夜"
@@ -689,6 +704,9 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
         case .spanking: "打屁股"
         case .roleplay: "角色扮演"
         case .lingerie: "内衣丝袜不脱"
+        case .blindfold: "眼罩 / 捆绑"
+        case .mirror: "对着镜子"
+        case .hairPull: "拉头发 / 掐腰"
         case .recorded: "拍了"
         case .other: "其他"
         }
@@ -702,7 +720,10 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
         case .car: "car.fill"
         case .outdoor: "leaf.fill"
         case .hotel: "bed.double.fill"
+        case .sofa: "sofa.fill"
         case .quickie: "bolt.fill"
+        case .slowBurn: "tortoise.fill"
+        case .mirror: "rectangle.portrait.on.rectangle.portrait.fill"
         case .multipleRounds: "repeat"
         case .morning: "sunrise.fill"
         case .overnight: "moon.stars.fill"
@@ -714,19 +735,19 @@ enum IntimacyActivity: String, Codable, CaseIterable, Hashable, Sendable, Identi
 
     var group: IntimacyActivityGroup {
         switch self {
-        case .kissing, .touching, .fingering, .handjob, .titjob, .footjob:
+        case .kissing, .touching, .fingering, .handjob, .titjob, .footjob, .nipplePlay, .mutualMasturbation:
             .touch
-        case .oralGiving, .oralReceiving, .sixtyNine, .rimming:
+        case .oralGiving, .oralReceiving, .sixtyNine, .rimming, .deepThroat:
             .oral
         case .vaginalPenetration, .analInsertive, .analReceptive:
             .body
-        case .cowgirl, .reverseCowgirl, .doggy, .prone, .missionary, .lotus, .standing, .spooning:
+        case .cowgirl, .reverseCowgirl, .doggy, .prone, .missionary, .lotus, .standing, .spooning, .legsUp:
             .position
-        case .shower, .car, .outdoor, .hotel:
+        case .shower, .car, .outdoor, .hotel, .sofa:
             .place
-        case .quickie, .multipleRounds, .morning, .overnight:
+        case .quickie, .slowBurn, .multipleRounds, .morning, .overnight:
             .rhythm
-        case .toys, .dirtyTalk, .spanking, .roleplay, .lingerie, .recorded, .other:
+        case .toys, .dirtyTalk, .spanking, .roleplay, .lingerie, .blindfold, .mirror, .hairPull, .recorded, .other:
             .heat
         }
     }
@@ -842,6 +863,11 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
     case onBody
     case multiple
     case edging
+    case sheCameFirst
+    case cameTogether
+    case inMouthSpit
+    case onBack
+    case onFace
     case sheDidNotCome
     case sheNotSure
     case didNotFinish
@@ -862,6 +888,11 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
         case .onBody: "射在身上"
         case .multiple: "我射了不止一次"
         case .edging: "一直吊着不让射"
+        case .sheCameFirst: "她先到的"
+        case .cameTogether: "一起到的"
+        case .inMouthSpit: "口爆吐出来"
+        case .onBack: "射在背上 / 屁股上"
+        case .onFace: "射在嘴边 / 脸颊"
         case .sheDidNotCome: "她没高潮"
         case .sheNotSure: "不确定她有没有高潮"
         case .didNotFinish: "我没射精"
@@ -870,8 +901,8 @@ enum ClimaxDetail: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
 
     var tint: Color {
         switch self {
-        case .creampie, .swallow, .facial: Color(red: 0.94, green: 0.22, blue: 0.46)
-        case .sheCame, .sheMultiple, .sheSquirted: Color(red: 0.93, green: 0.39, blue: 0.60)
+        case .creampie, .swallow, .facial, .inMouthSpit, .onFace: Color(red: 0.94, green: 0.22, blue: 0.46)
+        case .sheCame, .sheMultiple, .sheSquirted, .sheCameFirst, .cameTogether: Color(red: 0.93, green: 0.39, blue: 0.60)
         default: Color(red: 0.95, green: 0.56, blue: 0.30)
         }
     }
@@ -883,7 +914,10 @@ enum SafetyMeasure: String, Codable, CaseIterable, Hashable, Sendable, Identifia
     case internalCondom
     case oralBarrier
     case prep
+    case pep
     case contraception
+    case emergencyContraception
+    case recentTest
     case lubricant
     case other
 
@@ -895,7 +929,10 @@ enum SafetyMeasure: String, Codable, CaseIterable, Hashable, Sendable, Identifia
         case .internalCondom: "内用安全套"
         case .oralBarrier: "口腔屏障"
         case .prep: "PrEP"
+        case .pep: "PEP"
         case .contraception: "其他避孕"
+        case .emergencyContraception: "事后紧急避孕"
+        case .recentTest: "近期检测过"
         case .lubricant: "润滑剂"
         case .other: "其他"
         }
@@ -947,6 +984,9 @@ enum PersonalState: String, Codable, CaseIterable, Hashable, Sendable, Identifia
     case stressed
     case unwell
     case rushed
+    case horny
+    case nervous
+    case lonely
 
     var id: String { rawValue }
 
@@ -958,6 +998,9 @@ enum PersonalState: String, Codable, CaseIterable, Hashable, Sendable, Identifia
         case .stressed: "紧张或有压力"
         case .unwell: "身体不适"
         case .rushed: "时间仓促"
+        case .horny: "欲火旺"
+        case .nervous: "有点紧张"
+        case .lonely: "只是寂寞"
         }
     }
 }
@@ -988,6 +1031,9 @@ enum FollowUpKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
     case exposureConsult
     case pregnancy
     case symptomCheck
+    case returnItem
+    case sendPhotos
+    case gift
     case other
 
     var id: String { rawValue }
@@ -1001,6 +1047,9 @@ enum FollowUpKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
         case .exposureConsult: "暴露咨询"
         case .pregnancy: "担心怀孕"
         case .symptomCheck: "留意身体"
+        case .returnItem: "还她东西"
+        case .sendPhotos: "发她照片"
+        case .gift: "送个礼物"
         case .other: "其他"
         }
     }
@@ -1014,9 +1063,18 @@ enum FollowUpKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiab
         case .exposureConsult: "phone.badge.waveform.fill"
         case .pregnancy: "calendar.badge.exclamationmark"
         case .symptomCheck: "heart.text.square.fill"
+        case .returnItem: "bag.fill"
+        case .sendPhotos: "photo.on.rectangle"
+        case .gift: "gift.fill"
         case .other: "checklist"
         }
     }
+
+    /// 没上床也能勾的事项：联系、再约、账号、还东西、发照片、礼物、其他。
+    static let missedCases: [FollowUpKind] = [.message, .planMeet, .accountSafety, .returnItem, .sendPhotos, .gift, .other]
+
+    /// 只和这次实际发生的性行为有关的事项。
+    var isIntimateOnly: Bool { !Self.missedCases.contains(self) }
 }
 
 struct Encounter: Identifiable, Codable, Hashable, Sendable {
@@ -1054,8 +1112,18 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
     var followUpNote: String
     var isFollowUpDone: Bool
     var note: String
+    /// 这次整体是什么氛围；两种结果都能记。
+    var mood: EncounterMood
+    /// 做完之后的样子：抱着睡、一起洗、做完就走……只对上床记录有意义。
+    var afterglow: Set<AfterglowDetail>
+    /// 这次谁买的单。
+    var payer: Payer
+    /// 钱花在哪几项上；和金额分开记，金额可以不填。
+    var costItems: Set<CostItem>
     /// 这次留下的照片，存在本机沙盒
     var photoIDs: [String]
+    /// 最后一次保存的时间；合并导入时以较新的一份为准。旧备份没有这一项，回退为发生时间。
+    var updatedAt: Date
 
     init(
         id: UUID = UUID(),
@@ -1086,7 +1154,12 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         followUpNote: String = "",
         isFollowUpDone: Bool = false,
         note: String = "",
-        photoIDs: [String] = []
+        mood: EncounterMood = .notRecorded,
+        afterglow: Set<AfterglowDetail> = [],
+        payer: Payer = .notRecorded,
+        costItems: Set<CostItem> = [],
+        photoIDs: [String] = [],
+        updatedAt: Date = Date()
     ) {
         self.id = id
         self.companionID = companionID
@@ -1116,7 +1189,12 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         self.followUpNote = followUpNote
         self.isFollowUpDone = isFollowUpDone
         self.note = note
+        self.mood = mood
+        self.afterglow = afterglow
+        self.payer = payer
+        self.costItems = costItems
         self.photoIDs = photoIDs
+        self.updatedAt = updatedAt
         normalizeForOutcome()
     }
 
@@ -1150,7 +1228,12 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         followUpNote = try c.decodeIfPresent(String.self, forKey: .followUpNote) ?? ""
         isFollowUpDone = try c.decodeIfPresent(Bool.self, forKey: .isFollowUpDone) ?? false
         note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+        mood = try c.decodeIfPresent(EncounterMood.self, forKey: .mood) ?? .notRecorded
+        afterglow = try c.decodeIfPresent(Set<AfterglowDetail>.self, forKey: .afterglow) ?? []
+        payer = try c.decodeIfPresent(Payer.self, forKey: .payer) ?? .notRecorded
+        costItems = try c.decodeIfPresent(Set<CostItem>.self, forKey: .costItems) ?? []
         photoIDs = try c.decodeIfPresent([String].self, forKey: .photoIDs) ?? []
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? date
         normalizeForOutcome()
     }
 
@@ -1173,8 +1256,8 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
         safetyMeasures = []
         safetyNote = ""
         physicalRating = 0
-        let allowedFollowUps: Set<FollowUpKind> = [.message, .planMeet, .accountSafety, .other]
-        followUpKinds.formIntersection(allowedFollowUps)
+        afterglow = []
+        followUpKinds.formIntersection(Set(FollowUpKind.missedCases))
         if followUpKinds.isEmpty {
             followUpDate = nil
             followUpNote = ""
@@ -1191,6 +1274,18 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
 
     var hasPendingFollowUp: Bool {
         !followUpKinds.isEmpty && !isFollowUpDone
+    }
+
+    /// 设了日期、还没做完，并且日期已经过了今天。
+    func isFollowUpOverdue(asOf now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard hasPendingFollowUp, let due = followUpDate else { return false }
+        return calendar.startOfDay(for: due) < calendar.startOfDay(for: now)
+    }
+
+    /// 在列表里直接勾完成 / 取消完成，不用打开整张表单。没勾过事项的记录不会被标成已完成。
+    mutating func setFollowUpDone(_ done: Bool) {
+        guard !followUpKinds.isEmpty else { return }
+        isFollowUpDone = done
     }
 
     var followUpSummary: String {
@@ -1212,6 +1307,23 @@ struct Encounter: Identifiable, Codable, Hashable, Sendable {
             .filter { climaxDetails.contains($0) }
             .map(\.label)
             .joined(separator: "、")
+    }
+
+    /// 「抱着睡、一起洗了」这类事后摘要。
+    var afterglowSummary: String {
+        AfterglowDetail.allCases
+            .filter { afterglow.contains($0) }
+            .map(\.label)
+            .joined(separator: "、")
+    }
+
+    /// 「我买单 · 酒店、吃饭」；没记谁买单也没记项目就为空。
+    var spendSummary: String {
+        var parts: [String] = []
+        if payer.isRecorded { parts.append(payer.label) }
+        let items = CostItem.allCases.filter { costItems.contains($0) }.map(\.label)
+        if !items.isEmpty { parts.append(items.joined(separator: "、")) }
+        return parts.joined(separator: " · ")
     }
 
     /// 「她主动 · 2 轮 · 45 分钟」这类一句话节奏摘要；没记的部分不出现。

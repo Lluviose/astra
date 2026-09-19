@@ -150,6 +150,29 @@ struct EncounterInsights: Hashable, Sendable {
     var averagePhysical: Double?
     var averageEmotional: Double?
     var meetAgainCounts: [MeetAgainIntent: Int] = [:]
+    /// 两种结果都算，只统计记了氛围的。
+    var moodCounts: [EncounterMood: Int] = [:]
+    /// 最常见的氛围；没记过就为 nil。
+    var dominantMood: EncounterMood? {
+        moodCounts.filter { $0.value > 0 }
+            .max { lhs, rhs in
+                if lhs.value != rhs.value { return lhs.value < rhs.value }
+                return lhs.key.rawValue > rhs.key.rawValue
+            }?.key
+    }
+    /// 只看上床记录的事后细节，按次数排。
+    var topAfterglow: [Count<AfterglowDetail>] = []
+
+    // MARK: 谁买单
+
+    var payerCounts: [Payer: Int] = [:]
+    var costItemCounts: [CostItem: Int] = [:]
+    /// 记了谁买单的次数里，我买单的占比。
+    var myTreatRate: Double? {
+        let decided = Payer.allCases.filter(\.isRecorded).reduce(0) { $0 + (payerCounts[$1] ?? 0) }
+        guard decided > 0 else { return nil }
+        return Double(payerCounts[.me] ?? 0) / Double(decided)
+    }
 
     // MARK: 节奏
 
@@ -211,6 +234,7 @@ struct EncounterInsights: Hashable, Sendable {
         var perLocation: [String: Int] = [:]
         var activityCounts: [IntimacyActivity: Int] = [:]
         var climaxCounts: [ClimaxDetail: Int] = [:]
+        var afterglowCounts: [AfterglowDetail: Int] = [:]
         var dayPartCounts: [DayPart: Int] = [:]
         var weekdayCounts: [Int: Int] = [:]
         var physicalTotal = 0
@@ -235,6 +259,7 @@ struct EncounterInsights: Hashable, Sendable {
             result.protectionCounts[encounter.protectionStatus, default: 0] += 1
             for activity in encounter.activities { activityCounts[activity, default: 0] += 1 }
             for detail in encounter.climaxDetails { climaxCounts[detail, default: 0] += 1 }
+            for detail in encounter.afterglow { afterglowCounts[detail, default: 0] += 1 }
             if encounter.initiator.isRecorded {
                 result.initiatorCounts[encounter.initiator, default: 0] += 1
             }
@@ -274,6 +299,16 @@ struct EncounterInsights: Hashable, Sendable {
         for encounter in encounters where encounter.meetAgainIntent != .notRecorded {
             result.meetAgainCounts[encounter.meetAgainIntent, default: 0] += 1
         }
+        for encounter in encounters {
+            if encounter.mood.isRecorded { result.moodCounts[encounter.mood, default: 0] += 1 }
+            if encounter.payer.isRecorded { result.payerCounts[encounter.payer, default: 0] += 1 }
+            for item in encounter.costItems { result.costItemCounts[item, default: 0] += 1 }
+        }
+        result.topAfterglow = AfterglowDetail.allCases
+            .compactMap { detail in afterglowCounts[detail].map { Count(item: detail, count: $0) } }
+            .sorted { $0.count > $1.count }
+            .prefix(5)
+            .map { $0 }
 
         result.companionCount = perCompanion.count
         result.repeatCompanionCount = perCompanion.values.filter { $0 >= 3 }.count
