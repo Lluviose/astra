@@ -29,6 +29,95 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(MediaStore.data(id: mediaID), Data([0x03]))
     }
 
+    func testVideoIsStoredWithOriginalExtensionAndRoundTripsThroughBackup() throws {
+        let videoID = "video-\(UUID().uuidString)"
+        let imageID = "image-\(UUID().uuidString)"
+        defer { MediaStore.delete(ids: [videoID, imageID]) }
+
+        // 视频只按扩展名判定，不校验内容；伪造几个字节即可覆盖存储与备份路径。
+        let bytes = Data([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70])
+        XCTAssertEqual(MediaStore.saveVideo(data: bytes, id: videoID, fileExtension: "MOV"), videoID)
+        XCTAssertNil(MediaStore.saveVideo(data: bytes, id: "bad-\(UUID().uuidString)", fileExtension: "avi"))
+        XCTAssertEqual(MediaStore.kind(id: videoID), .video)
+        XCTAssertTrue(MediaStore.isVideo(id: videoID))
+        XCTAssertEqual(MediaStore.fileExtension(id: videoID), "mov")
+        XCTAssertNotNil(MediaStore.videoURL(id: videoID))
+        XCTAssertNil(MediaStore.image(id: videoID), "视频不能被当成图片解码")
+        XCTAssertEqual(MediaStore.data(id: videoID), bytes)
+        XCTAssertTrue(MediaStore.existingIDs().contains(videoID))
+
+        XCTAssertTrue(MediaStore.save(data: Data([0xFF, 0xD8, 0xFF, 0xD9]), id: imageID))
+        XCTAssertEqual(MediaStore.kind(id: imageID), .image)
+        XCTAssertNil(MediaStore.videoURL(id: imageID))
+
+        let companion = Companion(name: "她", albumPhotoIDs: [videoID, imageID])
+        let media = MediaStore.collect(ids: [videoID, imageID])
+        let extensions = MediaStore.collectExtensions(ids: [videoID, imageID])
+        XCTAssertEqual(extensions, [videoID: "mov"])
+
+        let data = try BackupService.encode(companions: [companion], encounters: [], media: media, mediaExtensions: extensions)
+        let decoded = try BackupService.decode(data)
+        XCTAssertEqual(decoded.version, 5)
+        XCTAssertEqual(decoded.mediaExtensions, [videoID: "mov"])
+
+        MediaStore.delete(ids: [videoID, imageID])
+        XCTAssertNil(MediaStore.kind(id: videoID))
+        XCTAssertTrue(MediaStore.restore(decoded.media, extensions: decoded.mediaExtensions).isEmpty)
+        XCTAssertEqual(MediaStore.kind(id: videoID), .video)
+        XCTAssertEqual(MediaStore.kind(id: imageID), .image)
+        XCTAssertEqual(MediaStore.data(id: videoID), bytes)
+    }
+
+    func testBackupRejectsUnknownVideoExtensions() throws {
+        let companion = Companion(name: "她", albumPhotoIDs: ["clip"])
+        let data = try BackupService.encode(
+            companions: [companion],
+            encounters: [],
+            media: ["clip": Data([0x01])],
+            mediaExtensions: ["clip": "exe"]
+        )
+        XCTAssertThrowsError(try BackupService.decode(data)) { error in
+            guard case BackupError.invalidContents = error else {
+                return XCTFail("预期 invalidContents，实际 \(error)")
+            }
+        }
+    }
+
+    func testSavingImageOverAVideoIDReplacesTheOldFile() {
+        let id = "swap-\(UUID().uuidString)"
+        defer { MediaStore.delete(id: id) }
+
+        XCTAssertEqual(MediaStore.saveVideo(data: Data([0x01]), id: id, fileExtension: "mp4"), id)
+        XCTAssertTrue(MediaStore.save(data: Data([0xFF, 0xD8, 0xFF, 0xD9]), id: id))
+        XCTAssertEqual(MediaStore.kind(id: id), .image)
+        XCTAssertEqual(MediaStore.existingIDs().filter { $0 == id }.count, 1)
+    }
+
+    func testThumbnailDownsamplesButOriginalStaysUntouched() throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1_200, height: 800)).image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1_200, height: 800))
+        }
+        let sourceData = try XCTUnwrap(image.pngData())
+        let id = "thumb-\(UUID().uuidString)"
+        defer { MediaStore.delete(id: id) }
+        XCTAssertEqual(MediaStore.saveOriginal(data: sourceData, id: id), id)
+
+        let thumb = try XCTUnwrap(MediaStore.downsampledImage(id: id, maxPixel: 320))
+        XCTAssertLessThanOrEqual(max(thumb.size.width * thumb.scale, thumb.size.height * thumb.scale), 320)
+
+        let original = try XCTUnwrap(MediaStore.image(id: id))
+        XCTAssertEqual(original.size.width * original.scale, 1_200, accuracy: 1)
+        XCTAssertEqual(MediaStore.data(id: id), sourceData, "原图字节不能因为生成缩略图而改变")
+    }
+
+    func testDurationBadgeFormatsMinutesAndHours() {
+        XCTAssertEqual(MediaDurationBadge.format(0), "0:00")
+        XCTAssertEqual(MediaDurationBadge.format(42.4), "0:42")
+        XCTAssertEqual(MediaDurationBadge.format(125), "2:05")
+        XCTAssertEqual(MediaDurationBadge.format(3_725), "1:02:05")
+    }
+
     func testMediaDirectoryIsEligibleForSystemICloudBackup() throws {
         MediaStore.enableSystemBackup()
         let values = try MediaStore.directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
@@ -242,7 +331,7 @@ final class BackupServiceTests: XCTestCase {
         let data = try BackupService.encode(companions: [companion], encounters: [encounter], media: media)
         let decoded = try BackupService.decode(data)
 
-        XCTAssertEqual(decoded.version, 4)
+        XCTAssertEqual(decoded.version, 5)
         XCTAssertEqual(decoded.companions.first?.photoID, "avatar-1")
         XCTAssertEqual(decoded.companions.first?.profilePhotoIDs, ["profile-1"])
         XCTAssertEqual(decoded.companions.first?.albumPhotoIDs, ["album-1"])

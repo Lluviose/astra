@@ -864,12 +864,12 @@ struct EncounterEditor: View {
             }
         } header: {
             HStack {
-                Text("这次的照片")
+                Text("这次的照片 / 视频")
                 Spacer()
                 Text("\(draft.photoIDs.count) / \(maxPhotos)")
             }
         } footer: {
-            Text("最多 \(maxPhotos) 张，会一起进她的艳照私藏。不进系统相册。")
+            Text("最多 \(maxPhotos) 个，照片和视频都行，会一起进她的艳照私藏。原图原视频保存，不进系统相册。")
         }
     }
 

@@ -16,7 +16,10 @@ struct CompanionDetailView: View {
     @State private var viewingPhotoIndex: Int?
     @State private var viewingPhotoIDs: [String] = []
     @State private var photoShelf: PhotoShelf = .album
+    @State private var showsAllPhotos = false
     @State private var copiedContact = false
+
+    private let previewPhotoLimit = 9
 
     private enum PhotoShelf: String, CaseIterable, Identifiable {
         case album
@@ -394,9 +397,9 @@ struct CompanionDetailView: View {
 
             if !ids.isEmpty {
                 if app.namesRevealed {
-                    PhotoStrip(
-                        ids: ids,
-                        editable: true,
+                    let visible = showsAllPhotos ? ids : Array(ids.prefix(previewPhotoLimit))
+                    PhotoGrid(
+                        ids: visible,
                         onDelete: { id in
                             if photoShelf == .album {
                                 app.removeAlbumPhoto(id, from: companion.id)
@@ -409,6 +412,21 @@ struct CompanionDetailView: View {
                             viewingPhotoIndex = $0
                         }
                     )
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+
+                    if ids.count > previewPhotoLimit {
+                        Button {
+                            Haptics.shared.play(.selection)
+                            withAnimation(AstraMotion.response(reduceMotion: false)) { showsAllPhotos.toggle() }
+                        } label: {
+                            Label(
+                                showsAllPhotos ? "收起" : "查看全部 \(ids.count) 个",
+                                systemImage: showsAllPhotos ? "chevron.up" : "square.grid.3x3"
+                            )
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Palette.accent)
+                        }
+                    }
                 } else {
                     Label("点右上角菜单里的眼睛再看照片", systemImage: "eye.slash")
                         .font(.footnote)
@@ -428,8 +446,8 @@ struct CompanionDetailView: View {
         } footer: {
             Text(
                 photoShelf == .album
-                    ? "艳照和每次留下的照片放这里，不限数量，原图保存。"
-                    : "头像和普通人物照放这里，不会混进艳照。"
+                    ? "艳照和每次留下的照片、视频放这里，不限数量，原图原视频保存；长按可删。"
+                    : "头像和普通人物照放这里，不会混进艳照；长按可删。"
             )
         }
     }

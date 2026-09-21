@@ -285,7 +285,7 @@ struct SettingsScreen: View {
                     showImportError = "导出失败：\(error.localizedDescription)"
                 }
             } label: {
-                Label("导出备份（含照片）", systemImage: "square.and.arrow.up")
+                Label("导出备份（含照片和视频）", systemImage: "square.and.arrow.up")
             }
 
             Button {
@@ -304,9 +304,13 @@ struct SettingsScreen: View {
         } header: {
             Text("数据")
         } footer: {
-            Text("\(app.companions.count) 个人 · \(app.encounters.count) 条记录 · \(app.stats.photoCount) 张照片。备份是明文 JSON，照片会一起打进去，请放在只有你能打开的地方。")
+            Text("\(app.companions.count) 个人 · \(app.encounters.count) 条记录 · \(app.stats.photoCount) 个照片 / 视频 · 占用 \(mediaSizeText)。备份是明文 JSON，照片和视频会一起打进去，请放在只有你能打开的地方。")
         }
         .labelStyle(SettingsIconLabelStyle(tint: Palette.safe))
+    }
+
+    private var mediaSizeText: String {
+        ByteCountFormatter.string(fromByteCount: MediaStore.totalBytes(), countStyle: .file)
     }
 
     // MARK: 关于
@@ -367,7 +371,7 @@ struct AboutView: View {
                 LabeledContent("界面", value: "SwiftUI · 液态玻璃")
                 LabeledContent("猎场地图", value: "MapKit · 中国城市 / 境外国家")
                 LabeledContent("触感", value: "Core Haptics")
-                LabeledContent("存储", value: "本机沙盒 · 含照片")
+                LabeledContent("存储", value: "本机沙盒 · 含照片和视频")
             }
         }
         .navigationTitle("关于")

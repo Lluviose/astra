@@ -831,7 +831,8 @@ final class AppState {
         try BackupService.encode(
             companions: companions,
             encounters: encounters,
-            media: MediaStore.collect(ids: Array(referencedMediaIDs))
+            media: MediaStore.collect(ids: Array(referencedMediaIDs)),
+            mediaExtensions: MediaStore.collectExtensions(ids: Array(referencedMediaIDs))
         )
     }
 
@@ -845,7 +846,7 @@ final class AppState {
                 encounters: payload.encounters
             )
             let media = payload.media.filter { referenced.contains($0.key) }
-            guard MediaStore.restore(media).isEmpty else {
+            guard MediaStore.restore(media, extensions: payload.mediaExtensions).isEmpty else {
                 throw BackupError.cannotRestoreMedia
             }
 
@@ -899,7 +900,7 @@ final class AppState {
             encounters: mergedEncounters
         )
         let media = payload.media.filter { referenced.contains($0.key) }
-        guard MediaStore.restore(media, overwriteExisting: false).isEmpty else {
+        guard MediaStore.restore(media, extensions: payload.mediaExtensions, overwriteExisting: false).isEmpty else {
             throw BackupError.cannotRestoreMedia
         }
 

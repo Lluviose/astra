@@ -253,9 +253,10 @@ struct HaremGalleryScreen: View {
         .contentSurface(cornerRadius: 24)
     }
 
+    /// 封面只用图片；视频留给查看器播放。
     private func coverPhotoID(for companion: Companion) -> String? {
-        app.profilePhotoIDs(for: companion.id).first
-            ?? app.albumIDs(for: companion.id).first
+        (app.profilePhotoIDs(for: companion.id) + app.albumIDs(for: companion.id))
+            .first { !MediaStore.isVideo(id: $0) }
     }
 
     private func galleryPhotoIDs(for companion: Companion) -> [String] {
@@ -461,7 +462,8 @@ struct HaremPortrait: View {
                 .strokeBorder(.white.opacity(0.20), lineWidth: 0.8)
         }
         .task(id: photoID) {
-            image = photoID.flatMap { MediaStore.image(id: $0) }
+            guard let photoID else { image = nil; return }
+            image = await MediaStore.thumbnail(id: photoID, maxPixel: 1200)
         }
         .accessibilityElement()
         .accessibilityLabel(app.namesRevealed ? companion.displayName : "人物照片已隐藏")

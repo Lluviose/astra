@@ -7,13 +7,16 @@ struct BackupPayload: Codable, Sendable {
     var exportedAt: Date
     var companions: [Companion]
     var encounters: [Encounter]
-    /// JPEG 二进制，key 是 MediaStore 的 id。v1 备份没有这一项。
+    /// 媒体原始字节，key 是 MediaStore 的 id。v1 备份没有这一项。
     var media: [String: Data]
+    /// 非图片媒体的扩展名（mov / mp4）；没出现在这里的 id 都是图片。v5 之前的备份没有这一项。
+    var mediaExtensions: [String: String]
 
     init(
         companions: [Companion],
         encounters: [Encounter],
         media: [String: Data] = [:],
+        mediaExtensions: [String: String] = [:],
         exportedAt: Date = Date()
     ) {
         self.format = BackupService.formatIdentifier
@@ -22,6 +25,7 @@ struct BackupPayload: Codable, Sendable {
         self.companions = companions
         self.encounters = encounters
         self.media = media
+        self.mediaExtensions = mediaExtensions
     }
 
     init(from decoder: Decoder) throws {
@@ -32,6 +36,7 @@ struct BackupPayload: Codable, Sendable {
         companions = try c.decodeIfPresent([Companion].self, forKey: .companions) ?? []
         encounters = try c.decodeIfPresent([Encounter].self, forKey: .encounters) ?? []
         media = try c.decodeIfPresent([String: Data].self, forKey: .media) ?? [:]
+        mediaExtensions = try c.decodeIfPresent([String: String].self, forKey: .mediaExtensions) ?? [:]
     }
 }
 
@@ -57,7 +62,8 @@ enum BackupService {
 
     static let formatIdentifier = "astra.backup"
     /// v4 replaces the old event taxonomy with the two result outcomes: intimacy / missed.
-    static let currentVersion = 4
+    /// v5 adds `mediaExtensions` so videos round-trip; older apps still decode v5 images but skip videos.
+    static let currentVersion = 5
 
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
@@ -75,9 +81,10 @@ enum BackupService {
     static func encode(
         companions: [Companion],
         encounters: [Encounter],
-        media: [String: Data] = [:]
+        media: [String: Data] = [:],
+        mediaExtensions: [String: String] = [:]
     ) throws -> Data {
-        try encoder.encode(BackupPayload(companions: companions, encounters: encounters, media: media))
+        try encoder.encode(BackupPayload(companions: companions, encounters: encounters, media: media, mediaExtensions: mediaExtensions))
     }
 
     static func decode(_ data: Data) throws -> BackupPayload {
@@ -118,6 +125,9 @@ enum BackupService {
               payload.media.keys.allSatisfy(MediaStore.isValidID)
         else {
             throw BackupError.invalidContents("照片标识无效。")
+        }
+        guard payload.mediaExtensions.values.allSatisfy({ MediaStore.videoExtensions.contains($0.lowercased()) }) else {
+            throw BackupError.invalidContents("视频格式无法识别。")
         }
     }
 

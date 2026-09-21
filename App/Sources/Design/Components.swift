@@ -137,7 +137,8 @@ struct AvatarView: View {
         .blur(radius: shouldObscure ? 8 : 0)
         .accessibilityHidden(true)
         .task(id: photoID) {
-            photo = photoID.flatMap { MediaStore.image(id: $0) }
+            guard let photoID else { photo = nil; return }
+            photo = await MediaStore.thumbnail(id: photoID, maxPixel: 320)
         }
     }
 
