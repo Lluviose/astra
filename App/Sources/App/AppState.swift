@@ -57,6 +57,21 @@ struct ImportSummary: Sendable {
     let encountersAdded: Int
     /// 同一条记录两边都有、备份里那份改得更晚，就用备份覆盖。
     var encountersUpdated: Int = 0
+    var periodRecordsAdded: Int = 0
+    var periodRecordsUpdated: Int = 0
+
+    var message: String {
+        var parts = ["新增 \(companionsAdded) 个对象，更新 \(companionsUpdated) 个对象"]
+        if encountersUpdated > 0 {
+            parts.append("新增 \(encountersAdded) 条记录，更新 \(encountersUpdated) 条记录")
+        } else {
+            parts.append("新增 \(encountersAdded) 条记录")
+        }
+        if periodRecordsAdded + periodRecordsUpdated > 0 {
+            parts.append("经期记录新增 \(periodRecordsAdded)、更新 \(periodRecordsUpdated)")
+        }
+        return parts.joined(separator: "；") + "。"
+    }
 }
 
 @MainActor
@@ -69,6 +84,7 @@ final class AppState {
 
     private(set) var companions: [Companion]
     private(set) var encounters: [Encounter]
+    private(set) var periodRecords: [PeriodRecord]
     private(set) var settings: AppSettings
     private(set) var filter: RosterFilter
     private(set) var seenAchievementIDs: Set<String>
@@ -103,6 +119,7 @@ final class AppState {
         self.catalog = catalog
         self.companions = storedCompanions ?? []
         self.encounters = storedEncounters ?? []
+        self.periodRecords = store.load([PeriodRecord].self, for: .periodRecords, default: [])
         self.settings = store.load(AppSettings.self, for: .settings, default: .default)
         self.filter = store.load(RosterFilter.self, for: .filter, default: .default)
         self.seenAchievementIDs = store.load(Set<String>.self, for: .seenAchievements, default: [])
@@ -118,6 +135,7 @@ final class AppState {
         recompute()
         seedSeenAchievementsIfNeeded()
         isBooting = false
+        refreshPeriodNotifications()
     }
 
     // MARK: - 基础查询
@@ -270,6 +288,50 @@ final class AppState {
                 case (nil, nil):
                     return lhs.date > rhs.date
                 }
+            }
+    }
+
+    func periodRecords(for companionID: UUID) -> [PeriodRecord] {
+        periodRecords
+            .filter { $0.companionID == companionID }
+            .sorted { $0.startDate > $1.startDate }
+    }
+
+    func periodSnapshot(for companionID: UUID, asOf: Date = Date()) -> PeriodSnapshot {
+        let companion = companion(id: companionID)
+        return CycleEngine.snapshot(
+            trackingEnabled: companion?.periodTrackingEnabled ?? false,
+            records: periodRecords(for: companionID),
+            typicalCycleDays: companion?.typicalCycleDays,
+            typicalPeriodDays: companion?.typicalPeriodDays,
+            asOf: asOf
+        )
+    }
+
+    /// 首页周期卡：正在出血、推迟、窗口内或一周内要来的人。
+    var periodAttention: [(companion: Companion, snapshot: PeriodSnapshot)] {
+        currentCompanions
+            .filter(\.periodTrackingEnabled)
+            .compactMap { companion -> (Companion, PeriodSnapshot)? in
+                let snapshot = periodSnapshot(for: companion.id)
+                guard snapshot.needsHomeAttention else { return nil }
+                return (companion, snapshot)
+            }
+            .sorted { lhs, rhs in
+                let order: (CyclePhase) -> Int = { phase in
+                    switch phase {
+                    case .bleeding: 0
+                    case .late: 1
+                    case .predictedBleeding: 2
+                    case .ovulation: 3
+                    case .fertile: 4
+                    default: 5
+                    }
+                }
+                let left = order(lhs.1.phase)
+                let right = order(rhs.1.phase)
+                if left != right { return left < right }
+                return (lhs.1.daysUntilNext ?? 99) < (rhs.1.daysUntilNext ?? 99)
             }
     }
 
@@ -678,8 +740,10 @@ final class AppState {
         mediaCandidates.formUnion(photos)
         companions.removeAll { $0.id == companionID }
         encounters.removeAll { $0.companionID == companionID }
+        periodRecords.removeAll { $0.companionID == companionID }
         persistCompanions()
         persistEncounters()
+        persistPeriodRecords()
         deleteUnreferencedMedia(mediaCandidates)
         Haptics.shared.play(.warning)
     }
@@ -743,6 +807,82 @@ final class AppState {
         Haptics.shared.play(.waveSent)
     }
 
+    // MARK: - 修改：经期
+
+    func upsert(_ record: PeriodRecord) {
+        var normalized = record
+        normalized.normalize(calendar: .current)
+        normalized.updatedAt = Date()
+        if let index = periodRecords.firstIndex(where: { $0.id == normalized.id }) {
+            periodRecords[index] = normalized
+        } else {
+            periodRecords.append(normalized)
+        }
+        if let companionIndex = companions.firstIndex(where: { $0.id == normalized.companionID }),
+           !companions[companionIndex].periodTrackingEnabled {
+            companions[companionIndex].periodTrackingEnabled = true
+            companions[companionIndex].updatedAt = Date()
+            persistCompanions()
+        }
+        persistPeriodRecords()
+        Haptics.shared.play(.waveSent)
+    }
+
+    func delete(periodRecordID: UUID) {
+        periodRecords.removeAll { $0.id == periodRecordID }
+        persistPeriodRecords()
+        Haptics.shared.play(.toggleOff)
+    }
+
+    func setPeriodTracking(_ enabled: Bool, for companionID: UUID) {
+        guard let index = companions.firstIndex(where: { $0.id == companionID }),
+              companions[index].periodTrackingEnabled != enabled
+        else { return }
+        companions[index].periodTrackingEnabled = enabled
+        companions[index].updatedAt = Date()
+        persistCompanions()
+        Haptics.shared.play(enabled ? .toggleOn : .toggleOff)
+    }
+
+    @discardableResult
+    func markPeriodStarted(for companionID: UUID, on date: Date = Date(), flow: PeriodFlow = .medium) -> PeriodRecord? {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        if let open = periodRecords(for: companionID).first(where: { $0.endDate == nil }) {
+            let start = calendar.startOfDay(for: open.startDate)
+            let gap = calendar.dateComponents([.day], from: start, to: day).day ?? 0
+            if (0...CycleEngine.maxPeriodDays).contains(gap) { return open }
+        }
+        if let existing = periodRecords(for: companionID).first(where: { calendar.isDate($0.startDate, inSameDayAs: day) }) {
+            return existing
+        }
+        let record = PeriodRecord(companionID: companionID, startDate: day, flow: flow)
+        upsert(record)
+        return record
+    }
+
+    @discardableResult
+    func markPeriodEnded(for companionID: UUID, on date: Date = Date()) -> PeriodRecord? {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        let records = periodRecords(for: companionID)
+        guard var target = records.first(where: { $0.endDate == nil })
+                ?? records.first(where: { $0.contains(day, asOf: day, calendar: calendar) })
+        else { return nil }
+        if day < calendar.startOfDay(for: target.startDate) { return target }
+        target.endDate = day
+        upsert(target)
+        return target
+    }
+
+    func refreshPeriodNotifications() {
+        PeriodNotificationScheduler.reschedule(
+            companions: companions,
+            records: periodRecords,
+            settings: settings
+        )
+    }
+
     func delete(encounterID: UUID) {
         var mediaCandidates = Set<String>()
         if let encounter = encounters.first(where: { $0.id == encounterID }) {
@@ -780,6 +920,7 @@ final class AppState {
         Haptics.shared.configure(with: settings)
         if maskChanged { namesRevealed = !settings.maskNamesByDefault }
         recompute()
+        refreshPeriodNotifications()
     }
 
     func toggleNamesRevealed() {
@@ -832,7 +973,8 @@ final class AppState {
             companions: companions,
             encounters: encounters,
             media: MediaStore.collect(ids: Array(referencedMediaIDs)),
-            mediaExtensions: MediaStore.collectExtensions(ids: Array(referencedMediaIDs))
+            mediaExtensions: MediaStore.collectExtensions(ids: Array(referencedMediaIDs)),
+            periodRecords: periodRecords
         )
     }
 
@@ -853,14 +995,17 @@ final class AppState {
             // 新照片全部写入成功后再切换元数据，最后才清理旧文件；导入失败时原档案仍可用。
             companions = payload.companions
             encounters = payload.encounters
+            periodRecords = payload.periodRecords
             persistCompanions()
             persistEncounters()
+            persistPeriodRecords()
             MediaStore.gc(referenced: referenced)
             Haptics.shared.play(.success)
             return ImportSummary(
                 companionsAdded: payload.companions.count,
                 companionsUpdated: 0,
-                encountersAdded: payload.encounters.count
+                encountersAdded: payload.encounters.count,
+                periodRecordsAdded: payload.periodRecords.count
             )
         }
 
@@ -904,10 +1049,27 @@ final class AppState {
             throw BackupError.cannotRestoreMedia
         }
 
+        var mergedPeriods = periodRecords
+        var periodAdded = 0
+        var periodUpdated = 0
+        for incoming in payload.periodRecords {
+            if let index = mergedPeriods.firstIndex(where: { $0.id == incoming.id }) {
+                if incoming.updatedAt > mergedPeriods[index].updatedAt {
+                    mergedPeriods[index] = incoming
+                    periodUpdated += 1
+                }
+            } else {
+                mergedPeriods.append(incoming)
+                periodAdded += 1
+            }
+        }
+
         companions = mergedCompanions
         encounters = mergedEncounters
+        periodRecords = mergedPeriods
         persistCompanions()
         persistEncounters()
+        persistPeriodRecords()
         MediaStore.gc(referenced: referenced)
         Haptics.shared.play(.success)
 
@@ -915,7 +1077,9 @@ final class AppState {
             companionsAdded: added,
             companionsUpdated: updated,
             encountersAdded: newEncounters.count,
-            encountersUpdated: updatedEncounterCount
+            encountersUpdated: updatedEncounterCount,
+            periodRecordsAdded: periodAdded,
+            periodRecordsUpdated: periodUpdated
         )
     }
 
@@ -924,6 +1088,7 @@ final class AppState {
         MediaStore.deleteAll()
         companions = []
         encounters = []
+        periodRecords = []
         settings = .default
         filter = .default
         seenAchievementIDs = []
@@ -932,6 +1097,7 @@ final class AppState {
         namesRevealed = !settings.maskNamesByDefault
         Haptics.shared.configure(with: settings)
         recompute()
+        PeriodNotificationScheduler.clearAll()
         Haptics.shared.play(.warning)
     }
 
@@ -944,11 +1110,17 @@ final class AppState {
     private func persistCompanions() {
         store.save(companions, for: .companions)
         recompute()
+        refreshPeriodNotifications()
     }
 
     private func persistEncounters() {
         store.save(encounters, for: .encounters)
         recompute()
+    }
+
+    private func persistPeriodRecords() {
+        store.save(periodRecords, for: .periodRecords)
+        refreshPeriodNotifications()
     }
 
     private func recompute() {

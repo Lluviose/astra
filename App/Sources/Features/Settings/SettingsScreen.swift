@@ -39,12 +39,14 @@ struct SettingsScreen: View {
     @State private var importSummary: ImportSummary?
     @State private var showEraseConfirm = false
     @State private var showLockUnavailable = false
+    @State private var showNotificationDenied = false
 
     var body: some View {
         NavigationStack {
             Form {
                 identitySection
                 privacySection
+                periodSection
                 appearanceSection
                 hapticsSection
                 dataSection
@@ -98,10 +100,13 @@ struct SettingsScreen: View {
             Button("好", role: .cancel) {}
         } message: {
             if let summary = importSummary {
-                Text(summary.encountersUpdated > 0
-                     ? "新增 \(summary.companionsAdded) 个对象，更新 \(summary.companionsUpdated) 个对象；新增 \(summary.encountersAdded) 条记录，更新 \(summary.encountersUpdated) 条记录。"
-                     : "新增 \(summary.companionsAdded) 个对象，更新 \(summary.companionsUpdated) 个对象，新增 \(summary.encountersAdded) 条记录。")
+                Text(summary.message)
             }
+        }
+        .alert("无法开启通知", isPresented: $showNotificationDenied) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text("系统通知权限关着。去「设置 › 通知 › 星图」打开，再回来开启经期提醒。")
         }
         .alert("无法开启锁定", isPresented: $showLockUnavailable) {
             Button("好", role: .cancel) {}
@@ -119,7 +124,7 @@ struct SettingsScreen: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("所有人、约过的记录、照片和设置都会被删掉，回不来。建议先导出一份备份。")
+            Text("所有人、约过的记录、经期、照片和设置都会被删掉，回不来。建议先导出一份备份。")
         }
     }
 
@@ -189,6 +194,34 @@ struct SettingsScreen: View {
             Text("隐私")
         } footer: {
             Text("星图不做账号云同步。档案、设置和全部照片只写进 App 沙盒，并允许进入设备的 iCloud Backup；代号打码时，照片也会糊掉。")
+        }
+    }
+
+    // MARK: 经期通知
+
+    private var periodSection: some View {
+        Section {
+            Toggle(isOn: app.settingsBinding(\.periodNotificationsEnabled)) {
+                Label("经期本机通知", systemImage: "drop.fill")
+            }
+            .onChange(of: app.settings.periodNotificationsEnabled) { _, enabled in
+                guard enabled else { return }
+                Task {
+                    let allowed = await PeriodNotificationScheduler.requestAuthorization()
+                    if allowed {
+                        app.refreshPeriodNotifications()
+                    } else {
+                        var updated = app.settings
+                        updated.periodNotificationsEnabled = false
+                        app.updateSettings(updated)
+                        showNotificationDenied = true
+                    }
+                }
+            }
+        } header: {
+            Text("周期")
+        } footer: {
+            Text("只在本机提醒经期快到、可能开始或推迟。默认隐藏代号时，锁屏不出现她的代号。预测不能替代医生，也不能当避孕依据。")
         }
     }
 

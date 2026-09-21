@@ -337,6 +337,18 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
     var isArchived: Bool
     /// 超过这个天数没联系就在周期提示里出现；nil = 不提示
     var reminderIntervalDays: Int?
+    /// 是否为她记经期并做预测。
+    var periodTrackingEnabled: Bool
+    /// 此人是否发本机经期通知；还要看设置里的总开关。
+    var periodNotifyEnabled: Bool
+    /// 经期开始前提醒天数，1...3。
+    var periodNotifyLeadDays: Int
+    /// 是否提醒易孕窗口和排卵日。
+    var periodNotifyFertile: Bool
+    /// 她自己说的大概周期天数；有实测后只作先验。
+    var typicalCycleDays: Int?
+    /// 她自己说的大概经期天数。
+    var typicalPeriodDays: Int?
     var createdAt: Date
     var updatedAt: Date
 
@@ -372,6 +384,12 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         isPinned: Bool = false,
         isArchived: Bool = false,
         reminderIntervalDays: Int? = nil,
+        periodTrackingEnabled: Bool = false,
+        periodNotifyEnabled: Bool = true,
+        periodNotifyLeadDays: Int = 1,
+        periodNotifyFertile: Bool = false,
+        typicalCycleDays: Int? = nil,
+        typicalPeriodDays: Int? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -407,6 +425,12 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         self.isPinned = isPinned
         self.isArchived = isArchived
         self.reminderIntervalDays = reminderIntervalDays
+        self.periodTrackingEnabled = periodTrackingEnabled
+        self.periodNotifyEnabled = periodNotifyEnabled
+        self.periodNotifyLeadDays = CycleEngine.clampLeadDays(periodNotifyLeadDays)
+        self.periodNotifyFertile = periodNotifyFertile
+        self.typicalCycleDays = CycleEngine.clampCycle(typicalCycleDays)
+        self.typicalPeriodDays = CycleEngine.clampPeriod(typicalPeriodDays)
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -447,6 +471,12 @@ struct Companion: Identifiable, Codable, Hashable, Sendable {
         isPinned = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         isArchived = try c.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         reminderIntervalDays = try c.decodeIfPresent(Int.self, forKey: .reminderIntervalDays)
+        periodTrackingEnabled = try c.decodeIfPresent(Bool.self, forKey: .periodTrackingEnabled) ?? false
+        periodNotifyEnabled = try c.decodeIfPresent(Bool.self, forKey: .periodNotifyEnabled) ?? true
+        periodNotifyLeadDays = CycleEngine.clampLeadDays(try c.decodeIfPresent(Int.self, forKey: .periodNotifyLeadDays) ?? 1)
+        periodNotifyFertile = try c.decodeIfPresent(Bool.self, forKey: .periodNotifyFertile) ?? false
+        typicalCycleDays = CycleEngine.clampCycle(try c.decodeIfPresent(Int.self, forKey: .typicalCycleDays))
+        typicalPeriodDays = CycleEngine.clampPeriod(try c.decodeIfPresent(Int.self, forKey: .typicalPeriodDays))
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
     }

@@ -610,12 +610,23 @@ struct CompanionEditor: View {
                 Text("60 天").tag(Int?.some(60))
             }
 
+            Toggle("记下经期", isOn: $draft.periodTrackingEnabled)
+            if draft.periodTrackingEnabled {
+                Picker("她说的周期", selection: $draft.typicalCycleDays) {
+                    Text("还不确定").tag(Int?.none)
+                    ForEach([21, 24, 26, 28, 30, 32, 35, 40], id: \.self) { days in
+                        Text("\(days) 天").tag(Int?.some(days))
+                    }
+                }
+                Toggle("经期提醒", isOn: $draft.periodNotifyEnabled)
+            }
+
             TextField("其他私密备注", text: $draft.notes, axis: .vertical)
                 .lineLimit(3...6)
         } header: {
-            Text("联系提醒与备注")
+            Text("联系提醒、经期与备注")
         } footer: {
-            Text("只在 App 内提示联系周期，不会自动发消息。")
+            Text("联系周期只在 App 内提示。经期打开后，可在档案里记下每次开始和结束，并选择是否发本机通知。")
         }
     }
 

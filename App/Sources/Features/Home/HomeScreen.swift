@@ -12,6 +12,7 @@ struct HomeScreen: View {
     @State private var showMap = false
     @State private var quickLogTarget: Companion?
     @State private var followUpTarget: Encounter?
+    @State private var periodTargetID: UUID?
     /// Overscroll distance at the top of the page; drives the cover stretch and the mark's spin.
     @State private var pull: CGFloat = 0
 
@@ -66,6 +67,11 @@ struct HomeScreen: View {
 
                         if !app.pendingFollowUps.isEmpty || !app.needsAttention.isEmpty {
                             todoCard
+                                .scrollReveal()
+                        }
+
+                        if !app.periodAttention.isEmpty {
+                            periodCard
                                 .scrollReveal()
                         }
 
@@ -125,6 +131,14 @@ struct HomeScreen: View {
         .recordingFlowSheets(flow)
         .sheet(item: $followUpTarget) { encounter in
             EncounterEditor(encounter: encounter)
+        }
+        .sheet(isPresented: Binding(
+            get: { periodTargetID != nil },
+            set: { if !$0 { periodTargetID = nil } }
+        )) {
+            if let periodTargetID {
+                PeriodTrackerView(companionID: periodTargetID)
+            }
         }
         .sheet(isPresented: $showMap) {
             MapScreen()
@@ -493,6 +507,60 @@ struct HomeScreen: View {
             return "上次上床 \(Format.relativeDay(last.date))"
         }
         return "最近互动 \(Format.relativeDay(app.lastContact(for: companion)))"
+    }
+
+    // MARK: - 经期
+
+    private var periodCard: some View {
+        let items = Array(app.periodAttention.prefix(3))
+        return SectionCard("周期", systemImage: "drop.fill", tint: Palette.coral) {
+            Text("\(app.periodAttention.count) 人")
+        } content: {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(items, id: \.companion.id) { item in
+                    Button {
+                        Haptics.shared.play(.selection)
+                        periodTargetID = item.companion.id
+                    } label: {
+                        HStack(spacing: 11) {
+                            AvatarView(companion: item.companion, size: 38)
+                            VStack(alignment: .leading, spacing: 2) {
+                                MaskedName(name: item.companion.displayName, revealed: app.namesRevealed)
+                                Text(item.snapshot.headline)
+                                    .font(.caption)
+                                    .foregroundStyle(item.snapshot.phase.tint)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            ChevronHint()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        if item.snapshot.phase != .bleeding {
+                            Button {
+                                _ = app.markPeriodStarted(for: item.companion.id)
+                            } label: {
+                                Label("今天来了", systemImage: "drop.fill")
+                            }
+                        }
+                        if item.snapshot.openRecord != nil || item.snapshot.phase == .bleeding {
+                            Button {
+                                _ = app.markPeriodEnded(for: item.companion.id)
+                            } label: {
+                                Label("今天走了", systemImage: "checkmark.circle")
+                            }
+                        }
+                        Button {
+                            path.append(item.companion.id)
+                        } label: {
+                            Label("打开档案", systemImage: "book.pages.fill")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - 待处理

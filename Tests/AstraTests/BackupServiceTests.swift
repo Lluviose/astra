@@ -57,7 +57,7 @@ final class BackupServiceTests: XCTestCase {
 
         let data = try BackupService.encode(companions: [companion], encounters: [], media: media, mediaExtensions: extensions)
         let decoded = try BackupService.decode(data)
-        XCTAssertEqual(decoded.version, 5)
+        XCTAssertEqual(decoded.version, 6)
         XCTAssertEqual(decoded.mediaExtensions, [videoID: "mov"])
 
         MediaStore.delete(ids: [videoID, imageID])
@@ -337,7 +337,7 @@ final class BackupServiceTests: XCTestCase {
         let data = try BackupService.encode(companions: [companion], encounters: [encounter], media: media)
         let decoded = try BackupService.decode(data)
 
-        XCTAssertEqual(decoded.version, 5)
+        XCTAssertEqual(decoded.version, 6)
         XCTAssertEqual(decoded.companions.first?.photoID, "avatar-1")
         XCTAssertEqual(decoded.companions.first?.profilePhotoIDs, ["profile-1"])
         XCTAssertEqual(decoded.companions.first?.albumPhotoIDs, ["album-1"])

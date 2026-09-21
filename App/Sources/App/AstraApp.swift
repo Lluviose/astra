@@ -17,6 +17,7 @@ struct AstraApp: App {
                 .onAppear {
                     lock.configure(enabled: appState.settings.appLockEnabled, lockNow: true)
                     Haptics.shared.prepare()
+                    appState.refreshPeriodNotifications()
                     synchronizePrivacyWindow()
                 }
                 .onChange(of: appState.settings.appLockEnabled) { _, enabled in
@@ -35,7 +36,9 @@ struct AstraApp: App {
                         privacyScreenEnabled: appState.settings.privacyScreenEnabled
                     )
                     switch phase {
-                    case .active: Haptics.shared.prepare()
+                    case .active:
+                        Haptics.shared.prepare()
+                        appState.refreshPeriodNotifications()
                     case .background: Haptics.shared.teardown()
                     default: break
                     }

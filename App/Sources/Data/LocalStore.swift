@@ -75,6 +75,9 @@ struct AppSettings: Codable, Hashable, Sendable {
     var rosterSort: RosterSort = .lastContact
     var rosterGrouping: RosterGrouping = .stage
 
+    /// 经期本机通知总开关；默认关，打开后会向系统要通知权限。
+    var periodNotificationsEnabled: Bool = false
+
     static let `default` = AppSettings()
 
     init() {}
@@ -91,6 +94,7 @@ struct AppSettings: Codable, Hashable, Sendable {
         showHeatGlow = try c.decodeIfPresent(Bool.self, forKey: .showHeatGlow) ?? true
         rosterSort = try c.decodeIfPresent(RosterSort.self, forKey: .rosterSort) ?? .lastContact
         rosterGrouping = try c.decodeIfPresent(RosterGrouping.self, forKey: .rosterGrouping) ?? .stage
+        periodNotificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .periodNotificationsEnabled) ?? false
     }
 }
 
@@ -105,6 +109,7 @@ struct LocalStore {
         case settings = "astra.settings"
         case filter = "astra.filter"
         case seenAchievements = "astra.seenAchievements"
+        case periodRecords = "astra.periodRecords"
     }
 
     static let shared = LocalStore()
@@ -143,7 +148,7 @@ struct LocalStore {
     }
 
     func removeAll() {
-        for key in [Key.companions, .encounters, .settings, .filter, .seenAchievements] {
+        for key in [Key.companions, .encounters, .settings, .filter, .seenAchievements, .periodRecords] {
             defaults.removeObject(forKey: key.rawValue)
         }
     }

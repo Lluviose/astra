@@ -11,12 +11,15 @@ struct BackupPayload: Codable, Sendable {
     var media: [String: Data]
     /// 非图片媒体的扩展名（mov / mp4）；没出现在这里的 id 都是图片。v5 之前的备份没有这一项。
     var mediaExtensions: [String: String]
+    /// 经期记录。v6 之前的备份没有这一项。
+    var periodRecords: [PeriodRecord]
 
     init(
         companions: [Companion],
         encounters: [Encounter],
         media: [String: Data] = [:],
         mediaExtensions: [String: String] = [:],
+        periodRecords: [PeriodRecord] = [],
         exportedAt: Date = Date()
     ) {
         self.format = BackupService.formatIdentifier
@@ -26,6 +29,7 @@ struct BackupPayload: Codable, Sendable {
         self.encounters = encounters
         self.media = media
         self.mediaExtensions = mediaExtensions
+        self.periodRecords = periodRecords
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +41,7 @@ struct BackupPayload: Codable, Sendable {
         encounters = try c.decodeIfPresent([Encounter].self, forKey: .encounters) ?? []
         media = try c.decodeIfPresent([String: Data].self, forKey: .media) ?? [:]
         mediaExtensions = try c.decodeIfPresent([String: String].self, forKey: .mediaExtensions) ?? [:]
+        periodRecords = try c.decodeIfPresent([PeriodRecord].self, forKey: .periodRecords) ?? []
     }
 }
 
@@ -63,7 +68,8 @@ enum BackupService {
     static let formatIdentifier = "astra.backup"
     /// v4 replaces the old event taxonomy with the two result outcomes: intimacy / missed.
     /// v5 adds `mediaExtensions` so videos round-trip; older apps still decode v5 images but skip videos.
-    static let currentVersion = 5
+    /// v6 adds `periodRecords` for per-person cycle logs.
+    static let currentVersion = 6
 
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
@@ -82,9 +88,16 @@ enum BackupService {
         companions: [Companion],
         encounters: [Encounter],
         media: [String: Data] = [:],
-        mediaExtensions: [String: String] = [:]
+        mediaExtensions: [String: String] = [:],
+        periodRecords: [PeriodRecord] = []
     ) throws -> Data {
-        try encoder.encode(BackupPayload(companions: companions, encounters: encounters, media: media, mediaExtensions: mediaExtensions))
+        try encoder.encode(BackupPayload(
+            companions: companions,
+            encounters: encounters,
+            media: media,
+            mediaExtensions: mediaExtensions,
+            periodRecords: periodRecords
+        ))
     }
 
     static func decode(_ data: Data) throws -> BackupPayload {
@@ -128,6 +141,14 @@ enum BackupService {
         }
         guard payload.mediaExtensions.values.allSatisfy({ MediaStore.videoExtensions.contains($0.lowercased()) }) else {
             throw BackupError.invalidContents("视频格式无法识别。")
+        }
+
+        let periodIDs = payload.periodRecords.map(\.id)
+        guard Set(periodIDs).count == periodIDs.count else {
+            throw BackupError.invalidContents("存在重复的经期记录。")
+        }
+        guard payload.periodRecords.allSatisfy({ knownCompanionIDs.contains($0.companionID) }) else {
+            throw BackupError.invalidContents("有经期记录找不到对应对象。")
         }
     }
 

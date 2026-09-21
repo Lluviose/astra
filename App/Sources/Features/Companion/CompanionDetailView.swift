@@ -18,6 +18,7 @@ struct CompanionDetailView: View {
     @State private var photoShelf: PhotoShelf = .album
     @State private var showsAllPhotos = false
     @State private var copiedContact = false
+    @State private var showPeriodTracker = false
 
     private let previewPhotoLimit = 9
 
@@ -91,6 +92,9 @@ struct CompanionDetailView: View {
         .sheet(item: $editingEncounter) { encounter in
             EncounterEditor(encounter: encounter)
         }
+        .sheet(isPresented: $showPeriodTracker) {
+            PeriodTrackerView(companionID: companionID)
+        }
         .confirmationDialog(
             "删除这条档案？",
             isPresented: $showDeleteConfirm,
@@ -152,6 +156,7 @@ struct CompanionDetailView: View {
             if companion.hasPlaybook {
                 playbookSection(companion)
             }
+            periodSection(companion)
             if app.hookupCount(for: companion.id) > 0 {
                 recordSection(companion)
             }
@@ -285,6 +290,60 @@ struct CompanionDetailView: View {
             Text("见她之前看一眼")
         } footer: {
             Text("她随时可以改主意，规矩每次仍要当面确认。")
+        }
+    }
+
+    // MARK: 经期
+
+    private func periodSection(_ companion: Companion) -> some View {
+        let snapshot = app.periodSnapshot(for: companion.id)
+        return Section {
+            Button {
+                Haptics.shared.play(.selection)
+                if !companion.periodTrackingEnabled {
+                    app.setPeriodTracking(true, for: companion.id)
+                }
+                showPeriodTracker = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: snapshot.phase.symbolName)
+                        .foregroundStyle(snapshot.phase.tint)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(companion.periodTrackingEnabled ? snapshot.headline : "开始记经期")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                        Text(companion.periodTrackingEnabled ? snapshot.detail : "记下开始和结束，就能估下次、易孕窗口和推迟。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 0)
+                    ChevronHint()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if companion.periodTrackingEnabled, snapshot.phase != .bleeding {
+                Button {
+                    _ = app.markPeriodStarted(for: companion.id)
+                } label: {
+                    Label("今天来了", systemImage: "drop.fill")
+                }
+            }
+            if companion.periodTrackingEnabled, snapshot.openRecord != nil || snapshot.phase == .bleeding {
+                Button {
+                    _ = app.markPeriodEnded(for: companion.id)
+                } label: {
+                    Label("今天走了", systemImage: "checkmark.circle")
+                }
+            }
+        } header: {
+            Text("经期")
+        } footer: {
+            Text("用来估下次和窗口，不能替代医生，也不能当避孕依据。")
         }
     }
 
