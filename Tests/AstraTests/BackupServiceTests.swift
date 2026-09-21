@@ -94,20 +94,26 @@ final class BackupServiceTests: XCTestCase {
     }
 
     func testThumbnailDownsamplesButOriginalStaysUntouched() throws {
-        let image = UIGraphicsImageRenderer(size: CGSize(width: 1_200, height: 800)).image { context in
+        // Pin scale so 1200×800 is pixels, not points. Default renderer follows
+        // the simulator screen (@3x on iPhone 16) and would write a 3600-wide PNG.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1_200, height: 800), format: format).image { context in
             UIColor.systemTeal.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 1_200, height: 800))
         }
         let sourceData = try XCTUnwrap(image.pngData())
+        let sourcePixels = image.size.width * image.scale
         let id = "thumb-\(UUID().uuidString)"
         defer { MediaStore.delete(id: id) }
         XCTAssertEqual(MediaStore.saveOriginal(data: sourceData, id: id), id)
 
         let thumb = try XCTUnwrap(MediaStore.downsampledImage(id: id, maxPixel: 320))
         XCTAssertLessThanOrEqual(max(thumb.size.width * thumb.scale, thumb.size.height * thumb.scale), 320)
+        XCTAssertGreaterThan(sourcePixels, 320)
 
         let original = try XCTUnwrap(MediaStore.image(id: id))
-        XCTAssertEqual(original.size.width * original.scale, 1_200, accuracy: 1)
+        XCTAssertEqual(original.size.width * original.scale, sourcePixels, accuracy: 1)
         XCTAssertEqual(MediaStore.data(id: id), sourceData, "原图字节不能因为生成缩略图而改变")
     }
 
